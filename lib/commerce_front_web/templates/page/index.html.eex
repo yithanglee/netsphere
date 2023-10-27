@@ -2,16 +2,26 @@
 need a template to start... 
 each design uses a folder
 the priv static can only be access by the phoenix app
-
-
-
-
 -->
-
-<div id="content">
+<div id="content" >
   
 </div>
+<div class="dropup position-fixed bottom-0 end-0 m-3 ">
+  <div class="btn btn-outline-primary rounded-xl py-2" data-bs-toggle="dropdown" aria-expanded="false">
+    <i class="fa fa-plus" ></i>
+  </div>
+  <ul class="dropdown-menu">
+  	<li><a class="dropdown-item" href="/home">Home</a></li>
+    <li><a class="dropdown-item" href="#">listing items</a></li>
+    <li><a class="dropdown-item" href="#">show items</a></li>
+    <li><a class="dropdown-item" href="#">add to cart</a></li>
 
+    <li><a class="dropdown-item" href="#">checkout</a></li>
+    <li><a class="dropdown-item" href="#">profile</a></li>
+     <li><hr class="dropdown-divider"></li>
+     <li><a class="dropdown-item" href="#">Add new</a></li>
+  </ul>
+</div>
 <script type="text/javascript">
 
 </script>

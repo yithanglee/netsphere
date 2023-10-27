@@ -1,6 +1,0 @@
-{
-  "watch": ["assets/js"],
-  "ext": "js",
-  "exec": "mix esbuild",
-  "recursive": true
-}

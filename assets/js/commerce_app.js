@@ -16,6 +16,30 @@ export let commerceApp_ = {
       return a + b
     })
     return amount
+  },
+  render() {
+    // this find all all the related components on the page and transform them.
+    // has to be done after rendering page, 
+    // callback function to call this render
+    var list = ["cart"]
+
+    list.forEach((v, i) => {
+    console.log("rendering components")
+      console.log(v)
+      this.components[v]( )
+    })
+  },
+  components: {
+    cart() {
+
+      $("cart").html(`
+            <div class="d-lg-none d-block mx-4 py-2 btn btn-outline-primary rounded-xl">
+              <i class="fa fa-shopping-cart"></i>
+            </div>
+        `)
+
+
+    }
   }
 
 }

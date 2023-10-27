@@ -17,6 +17,9 @@ defmodule CommerceFront.Application do
       # {CommerceFront.Worker, arg}
     ]
 
+    {:ok, pid} = Agent.start_link(fn -> %{} end)
+    Process.register(pid, :kv)
+
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: CommerceFront.Supervisor]

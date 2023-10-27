@@ -41,8 +41,8 @@ config :commerce_front, CommerceFrontWeb.Endpoint,
 config :commerce_front, CommerceFrontWeb.Endpoint,
   live_reload: [
     patterns: [
-      ~r"priv/static/.*(js|css|png|jpeg|jpg|gif|svg)$",
-      ~r"lib/commerce_front_web/(live|views)/.*(ex)$",
+      ~r"priv/static/.*(html|js|css|png|jpeg|jpg|gif|svg)$",
+      ~r"lib/commerce_front_web/.*(ex)$",
       ~r"lib/commerce_front_web/templates/.*(eex)$"
     ]
   ]
