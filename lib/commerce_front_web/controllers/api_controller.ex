@@ -54,6 +54,9 @@ defmodule CommerceFrontWeb.ApiController do
         "placement" ->
           Settings.display_place_tree("damien")
 
+        "referral" ->
+          Settings.display_refer_tree("damien")
+
         _ ->
           %{status: "ok"}
       end

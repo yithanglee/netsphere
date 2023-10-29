@@ -135,9 +135,14 @@ defmodule CommerceFront.Settings do
     Repo.delete(model)
   end
 
+  def display_refer_tree(username) do
+    list = check_downlines(username, :referral)
+    display_tree(username, list, [], :referral)
+  end
+
   def display_place_tree(username) do
     list = check_downlines(username)
-    placement_tree(username, list)
+    display_tree(username, list)
   end
 
   def find_weak_placement(tree, prev_node \\ nil) do
@@ -161,20 +166,37 @@ defmodule CommerceFront.Settings do
     end
   end
 
-  def placement_tree(username \\ "damien", ori_data, transformed_children \\ []) do
+  def display_tree(
+        username \\ "damien",
+        ori_data,
+        transformed_children \\ [],
+        tree \\ :placement
+      ) do
     to_map = fn list ->
-      [username, id, fullname, position, left, right] = list |> String.split("|")
+      if tree == :placement do
+        [username, id, fullname, position, left, right] = list |> String.split("|")
 
-      %{
-        left: left |> String.to_integer(),
-        right: right |> String.to_integer(),
-        name: username <> " #{position}",
-        children: [],
-        username: username,
-        id: id |> String.to_integer(),
-        fullname: fullname,
-        position: position
-      }
+        %{
+          left: left |> String.to_integer(),
+          right: right |> String.to_integer(),
+          name: username <> " #{position}",
+          children: [],
+          username: username,
+          id: id |> String.to_integer(),
+          fullname: fullname,
+          position: position
+        }
+      else
+        [username, id, fullname] = list |> String.split("|")
+
+        %{
+          name: username <> " #{id}",
+          children: [],
+          username: username,
+          id: id |> String.to_integer(),
+          fullname: fullname
+        }
+      end
     end
 
     transformed_children =
@@ -186,12 +208,21 @@ defmodule CommerceFront.Settings do
     map = ori_data |> Enum.filter(&(&1.parent_username == username)) |> List.first()
 
     transform = fn list, ori_data ->
-      [username, id, fullname, position, left, right] = list
+      if tree == :placement do
+        [username, id, fullname, position, left, right] = list
 
-      children = []
-      map = ori_data |> Enum.filter(&(&1.parent_username == username)) |> List.first()
+        children = []
+        map = ori_data |> Enum.filter(&(&1.parent_username == username)) |> List.first()
 
-      placement_tree(username, ori_data, transformed_children)
+        display_tree(username, ori_data, transformed_children)
+      else
+        [username, id, fullname] = list
+
+        children = []
+        map = ori_data |> Enum.filter(&(&1.parent_username == username)) |> List.first()
+
+        display_tree(username, ori_data, transformed_children, :referral)
+      end
     end
 
     children =
@@ -206,21 +237,36 @@ defmodule CommerceFront.Settings do
     else
       smap = transformed_children |> Enum.filter(&(&1.username == username)) |> List.first()
 
-      smap =
-        if smap == nil do
-          get_placement_by_username(map.parent_username)
-        else
-          smap
-        end
+      if tree == :placement do
+        smap =
+          if smap == nil do
+            get_placement_by_username(map.parent_username)
+          else
+            smap
+          end
 
-      %{
-        id: map.parent_id,
-        name: map.parent_username <> " #{if(smap != nil, do: smap.position, else: "n/a")}",
-        position: if(smap != nil, do: smap.position, else: "n/a"),
-        left: if(smap != nil, do: smap.left, else: "n/a"),
-        right: if(smap != nil, do: smap.right, else: "n/a"),
-        children: children |> Enum.sort_by(& &1.position)
-      }
+        %{
+          id: map.parent_id,
+          name: map.parent_username <> " #{if(smap != nil, do: smap.position, else: "n/a")}",
+          position: if(smap != nil, do: smap.position, else: "n/a"),
+          left: if(smap != nil, do: smap.left, else: "n/a"),
+          right: if(smap != nil, do: smap.right, else: "n/a"),
+          children: children |> Enum.sort_by(& &1.position)
+        }
+      else
+        smap =
+          if smap == nil do
+            get_referral_by_username(map.parent_username)
+          else
+            smap
+          end
+
+        %{
+          id: map.parent_id,
+          name: map.parent_username <> " #{if(smap != nil, do: smap.id, else: "n/a")}",
+          children: children |> Enum.sort_by(& &1.id)
+        }
+      end
     end
   end
 
@@ -335,16 +381,48 @@ defmodule CommerceFront.Settings do
     Repo.get_by(User, username: username)
   end
 
-  def check_uplines(child_username) do
+  def check_uplines(child_username, tree \\ :placement) do
     child_user = get_user_by_username(child_username)
     child_user_id = child_user.id
 
+    module =
+      if tree == :placement do
+        Placement
+      else
+        Referral
+      end
+
+    select_statement = fn query ->
+      if tree == :placement do
+        query
+        |> select([m, pt, m2], %{
+          child_id: m.id,
+          child: m.username,
+          pt_child_id: pt.id,
+          pt_parent_id: pt.parent_placement_id,
+          parent: m2.username,
+          parent_id: m2.id,
+          pt_position: pt.position
+        })
+      else
+        query
+        |> select([m, pt, m2], %{
+          child_id: m.id,
+          child: m.username,
+          pt_child_id: pt.id,
+          pt_parent_id: pt.parent_referral_id,
+          parent: m2.username,
+          parent_id: m2.id
+        })
+      end
+    end
+
     category_tree_initial_query =
-      Placement
+      module
       |> where([sp], sp.user_id == ^child_user_id)
 
     category_tree_recursion_query =
-      Placement
+      module
       |> join(:inner, [sp], pt in "placement_tree", on: sp.user_id == pt.parent_user_id)
 
     category_tree_query =
@@ -358,29 +436,70 @@ defmodule CommerceFront.Settings do
     |> join(:left, [m, pt], m2 in User, on: m2.id == pt.parent_user_id)
     |> where([m, pt, m2], m.id <= ^child_user_id)
     |> where([m, pt, m2], not is_nil(m2.id))
-    |> select([m, pt, m2], %{
-      child_id: m.id,
-      child: m.username,
-      pt_child_id: pt.id,
-      pt_parent_id: pt.parent_placement_id,
-      parent: m2.username,
-      parent_id: m2.id,
-      pt_position: pt.position
-    })
+    |> select_statement.()
     |> order_by([m, pt, m2], desc: m.id)
     |> Repo.all()
   end
 
-  def check_downlines(parent_username) do
+  def check_downlines(parent_username, tree \\ :placement) do
     parent_user = get_user_by_username(parent_username)
     parent_user_id = parent_user.id
 
+    module =
+      if tree == :placement do
+        Placement
+      else
+        Referral
+      end
+
+    select_statement = fn query ->
+      if tree == :placement do
+        query
+        |> select([m, pt, m2], %{
+          children:
+            fragment(
+              "ARRAY_AGG( CONCAT(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) )",
+              m.username,
+              "|",
+              m.id,
+              "|",
+              m.fullname,
+              "|",
+              pt.position,
+              "|",
+              pt.left,
+              "|",
+              pt.right
+            ),
+          parent: m2.fullname,
+          parent_username: m2.username,
+          parent_id: m2.id
+        })
+      else
+        query
+        |> select([m, pt, m2], %{
+          children:
+            fragment(
+              "ARRAY_AGG( CONCAT(?, ?, ?, ?, ?) )",
+              m.username,
+              "|",
+              m.id,
+              "|",
+              m.fullname
+            ),
+          parent: m2.fullname,
+          parent_username: m2.username,
+          parent_id: m2.id
+        })
+      end
+    end
+
     category_tree_initial_query =
-      Placement
+      module
       |> where([sp], sp.parent_user_id == ^parent_user_id)
 
     category_tree_recursion_query =
-      Placement
+      module
       |> join(:inner, [sp], pt in "placement_tree", on: sp.parent_user_id == pt.user_id)
 
     category_tree_query =
@@ -395,26 +514,7 @@ defmodule CommerceFront.Settings do
     |> where([m, pt, m2], m.id > ^parent_user_id)
     |> where([m, pt, m2], not is_nil(m2.id))
     |> group_by([m, pt, m2], [m2.id])
-    |> select([m, pt, m2], %{
-      children:
-        fragment(
-          "ARRAY_AGG( CONCAT(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) )",
-          m.username,
-          "|",
-          m.id,
-          "|",
-          m.fullname,
-          "|",
-          pt.position,
-          "|",
-          pt.left,
-          "|",
-          pt.right
-        ),
-      parent: m2.fullname,
-      parent_username: m2.username,
-      parent_id: m2.id
-    })
+    |> select_statement.()
     |> Repo.all()
   end
 
