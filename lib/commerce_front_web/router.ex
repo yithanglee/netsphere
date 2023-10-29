@@ -27,6 +27,9 @@ defmodule CommerceFrontWeb.Router do
 
     get "/webhook", ApiController, :get
     post "/webhook", ApiController, :post
+    get("/:model", ApiController, :datatable)
+    post("/:model", ApiController, :form_submission)
+    delete("/:model/:id", ApiController, :delete_data)
   end
 
   scope "/", CommerceFrontWeb do

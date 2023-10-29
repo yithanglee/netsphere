@@ -7,6 +7,9 @@
 # General application configuration
 use Mix.Config
 
+config :commerce_front,
+  ecto_repos: [CommerceFront.Repo]
+
 # Configures the endpoint
 config :commerce_front, CommerceFrontWeb.Endpoint,
   url: [host: "localhost"],
@@ -15,6 +18,14 @@ config :commerce_front, CommerceFrontWeb.Endpoint,
   pubsub_server: CommerceFront.PubSub,
   live_view: [signing_salt: "eHS1OdsC"]
 
+config :commerce_front, CommerceFront.Repo,
+  username: "postgres",
+  password: "postgres",
+  database: "commerce_front_dev",
+  hostname: "localhost",
+  show_sensitive_data_on_connection_error: true,
+  pool_size: 10
+
 # Configures Elixir's Logger
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
@@ -22,6 +33,19 @@ config :logger, :console,
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
+
+config :blue_potion,
+  otp_app: "CommerceFront",
+  repo: CommerceFront.Repo,
+  contexts: ["Settings"],
+  project: %{name: "CommerceFront", alias_name: "commerce_front", vsn: "0.1.0"},
+  server: %{
+    url: "139.162.60.209",
+    db_url: "127.0.0.1",
+    username: "ubuntu",
+    key: System.get_env("SERVER_KEY"),
+    domain_name: "localhost"
+  }
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

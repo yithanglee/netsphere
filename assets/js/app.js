@@ -1,16 +1,20 @@
+import { Bootstrap } from './bootstrap.bundle.min';
 import { commerceApp_ } from './commerce_app.js';
 import { phxApp_ } from './phx_app.js';
+import { memberApp_ } from './member_app.js';
 import { Socket } from "./phoenix.js"
 
 window.commerceApp = commerceApp_
 window.phxApp = phxApp_
+window.memberApp = memberApp_
 
 
 const route_list = [
   { html: "register.html", title: "Register", route: "/register" },
   { html: "login.html", title: "Login", route: "/login" },
-
-
+  { html: "profile.html", title: "Profile", route: "/profile" },
+  { html: "placement.html", title: "Placement", route: "/placement" },
+  { html: "referal.html", title: "Referal", route: "/referal" },
 ]
 
 route_list.forEach((v, i) => {

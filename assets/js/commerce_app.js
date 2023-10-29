@@ -21,7 +21,7 @@ export let commerceApp_ = {
     // this find all all the related components on the page and transform them.
     // has to be done after rendering page, 
     // callback function to call this render
-    var list = ["cart"]
+    var list = ["cart", "userProfile"]
 
     list.forEach((v, i) => {
     console.log("rendering components")
@@ -30,6 +30,18 @@ export let commerceApp_ = {
     })
   },
   components: {
+    userProfile() {
+
+
+        var user = memberApp.user;
+        var name = user != null ? "Welcome! " +  `<a href="/profile" class="navi">`+user.fullname+`</a>` : `<a href="/login" class="navi">Login</a>`
+       $("userProfile").html(`
+            <div class="card p-2">
+              `+name+`
+            </div>
+        `)
+    },
+
     cart() {
 
       $("cart").html(`

@@ -33,13 +33,26 @@ defmodule CommerceFront.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
+      {:cors_plug, "~> 1.0"},
+      {:mime, "~> 1.0"},
       {:phoenix, "~> 1.5.13"},
+      {:phoenix_ecto, "~> 4.1"},
+      {:ecto_sql, ">= 3.0.0 and < 3.5.0"},
+      {:ecto, ">= 3.4.4 and < 3.4.5"},
+      {:ecto_enum, "~> 1.4"},
+      {:pdf_generator, ">=0.3.5"},
+      {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 2.11"},
       {:phoenix_live_reload, "~> 1.2"},
       {:telemetry_metrics, "~> 0.4"},
       {:telemetry_poller, "~> 0.4"},
       {:jason, "~> 1.0"},
-      {:plug_cowboy, "~> 2.0"}
+      {:plug_cowboy, "~> 2.0"},
+      {:poison, "~> 3.0"},
+      {:mogrify, "~> 0.9.1"},
+      {:web_push_encryption, "~> 0.3"},
+      {:timex, "~> 3.0"},
+      {:blue_potion, "~> 0.1.2", override: true, git: "https://github.com/yithanglee/blue_potion"}
     ]
   end
 
@@ -51,7 +64,9 @@ defmodule CommerceFront.MixProject do
   # See the documentation for `Mix` for more info on aliases.
   defp aliases do
     [
-      setup: ["deps.get"],
+      setup: ["deps.get", "ecto.setup"],
+      "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
+      "ecto.reset": ["ecto.drop", "ecto.setup"],
       esbuild: ["run", "esbuild_script"]
     ]
   end

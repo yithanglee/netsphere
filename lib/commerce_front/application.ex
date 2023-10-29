@@ -7,6 +7,7 @@ defmodule CommerceFront.Application do
 
   def start(_type, _args) do
     children = [
+      CommerceFront.Repo,
       # Start the Telemetry supervisor
       CommerceFrontWeb.Telemetry,
       # Start the PubSub system

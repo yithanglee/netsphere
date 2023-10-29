@@ -1,4 +1,5 @@
 import { commerceApp_ } from './commerce_app.js';
+import { memberApp_ } from './member_app.js';
 export let phxApp_ = {
   route_names: [
     { html: "landing.html", title: "Home", route: "/home" },
@@ -8,9 +9,6 @@ export let phxApp_ = {
   ping() {
 
     console.log("tell ping o")
-  },
-  show() {
-
   },
   evalTitle(label) {
 
@@ -48,7 +46,7 @@ export let phxApp_ = {
     return label
   },
   navigateTo(route, additionalParamString) {
-    phxApp.show()
+  
     if (route == null) {
       route = window.location.pathname
     }
@@ -79,7 +77,8 @@ export let phxApp_ = {
         })
         return z[0] == current_pattern[0]
       })
-
+    this.hide()
+    this.show()
     if (match_2.length > 0) {
 
       var params = {}
@@ -121,8 +120,8 @@ export let phxApp_ = {
           history.pushState(stateObj, this.evalTitle(match_2[0].title), route);
         }
       }
-      var footer_modals = phxApp.html("footer_modals.html")
-      var html = phxApp.html(match_2[0].html)
+      var footer_modals = this.html("footer_modals.html")
+      var html = this.html(match_2[0].html)
       var initPage = `
       <div class="page-content pb-0">
         ` + html + `
@@ -136,9 +135,9 @@ export let phxApp_ = {
         this.navigateCallback()
 
       } else {
-        var nav = phxApp.html("blog_nav.html")
+        var nav = this.html("blog_nav.html")
         if (keys.includes("customNav")) {
-          var nav = phxApp.html(match_2[0].customNav)
+          var nav = this.html(match_2[0].customNav)
         }
         $("#content").html(nav)
         $("#content").append(initPage)
@@ -146,8 +145,8 @@ export let phxApp_ = {
       }
       return match_2[0]
     } else {
-      var footer_modals = phxApp.html("footer_modals.html")
-      var html = phxApp.html("landing.html")
+      var footer_modals = this.html("footer_modals.html")
+      var html = this.html("landing.html")
       var initPage = `
       <div class="page-content pb-0">
         ` + html + `
@@ -156,6 +155,263 @@ export let phxApp_ = {
       this.navigateCallback()
 
     }
+  },
+  modal(options) {
+
+    var default_options = {
+      selector: "#myModal",
+      body: ".modal-body",
+      title: ".modal-title",
+      foot: ".modal-footer",
+      header: "Modal Header",
+      content: "Here is content for modal body",
+      footer: "",
+      drawFn: regularModal,
+      autoClose: true
+
+    }
+
+    var keys =
+      Object.keys(default_options)
+    keys.forEach((v, i) => {
+      this[v] = default_options[v]
+    })
+    keys.forEach((v, i) => {
+      if (options[v] != null) {
+        this[v] = options[v]
+      }
+    })
+    $(this.selector).find(this.title).html(this.header)
+    $(this.selector).find(this.body).html(this.content)
+    $(this.selector).find(this.foot).html(this.footer)
+    $(this.selector).modal("show")
+
+    this.drawFn();
+    if (this.autoClose) {
+      setTimeout(() => {
+        $(this.selector).modal("hide")
+      }, 5000);
+    }
+  },
+  toast(options) {
+    var default_options = {
+      selector: "#notification-1",
+      body: ".toast-body",
+      title: ".tbody",
+      foot: ".modal-footer",
+      header: "Modal Header",
+      content: "Here is content for modal body",
+      footer: "",
+      drawFn: () => {},
+      autoClose: true
+    }
+
+    var keys =
+      Object.keys(default_options)
+    keys.forEach((v, i) => {
+      this[v] = default_options[v]
+    })
+    keys.forEach((v, i) => {
+      if (options[v] != null) {
+        this[v] = options[v]
+      }
+    })
+
+
+
+    $(this.selector).find(this.title).html(this.header)
+    $(this.selector).find(this.body).html(this.content)
+    $(this.selector).toast('hide')
+    $(this.selector).toast('show')
+    this.drawFn();
+    if (this.autoClose) {
+      setTimeout(() => {
+        $(this.selector).toast('hide')
+      }, 15000);
+    }
+
+
+
+    // if (typeof stValidate === "function") {
+
+
+    // }
+  },
+  notify(message, options) {
+    if (options == null) {
+      options = {}
+    }
+
+    var default_options = {
+      delay: 2000,
+      type: "info"
+    }
+    var keys = Object.keys(default_options)
+    keys.forEach((v, i) => {
+      this[v] = default_options[v]
+    })
+    keys.forEach((v, i) => {
+      if (options[v] != null) {
+        this[v] = options[v]
+      }
+    })
+
+
+    var obj = {}
+    var message_obj = {}
+
+    if (typeof message == 'object') {
+      message_obj = message
+    } else {
+      message_obj = {
+        message: message
+      }
+    }
+
+    var default_obj = {
+      message: "Your text here",
+      title: "System Message:",
+      icon: "fa fa-exclamation-circle"
+    }
+
+    var keys = Object.keys(default_obj)
+    keys.forEach((v, i) => {
+      obj[v] = default_obj[v]
+    })
+    keys.forEach((v, i) => {
+      if (message_obj[v] != null) {
+        obj[v] = message_obj[v]
+      }
+    })
+    console.log(obj)
+    console.log(this)
+    try {
+      if (typeof $.notify === "function") {
+        $.notify(obj, options)
+
+      } else {
+
+        this.toast({ content: obj.message, header: obj.title })
+      }
+
+    } catch (e) {
+      this.toast({ content: obj.message, header: obj.title })
+    }
+
+
+  },
+  reflect(formData) {
+    var object = {};
+    formData.forEach((value, key) => {
+
+      console.log(key)
+      var childMap = {}
+
+      if (key.includes("\[")) {
+        console.log("has child")
+        var parent = key.split("\[")[0]
+        var child = key.split("\[")[1].split("\]")[0]
+        childMap[child] = value;
+        object[parent] = { ...object[parent], ...childMap };
+
+      } else {
+        // Reflect.has in favor of: object.hasOwnProperty(key)
+        if (!Reflect.has(object, key)) {
+          object[key] = value;
+          return;
+        }
+        if (!Array.isArray(object[key])) {
+          object[key] = [object[key]];
+        }
+        object[key].push(value);
+      }
+
+    });
+    return object;
+  },
+  validateForm(selector, successCallback) {
+    var failed_inputs =
+      $(selector).find("[name]").filter((i, v) => {
+        console.log("checking vaidity")
+        console.log(v)
+        return v.checkValidity() == false
+      })
+    console.log(failed_inputs);
+    if (failed_inputs.length > 0) {
+      var labels = []
+      failed_inputs.map((v, i) => {
+        $(i).addClass("not-valid")
+        var label = $(i).closest('.input-style').find("label div").html()
+        if (label == null) {
+          label = $(i).attr("name")
+        }
+
+        labels.push(label)
+
+
+
+      })
+      phxApp_.notify("This input: " + labels.join(", ") + " is not valid!", {
+        type: "danger"
+      });
+    } else {
+      successCallback()
+
+    }
+  },
+  form(dom, scope, successCallback, failedCallback, appendMap) {
+    phxApp_.show()
+    var formData = new FormData($(dom)[0])
+    formData.append("scope", scope)
+    if (appendMap != null) {
+
+      var keys = Object.keys(appendMap)
+
+      keys.forEach((k, i) => {
+        formData.append(k, appendMap[k])
+      })
+    }
+
+    $.ajax({
+        url: "/api/webhook",
+        dataType: "json",
+        headers: {
+          "Authorization": "Basic " + window.userToken
+        },
+        method: "POST",
+        enctype: "multipart/form-data",
+        processData: false, // tell jQuery not to process the data
+        contentType: false,
+        data: formData
+      })
+      .done(function(j) {
+        phxApp_.hide()
+        if (j.status == "ok") {
+          phxApp_.notify("Added!", {
+            type: "success"
+          });
+          try {
+            if (j.res != null) {
+
+              successCallback(j.res)
+            }
+
+          } catch (e) {
+
+          }
+        } else {
+          phxApp_.notify("Not added!", {
+            type: "danger"
+          });
+        }
+
+      }).fail(() => {
+        phxApp_.notify("Not added!", {
+          type: "danger"
+        });
+
+      })
+
   },
   html(page) {
     $(".modal-body").each((i, v) => {
@@ -191,22 +447,23 @@ export let phxApp_ = {
       res = j
     }).fail(function(e) {
 
-      phxApp.notify("Ops, somethings' not right!", {
+      phxApp_.notify("Ops, somethings' not right!", {
         type: "danger"
       });
-      phxApp.show()
+      this.show()
       setTimeout(() => {
 
         if (failed_callback != null) {
           failed_callback()
         }
-        phxApp.hide()
+        this.hide()
       }, 500)
 
     });
     return res;
   },
   post(scope, params, failed_callback, successCallback) {
+
     var res = ""
     $.ajax({
       async: false,
@@ -224,16 +481,16 @@ export let phxApp_ = {
       res = j
     }).fail(function(e) {
 
-      phxApp.notify("Ops, somethings' not right!", {
+      phxApp_.notify("Ops, somethings' not right!", {
         type: "danger"
       });
-      phxApp.show()
+
       setTimeout(() => {
 
         if (failed_callback != null) {
           failed_callback()
         }
-        phxApp.hide()
+        this.hide()
       }, 500)
 
     });
@@ -246,9 +503,24 @@ export let phxApp_ = {
 
   },
   async navigateCallback() {
-    commerceApp_.render()
-    this.evaluateLang()
+    memberApp_.restoreUser();
+    commerceApp_.render();
+    this.evaluateLang();
     this.toTop();
+    this.hide();
+  },
+  show() {
+    console.log("drop shadow..")
+    $(".wrapper-ring").show()
+    // setTimeout(() => {
+    //   $(".wrapper-ring").hide()
+    // }, 1000)
+  },
+  hide() {
+        console.log("hide shadow..")
+    try {
+      $(".wrapper-ring").hide()
+    } catch (e) {}
   }
 
 }
