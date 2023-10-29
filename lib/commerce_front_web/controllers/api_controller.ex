@@ -51,6 +51,9 @@ defmodule CommerceFrontWeb.ApiController do
   def get(conn, params) do
     res =
       case params["scope"] do
+        "placement" ->
+          Settings.display_place_tree("damien")
+
         _ ->
           %{status: "ok"}
       end

@@ -512,9 +512,9 @@ export let phxApp_ = {
   show() {
     console.log("drop shadow..")
     $(".wrapper-ring").show()
-    // setTimeout(() => {
-    //   $(".wrapper-ring").hide()
-    // }, 1000)
+    setTimeout(() => {
+      $(".wrapper-ring").hide()
+    }, 1000)
   },
   hide() {
         console.log("hide shadow..")

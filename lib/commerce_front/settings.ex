@@ -7,7 +7,6 @@ defmodule CommerceFront.Settings do
   import Ecto.Query, warn: false
   alias CommerceFront.Repo
   require IEx
-
   alias Ecto.Multi
 
   alias CommerceFront.Settings.User
@@ -68,6 +67,40 @@ defmodule CommerceFront.Settings do
     Repo.delete(model)
   end
 
+  alias CommerceFront.Settings.Referral
+
+  def list_referrals() do
+    Repo.all(Referral)
+  end
+
+  def get_referral_by_username(username) do
+    if username == "admin" do
+      %{id: 0, user_id: 0}
+    else
+      res = Repo.all(from(u in User, where: u.username == ^username)) |> List.first()
+
+      if res != nil do
+        Repo.get_by(Referral, user_id: res.id)
+      end
+    end
+  end
+
+  def get_referral!(id) do
+    Repo.get!(Referral, id)
+  end
+
+  def create_referral(params \\ %{}) do
+    Referral.changeset(%Referral{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_referral(model, params) do
+    Referral.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_referral(%Referral{} = model) do
+    Repo.delete(model)
+  end
+
   alias CommerceFront.Settings.Placement
 
   def list_placements() do
@@ -81,7 +114,7 @@ defmodule CommerceFront.Settings do
       res = Repo.all(from(u in User, where: u.username == ^username)) |> List.first()
 
       if res != nil do
-        Repo.get_by(Placement, user_id: res.id)
+        Repo.get_by(Placement, user_id: res.id) |> Repo.preload(:user)
       end
     end
   end
@@ -102,31 +135,162 @@ defmodule CommerceFront.Settings do
     Repo.delete(model)
   end
 
-  def determine_position(username) do
-    if username == "admin" do
-      "left"
+  def display_place_tree(username) do
+    list = check_downlines(username)
+    placement_tree(username, list)
+  end
+
+  def find_weak_placement(tree, prev_node \\ nil) do
+    IO.inspect("from tree")
+    IO.inspect(tree)
+
+    if tree == nil do
+      prev_node
     else
-      # here need to check if the position here has full
-      list =
-        CommerceFront.Settings.check_downlines(username)
-        |> Enum.reject(&(&1 |> Map.get(:children) |> Enum.count() == 2))
+      items = tree |> Map.get(:children)
 
-      # then determine position left right
-      check =
-        list
-        |> List.first()
-        |> Map.get(:children)
-        |> Enum.map(&(&1 |> String.contains?("left")))
-        |> Enum.uniq()
-        |> List.first()
+      left = items |> Enum.filter(&(&1.position == "left")) |> List.first()
 
-      with true <- check != nil,
-           true <- check do
-        "right"
+      right = items |> Enum.filter(&(&1.position == "right")) |> List.first()
+
+      if tree.left > tree.right do
+        find_weak_placement(right, tree)
       else
-        _ ->
-          "left"
+        find_weak_placement(left, tree)
       end
+    end
+  end
+
+  def placement_tree(username \\ "damien", ori_data, transformed_children \\ []) do
+    to_map = fn list ->
+      [username, id, fullname, position, left, right] = list |> String.split("|")
+
+      %{
+        left: left |> String.to_integer(),
+        right: right |> String.to_integer(),
+        name: username <> " #{position}",
+        children: [],
+        username: username,
+        id: id |> String.to_integer(),
+        fullname: fullname,
+        position: position
+      }
+    end
+
+    transformed_children =
+      ori_data
+      |> Enum.map(&(&1 |> Map.get(:children)))
+      |> List.flatten()
+      |> Enum.map(&(&1 |> to_map.()))
+
+    map = ori_data |> Enum.filter(&(&1.parent_username == username)) |> List.first()
+
+    transform = fn list, ori_data ->
+      [username, id, fullname, position, left, right] = list
+
+      children = []
+      map = ori_data |> Enum.filter(&(&1.parent_username == username)) |> List.first()
+
+      placement_tree(username, ori_data, transformed_children)
+    end
+
+    children =
+      if map != nil do
+        map.children |> Enum.map(&(&1 |> String.split("|") |> transform.(ori_data)))
+      else
+        []
+      end
+
+    if map == nil do
+      transformed_children |> Enum.filter(&(&1.username == username)) |> List.first()
+    else
+      smap = transformed_children |> Enum.filter(&(&1.username == username)) |> List.first()
+
+      smap =
+        if smap == nil do
+          get_placement_by_username(map.parent_username)
+        else
+          smap
+        end
+
+      %{
+        id: map.parent_id,
+        name: map.parent_username <> " #{if(smap != nil, do: smap.position, else: "n/a")}",
+        position: if(smap != nil, do: smap.position, else: "n/a"),
+        left: if(smap != nil, do: smap.left, else: "n/a"),
+        right: if(smap != nil, do: smap.right, else: "n/a"),
+        children: children |> Enum.sort_by(& &1.position)
+      }
+    end
+  end
+
+  def placement_counter_reset() do
+    Repo.update_all(Placement, set: [left: 0, right: 0])
+
+    items = Repo.all(from(p in Placement, order_by: [desc: p.id], preload: [:user]))
+
+    for item <- items do
+      IO.inspect(item)
+      uplines = CommerceFront.Settings.check_uplines(item.user.username) |> IO.inspect()
+
+      for upline <- uplines do
+        p = CommerceFront.Settings.get_placement!(upline.pt_parent_id) |> Repo.preload(:user)
+        c = CommerceFront.Settings.get_placement!(upline.pt_child_id) |> Repo.preload(:user)
+
+        if p.user.username == "damien" do
+          # IEx.pry()
+        end
+
+        changes =
+          if upline.pt_position == "left" do
+            %{
+              left: p.left + 1,
+              right: p.right
+            }
+          else
+            %{
+              left: p.left,
+              right: p.right + 1
+            }
+          end
+
+        CommerceFront.Settings.Placement.changeset(p, changes) |> Repo.update() |> IO.inspect()
+      end
+    end
+  end
+
+  def update_placement_position_counter(placement, position, amount) do
+  end
+
+  @doc """
+  from this sponsor_username, 
+  the placement itself have a left right counter,
+  depending on the position that has a lowest number, 
+  dive deep down to the lowest , use that placement
+  after placing it, need to get the upline and update the counter 
+  """
+
+  def determine_position(sponsor_username) do
+    tree = CommerceFront.Settings.display_place_tree(sponsor_username)
+
+    if tree != nil do
+      card = CommerceFront.Settings.find_weak_placement(tree)
+
+      position =
+        cond do
+          card.left == card.right ->
+            "left"
+
+          card.left > card.right ->
+            "right"
+
+          card.right > card.left ->
+            "left"
+        end
+
+      {position, Repo.get_by(Placement, user_id: card.id)}
+    else
+      {"left", get_placement_by_username(sponsor_username)}
     end
   end
 
@@ -135,9 +299,18 @@ defmodule CommerceFront.Settings do
     |> Multi.run(:user, fn _repo, %{} ->
       create_user(params)
     end)
+    |> Multi.run(:referral, fn _repo, %{user: user} ->
+      parent_r = get_referral_by_username(params["sponsor"])
+
+      create_referral(%{
+        parent_user_id: parent_r.user_id,
+        parent_referral_id: parent_r.id,
+        user_id: user.id
+      })
+    end)
     |> Multi.run(:placement, fn _repo, %{user: user} ->
-      parent_p = get_placement_by_username(params["sponsor"])
-      position = determine_position(params["sponsor"])
+      # parent_p = get_placement_by_username(params["sponsor"])
+      {position, parent_p} = determine_position(params["sponsor"])
 
       create_placement(%{
         parent_user_id: parent_p.user_id,
@@ -150,6 +323,7 @@ defmodule CommerceFront.Settings do
     |> IO.inspect()
     |> case do
       {:ok, multi_res} ->
+        placement_counter_reset()
         {:ok, multi_res |> Map.get(:user)}
 
       _ ->
@@ -190,7 +364,8 @@ defmodule CommerceFront.Settings do
       pt_child_id: pt.id,
       pt_parent_id: pt.parent_placement_id,
       parent: m2.username,
-      parent_id: m2.id
+      parent_id: m2.id,
+      pt_position: pt.position
     })
     |> order_by([m, pt, m2], desc: m.id)
     |> Repo.all()
@@ -223,35 +398,34 @@ defmodule CommerceFront.Settings do
     |> select([m, pt, m2], %{
       children:
         fragment(
-          "ARRAY_AGG( CONCAT(?, ?, ?, ?, ?, ?, ?) )",
+          "ARRAY_AGG( CONCAT(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) )",
           m.username,
           "|",
           m.id,
           "|",
           m.fullname,
           "|",
-          pt.position
+          pt.position,
+          "|",
+          pt.left,
+          "|",
+          pt.right
         ),
       parent: m2.fullname,
       parent_username: m2.username,
       parent_id: m2.id
     })
     |> Repo.all()
-
-    # |> select([m, pt, m2], %{
-    #   child_id: m.id,
-    #   child: m.name,
-    #   child_code: m.code,
-    #   pt_child_id: pt.child_user_id,
-    #   pt_parent_id: pt.parent_user_id,
-    #   parent: m2.name,
-    #   parent_username: m2.code,
-    #   parent_id: m2.id
-    # })
   end
 
   def reset do
     Repo.delete_all(User)
     Repo.delete_all(Placement)
+  end
+
+  def rollback do
+    Repo.all(from(u in User, order_by: [desc: u.id])) |> List.first() |> Repo.delete()
+    Repo.all(from(u in Placement, order_by: [desc: u.id])) |> List.first() |> Repo.delete()
+    Repo.all(from(u in Referral, order_by: [desc: u.id])) |> List.first() |> Repo.delete()
   end
 end
