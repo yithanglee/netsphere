@@ -450,13 +450,13 @@ export let phxApp_ = {
       phxApp_.notify("Ops, somethings' not right!", {
         type: "danger"
       });
-      this.show()
+      phxApp_.show()
       setTimeout(() => {
 
         if (failed_callback != null) {
           failed_callback()
         }
-        this.hide()
+        phxApp_.hide()
       }, 500)
 
     });

@@ -9,7 +9,47 @@ defmodule CommerceFront.Settings do
   require IEx
   alias Ecto.Multi
 
+  alias CommerceFront.Settings.Rank
+
+  def list_ranks() do
+    Repo.all(Rank)
+  end
+
+  def get_rank!(id) do
+    Repo.get!(Rank, id)
+  end
+
+  def create_rank(params \\ %{}) do
+    Rank.changeset(%Rank{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_rank(model, params) do
+    Rank.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_rank(%Rank{} = model) do
+    Repo.delete(model)
+  end
+
   alias CommerceFront.Settings.User
+
+  def member_token(id) do
+    Phoenix.Token.sign(
+      CommerceFrontWeb.Endpoint,
+      "member_signature",
+      %{id: id}
+    )
+  end
+
+  def decode_customer_token(token) do
+    case Phoenix.Token.verify(CommerceFrontWeb.Endpoint, "member_signature", token) do
+      {:ok, map} ->
+        map
+
+      {:error, _reason} ->
+        nil
+    end
+  end
 
   def auth_user(params) do
     user =
@@ -317,24 +357,28 @@ defmodule CommerceFront.Settings do
   """
 
   def determine_position(sponsor_username) do
-    tree = CommerceFront.Settings.display_place_tree(sponsor_username)
+    if sponsor_username != "admin" do
+      tree = CommerceFront.Settings.display_place_tree(sponsor_username)
 
-    if tree != nil do
-      card = CommerceFront.Settings.find_weak_placement(tree)
+      if tree != nil do
+        card = CommerceFront.Settings.find_weak_placement(tree)
 
-      position =
-        cond do
-          card.left == card.right ->
-            "left"
+        position =
+          cond do
+            card.left == card.right ->
+              "left"
 
-          card.left > card.right ->
-            "right"
+            card.left > card.right ->
+              "right"
 
-          card.right > card.left ->
-            "left"
-        end
+            card.right > card.left ->
+              "left"
+          end
 
-      {position, Repo.get_by(Placement, user_id: card.id)}
+        {position, Repo.get_by(Placement, user_id: card.id)}
+      else
+        {"left", get_placement_by_username(sponsor_username)}
+      end
     else
       {"left", get_placement_by_username(sponsor_username)}
     end

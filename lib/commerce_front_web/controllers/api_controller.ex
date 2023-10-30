@@ -51,11 +51,17 @@ defmodule CommerceFrontWeb.ApiController do
   def get(conn, params) do
     res =
       case params["scope"] do
+        "get_ranks" ->
+          Settings.list_ranks() |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
+
         "placement" ->
-          Settings.display_place_tree("damien")
+          Settings.display_place_tree(params["username"])
 
         "referral" ->
-          Settings.display_refer_tree("damien")
+          Settings.display_refer_tree(params["username"])
+
+        "gen_inputs" ->
+          BluePotion.test_module(params["module"])
 
         _ ->
           %{status: "ok"}
@@ -67,6 +73,17 @@ defmodule CommerceFrontWeb.ApiController do
   def post(conn, params) do
     res =
       case params["scope"] do
+        "sign_in" ->
+          # admin login
+          token =
+            Phoenix.Token.sign(
+              CommerceFrontWeb.Endpoint,
+              "admin_signature",
+              params["username"]
+            )
+
+          %{status: "ok", res: token}
+
         "register" ->
           case Settings.register(params["user"]) do
             {:ok, user} ->
@@ -81,7 +98,13 @@ defmodule CommerceFrontWeb.ApiController do
 
           case auth do
             {:ok, user} ->
-              %{status: "ok", res: user |> BluePotion.sanitize_struct()}
+              %{
+                status: "ok",
+                res:
+                  user
+                  |> BluePotion.sanitize_struct()
+                  |> Map.put(:token, Settings.member_token(user.id))
+              }
 
             _ ->
               %{status: "error"}

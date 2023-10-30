@@ -11,6 +11,7 @@ window.memberApp = memberApp_
 
 const route_list = [
   { html: "register.html", title: "Register", route: "/register" },
+  { html: "logout.html", title: "Logout", route: "/logout" },
   { html: "login.html", title: "Login", route: "/login" },
   { html: "profile.html", title: "Profile", route: "/profile" },
   { html: "placement.html", title: "Placement", route: "/placement" },

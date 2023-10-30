@@ -19,14 +19,24 @@ defmodule CommerceFrontWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+
+    plug CORSPlug,
+      origin: [
+        "https://fonts.gstatic.com",
+        "http://localhost:5173"
+      ]
+
+    plug(CommerceFront.ApiAuthorization)
   end
 
   scope "/api", CommerceFrontWeb do
     pipe_through :api
     get "/stream", ApiController, :stream_get
+    options("/:webhook", ApiController, :get)
 
     get "/webhook", ApiController, :get
     post "/webhook", ApiController, :post
+    options("/:model", ApiController, :datatable)
     get("/:model", ApiController, :datatable)
     post("/:model", ApiController, :form_submission)
     delete("/:model/:id", ApiController, :delete_data)
