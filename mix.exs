@@ -34,6 +34,7 @@ defmodule CommerceFront.MixProject do
   defp deps do
     [
       {:cors_plug, "~> 1.0"},
+      {:distillery, "~> 2.1"},
       {:mime, "~> 1.0"},
       {:phoenix, "~> 1.5.13"},
       {:phoenix_ecto, "~> 4.1"},
