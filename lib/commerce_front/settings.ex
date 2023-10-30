@@ -8,6 +8,71 @@ defmodule CommerceFront.Settings do
   alias CommerceFront.Repo
   require IEx
   alias Ecto.Multi
+  alias CommerceFront.Settings.SalesItem
+
+  def list_sales_items() do
+    Repo.all(SalesItem)
+  end
+
+  def get_sales_item!(id) do
+    Repo.get!(SalesItem, id)
+  end
+
+  def create_sales_item(params \\ %{}) do
+    SalesItem.changeset(%SalesItem{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_sales_item(model, params) do
+    SalesItem.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_sales_item(%SalesItem{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.Sale
+
+  def list_sales() do
+    Repo.all(Sale)
+  end
+
+  def get_sale!(id) do
+    Repo.get!(Sale, id)
+  end
+
+  def create_sale(params \\ %{}) do
+    Sale.changeset(%Sale{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_sale(model, params) do
+    Sale.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_sale(%Sale{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.Product
+
+  def list_products() do
+    Repo.all(Product)
+  end
+
+  def get_product!(id) do
+    Repo.get!(Product, id)
+  end
+
+  def create_product(params \\ %{}) do
+    Product.changeset(%Product{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_product(model, params) do
+    Product.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_product(%Product{} = model) do
+    Repo.delete(model)
+  end
 
   alias CommerceFront.Settings.Rank
 
@@ -388,6 +453,19 @@ defmodule CommerceFront.Settings do
     Multi.new()
     |> Multi.run(:user, fn _repo, %{} ->
       create_user(params)
+    end)
+    |> Multi.run(:sale, fn _repo, %{user: user} ->
+      rank = get_rank!(params["rank_id"])
+
+      create_sale(%{
+        month: Date.utc_today().month,
+        year: Date.utc_today().year,
+        sale_date: Date.utc_today(),
+        status: :processing,
+        subtotal: rank.retail_price,
+        total_point_value: rank.point_value,
+        user_id: user.id
+      })
     end)
     |> Multi.run(:referral, fn _repo, %{user: user} ->
       parent_r = get_referral_by_username(params["sponsor"])
