@@ -129,7 +129,7 @@ defmodule CommerceFrontWeb.ApiController do
         File.cwd!() <> "/media"
       end
 
-    server_url = Application.get_env(:transporter, :endpoint)[:url]
+    server_url = Application.get_env(:commerce_front, :endpoint)[:url]
     IO.inspect(server_url)
 
     {:ok, html} = File.read("#{path}/#{filename}.html")

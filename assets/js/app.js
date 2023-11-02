@@ -3,7 +3,12 @@ import { commerceApp_ } from './commerce_app.js';
 import { phxApp_ } from './phx_app.js';
 import { memberApp_ } from './member_app.js';
 import { Socket } from "./phoenix.js"
+import { phoenixModel } from './phoenixModel.js';
 
+
+console.log(phoenixModel)
+window.phoenixModel = phoenixModel;  
+window.phoenixModels = []
 window.commerceApp = commerceApp_
 window.phxApp = phxApp_
 window.memberApp = memberApp_
@@ -16,6 +21,7 @@ const route_list = [
   { html: "profile.html", title: "Profile", route: "/profile" },
   { html: "placement.html", title: "Placement", route: "/placement" },
   { html: "referal.html", title: "Referal", route: "/referal" },
+  { html: "group_sales.html", title: "Group Sales", route: "/group_sales" },
 ]
 
 route_list.forEach((v, i) => {
@@ -81,13 +87,16 @@ var reloadStrategies = {
   css: cssStrategy,
   page: pageStrategy
 };
-const rsocket = new Socket("/phoenix/live_reload/socket", { params: { token: window.userToken } });
-rsocket.connect();
-var chan = rsocket.channel('phoenix:live_reload', {})
-chan.on('assets_change', function(msg) {
-  var reloadStrategy = reloadStrategies[msg.asset_type] || reloadStrategies.page;
-  setTimeout(function() { reloadStrategy(chan); }, 1000);
-});
+if (window.location.hostname == "localhost") {
+
+  const rsocket = new Socket("/phoenix/live_reload/socket", { params: { token: window.userToken } });
+  rsocket.connect();
+  var chan = rsocket.channel('phoenix:live_reload', {})
+  chan.on('assets_change', function(msg) {
+    var reloadStrategy = reloadStrategies[msg.asset_type] || reloadStrategies.page;
+    setTimeout(function() { reloadStrategy(chan); }, 1000);
+  });
+}
 chan.join();
 
 

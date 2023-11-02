@@ -31,6 +31,10 @@ export let memberApp_ = {
 
     phxApp_.navigateTo("/home")
   },
+  updateUser(user) {
+    memberApp_.user = user
+    memberApp_.save(user)
+  },
   login(dom) {
     console.log(dom)
     $(dom).closest("form")

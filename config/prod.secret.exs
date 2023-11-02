@@ -4,6 +4,18 @@
 # remember to add this file to your .gitignore.
 use Mix.Config
 
+database_url =
+  System.get_env("DATABASE_URL") ||
+    raise """
+    environment variable DATABASE_URL is missing.
+    For example: ecto://USER:PASS@HOST/DATABASE
+    """
+
+config :commerce_front, CommerceFront.Repo,
+  # ssl: true,
+  url: database_url,
+  pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
+
 secret_key_base =
   System.get_env("SECRET_KEY_BASE") ||
     raise """
@@ -27,3 +39,4 @@ config :commerce_front, CommerceFrontWeb.Endpoint,
 #
 # Then you can assemble a release by calling `mix release`.
 # See `mix help release` for more information.
+config :commerce_front, CommerceFrontWeb.Endpoint, server: true

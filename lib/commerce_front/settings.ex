@@ -8,6 +8,31 @@ defmodule CommerceFront.Settings do
   alias CommerceFront.Repo
   require IEx
   alias Ecto.Multi
+
+  alias CommerceFront.Settings.PlacementGroupSalesDetail
+
+  def list_placement_group_sales_details() do
+    Repo.all(PlacementGroupSalesDetail)
+  end
+
+  def get_placement_group_sales_detail!(id) do
+    Repo.get!(PlacementGroupSalesDetail, id)
+  end
+
+  def create_placement_group_sales_detail(params \\ %{}) do
+    PlacementGroupSalesDetail.changeset(%PlacementGroupSalesDetail{}, params)
+    |> Repo.insert()
+    |> IO.inspect()
+  end
+
+  def update_placement_group_sales_detail(model, params) do
+    PlacementGroupSalesDetail.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_placement_group_sales_detail(%PlacementGroupSalesDetail{} = model) do
+    Repo.delete(model)
+  end
+
   alias CommerceFront.Settings.SalesItem
 
   def list_sales_items() do
@@ -282,10 +307,17 @@ defmodule CommerceFront.Settings do
         [username, id, fullname, position, left, right] = list |> String.split("|")
 
         %{
+          value:
+            %{
+              username: username,
+              left: left |> String.to_integer(),
+              right: right |> String.to_integer()
+            }
+            |> Jason.encode!(),
           left: left |> String.to_integer(),
           right: right |> String.to_integer(),
-          name: username <> " #{position}",
-          children: [],
+          name: username,
+          children: [%{id: 0, name: "empty"}],
           username: username,
           id: id |> String.to_integer(),
           fullname: fullname,
@@ -296,7 +328,7 @@ defmodule CommerceFront.Settings do
 
         %{
           name: username <> " #{id}",
-          children: [],
+          children: [%{id: 0, name: "empty"}],
           username: username,
           id: id |> String.to_integer(),
           fullname: fullname
@@ -316,14 +348,12 @@ defmodule CommerceFront.Settings do
       if tree == :placement do
         [username, id, fullname, position, left, right] = list
 
-        children = []
         map = ori_data |> Enum.filter(&(&1.parent_username == username)) |> List.first()
 
         display_tree(username, ori_data, transformed_children)
       else
         [username, id, fullname] = list
 
-        children = []
         map = ori_data |> Enum.filter(&(&1.parent_username == username)) |> List.first()
 
         display_tree(username, ori_data, transformed_children, :referral)
@@ -352,7 +382,14 @@ defmodule CommerceFront.Settings do
 
         %{
           id: map.parent_id,
-          name: map.parent_username <> " #{if(smap != nil, do: smap.position, else: "n/a")}",
+          value:
+            %{
+              username: map.parent_username,
+              left: if(smap != nil, do: smap.left, else: "n/a"),
+              right: if(smap != nil, do: smap.right, else: "n/a")
+            }
+            |> Jason.encode!(),
+          name: map.parent_username,
           position: if(smap != nil, do: smap.position, else: "n/a"),
           left: if(smap != nil, do: smap.left, else: "n/a"),
           right: if(smap != nil, do: smap.right, else: "n/a"),
@@ -410,6 +447,73 @@ defmodule CommerceFront.Settings do
     end
   end
 
+  def latest_group_sales_details(username, position) do
+    Repo.all(
+      from(pgsd in PlacementGroupSalesDetail,
+        left_join: u in User,
+        on: pgsd.to_user_id == u.id,
+        where: u.username == ^username and pgsd.position == ^position,
+        order_by: [desc: pgsd.id]
+      )
+    )
+    |> List.first()
+  end
+
+  def contribute_group_sales(from_username, amount, sales, placement, prev_multi \\ nil) do
+    from_user = get_user_by_username(from_username)
+
+    add_gs = fn upline, multi_query ->
+      multi_query
+      |> Multi.run(String.to_atom("parent_#{upline.parent}"), fn _repo, %{} ->
+        latest = latest_group_sales_details(upline.parent, upline.pt_position)
+        # position has to be the first upline's position 
+        IO.inspect(upline.pt_position)
+        IO.inspect(placement.position)
+
+        case latest do
+          nil ->
+            create_placement_group_sales_detail(%{
+              before: 0,
+              after: amount,
+              amount: amount,
+              from_user_id: from_user.id,
+              to_user_id: upline.parent_id,
+              position: upline.pt_position,
+              sales_id: sales.id,
+              remarks: "from sales-#{sales.id}"
+            })
+
+          _ ->
+            create_placement_group_sales_detail(%{
+              before: latest.after,
+              after: latest.after + amount,
+              amount: amount,
+              from_user_id: from_user.id,
+              to_user_id: upline.parent_id,
+              position: upline.pt_position,
+              sales_id: sales.id,
+              remarks: "from sales-#{sales.id}"
+            })
+        end
+
+        # find the latest group sales details
+        # create group sales details
+      end)
+    end
+
+    uplines = check_uplines(from_username) |> IO.inspect()
+
+    if prev_multi != nil do
+      multi = prev_multi
+      Enum.reduce(uplines, multi, &add_gs.(&1, &2))
+    else
+      multi = Multi.new()
+
+      Enum.reduce(uplines, multi, &add_gs.(&1, &2))
+      |> Repo.transaction()
+    end
+  end
+
   def update_placement_position_counter(placement, position, amount) do
   end
 
@@ -450,53 +554,57 @@ defmodule CommerceFront.Settings do
   end
 
   def register(params) do
-    Multi.new()
-    |> Multi.run(:user, fn _repo, %{} ->
-      create_user(params)
-    end)
-    |> Multi.run(:sale, fn _repo, %{user: user} ->
-      rank = get_rank!(params["rank_id"])
+    multi =
+      Multi.new()
+      |> Multi.run(:user, fn _repo, %{} ->
+        create_user(params)
+      end)
+      |> Multi.run(:sale, fn _repo, %{user: user} ->
+        rank = get_rank!(params["rank_id"])
 
-      create_sale(%{
-        month: Date.utc_today().month,
-        year: Date.utc_today().year,
-        sale_date: Date.utc_today(),
-        status: :processing,
-        subtotal: rank.retail_price,
-        total_point_value: rank.point_value,
-        user_id: user.id
-      })
-    end)
-    |> Multi.run(:referral, fn _repo, %{user: user} ->
-      parent_r = get_referral_by_username(params["sponsor"])
+        create_sale(%{
+          month: Date.utc_today().month,
+          year: Date.utc_today().year,
+          sale_date: Date.utc_today(),
+          status: :processing,
+          subtotal: rank.retail_price,
+          total_point_value: rank.point_value,
+          user_id: user.id
+        })
+      end)
+      |> Multi.run(:referral, fn _repo, %{user: user} ->
+        parent_r = get_referral_by_username(params["sponsor"])
 
-      create_referral(%{
-        parent_user_id: parent_r.user_id,
-        parent_referral_id: parent_r.id,
-        user_id: user.id
-      })
-    end)
-    |> Multi.run(:placement, fn _repo, %{user: user} ->
-      # parent_p = get_placement_by_username(params["sponsor"])
-      {position, parent_p} = determine_position(params["sponsor"])
+        create_referral(%{
+          parent_user_id: parent_r.user_id,
+          parent_referral_id: parent_r.id,
+          user_id: user.id
+        })
+      end)
+      |> Multi.run(:placement, fn _repo, %{user: user} ->
+        # parent_p = get_placement_by_username(params["sponsor"])
+        {position, parent_p} = determine_position(params["sponsor"])
 
-      create_placement(%{
-        parent_user_id: parent_p.user_id,
-        parent_placement_id: parent_p.id,
-        position: position,
-        user_id: user.id
-      })
-    end)
-    |> Repo.transaction()
-    |> IO.inspect()
-    |> case do
-      {:ok, multi_res} ->
-        placement_counter_reset()
-        {:ok, multi_res |> Map.get(:user)}
+        create_placement(%{
+          parent_user_id: parent_p.user_id,
+          parent_placement_id: parent_p.id,
+          position: position,
+          user_id: user.id
+        })
+      end)
+      |> Multi.run(:pgsd, fn _repo, %{user: user, sale: sale, placement: placement} ->
+        contribute_group_sales(user.username, sale.total_point_value, sale, placement)
+      end)
+      |> Repo.transaction()
+      |> IO.inspect()
+      |> case do
+        {:ok, multi_res} ->
+          placement_counter_reset()
+          {:ok, multi_res |> Map.get(:user)}
 
-      _ ->
-        {:error, []}
-    end
+        _ ->
+          {:error, []}
+      end
   end
 
   def get_user_by_username(username) do
@@ -643,11 +751,20 @@ defmodule CommerceFront.Settings do
   def reset do
     Repo.delete_all(User)
     Repo.delete_all(Placement)
+    Repo.delete_all(Referral)
+
+    Repo.delete_all(Sale)
+    Repo.delete_all(PlacementGroupSalesDetail)
   end
 
   def rollback do
     Repo.all(from(u in User, order_by: [desc: u.id])) |> List.first() |> Repo.delete()
     Repo.all(from(u in Placement, order_by: [desc: u.id])) |> List.first() |> Repo.delete()
     Repo.all(from(u in Referral, order_by: [desc: u.id])) |> List.first() |> Repo.delete()
+    Repo.all(from(u in Sale, order_by: [desc: u.id])) |> List.first() |> Repo.delete()
+
+    Repo.all(from(u in PlacementGroupSalesDetail, order_by: [desc: u.id]))
+    |> List.first()
+    |> Repo.delete()
   end
 end

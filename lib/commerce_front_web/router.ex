@@ -7,7 +7,7 @@ defmodule CommerceFrontWeb.Router do
                               # _ -> "default-src 'self' 'unsafe-eval'"
 
                               _ ->
-                                "default-src 'self' 'unsafe-inline' fonts.gstatic.com; img-src 'self' data: ; style-src 'self' fonts.googleapis.com fonts.gstatic.com;"
+                                "default-src 'self' 'unsafe-inline' fonts.gstatic.com; img-src 'self' data: ; style-src 'self' 'unsafe-inline' fonts.googleapis.com fonts.gstatic.com;"
                             end)
   pipeline :browser do
     plug :accepts, ["html"]
@@ -23,6 +23,8 @@ defmodule CommerceFrontWeb.Router do
     plug CORSPlug,
       origin: [
         "https://fonts.gstatic.com",
+        "https://svt.damienslab.com",
+        "http://svt.damienslab.com",
         "http://localhost:5173"
       ]
 
