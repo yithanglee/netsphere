@@ -320,7 +320,7 @@ defmodule CommerceFront.Settings do
 
         zchildren =
           if include_empty do
-            [%{id: 0, name: "empty"}]
+            [%{id: 0, name: "empty"}, %{id: 0, name: "empty"}]
           else
             []
           end
@@ -347,7 +347,7 @@ defmodule CommerceFront.Settings do
 
         zchildren =
           if include_empty do
-            [%{id: 0, name: "empty"}]
+            [%{id: 0, name: "empty"}, %{id: 0, name: "empty"}]
           else
             []
           end
@@ -388,7 +388,15 @@ defmodule CommerceFront.Settings do
 
     children =
       if map != nil do
-        map.children |> Enum.map(&(&1 |> String.split("|") |> transform.(ori_data)))
+        if Enum.count(map.children) < 2 do
+          l =
+            map.children
+            |> Enum.map(&(&1 |> String.split("|") |> transform.(ori_data)))
+
+          l ++ [%{id: 0, name: "empty", position: "left"}]
+        else
+          map.children |> Enum.map(&(&1 |> String.split("|") |> transform.(ori_data)))
+        end
       else
         []
       end
