@@ -267,31 +267,42 @@ defmodule CommerceFront.Settings do
 
   def display_refer_tree(username) do
     list = check_downlines(username, :referral)
-    display_tree(username, list, [], :referral)
+    display_tree(username, list, [], :referral, false)
   end
 
   def display_place_tree(username) do
     list = check_downlines(username)
-    display_tree(username, list)
+    display_tree(username, list, [], :placement, false)
   end
 
-  def find_weak_placement(tree, prev_node \\ nil) do
+  def find_weak_placement(tree, use_one_direction, first_node, prev_node \\ nil) do
     IO.inspect("from tree")
     IO.inspect(tree)
 
     if tree == nil do
       prev_node
     else
-      items = tree |> Map.get(:children)
+      items = tree |> Map.get(:children) |> Enum.reject(&(&1.id == 0))
 
-      left = items |> Enum.filter(&(&1.position == "left")) |> List.first()
+      if use_one_direction do
+        node =
+          if first_node.left > first_node.right do
+            items |> Enum.filter(&(&1.position == "right")) |> List.first()
+          else
+            items |> Enum.filter(&(&1.position == "left")) |> List.first()
+          end
 
-      right = items |> Enum.filter(&(&1.position == "right")) |> List.first()
-
-      if tree.left > tree.right do
-        find_weak_placement(right, tree)
+        find_weak_placement(node, use_one_direction, first_node, tree)
       else
-        find_weak_placement(left, tree)
+        left = items |> Enum.filter(&(&1.position == "left")) |> List.first()
+
+        right = items |> Enum.filter(&(&1.position == "right")) |> List.first()
+
+        if tree.left > tree.right do
+          find_weak_placement(right, use_one_direction, first_node, tree)
+        else
+          find_weak_placement(left, use_one_direction, first_node, tree)
+        end
       end
     end
   end
@@ -300,11 +311,19 @@ defmodule CommerceFront.Settings do
         username \\ "damien",
         ori_data,
         transformed_children \\ [],
-        tree \\ :placement
+        tree \\ :placement,
+        include_empty \\ true
       ) do
     to_map = fn list ->
       if tree == :placement do
         [username, id, fullname, position, left, right] = list |> String.split("|")
+
+        zchildren =
+          if include_empty do
+            [%{id: 0, name: "empty"}]
+          else
+            []
+          end
 
         %{
           value:
@@ -317,7 +336,7 @@ defmodule CommerceFront.Settings do
           left: left |> String.to_integer(),
           right: right |> String.to_integer(),
           name: username,
-          children: [%{id: 0, name: "empty"}],
+          children: zchildren,
           username: username,
           id: id |> String.to_integer(),
           fullname: fullname,
@@ -326,9 +345,16 @@ defmodule CommerceFront.Settings do
       else
         [username, id, fullname] = list |> String.split("|")
 
+        zchildren =
+          if include_empty do
+            [%{id: 0, name: "empty"}]
+          else
+            []
+          end
+
         %{
           name: username <> " #{id}",
-          children: [%{id: 0, name: "empty"}],
+          children: zchildren,
           username: username,
           id: id |> String.to_integer(),
           fullname: fullname
@@ -525,28 +551,43 @@ defmodule CommerceFront.Settings do
   after placing it, need to get the upline and update the counter 
   """
 
-  def determine_position(sponsor_username) do
+  def determine_position(sponsor_username, use_tree \\ true) do
     if sponsor_username != "admin" do
-      tree = CommerceFront.Settings.display_place_tree(sponsor_username)
+      if use_tree do
+        tree = CommerceFront.Settings.display_place_tree(sponsor_username)
 
-      if tree != nil do
-        card = CommerceFront.Settings.find_weak_placement(tree)
+        if tree != nil do
+          card = CommerceFront.Settings.find_weak_placement(tree, true, tree)
+
+          position =
+            cond do
+              card.left == card.right ->
+                "left"
+
+              card.left > card.right ->
+                "right"
+
+              card.right > card.left ->
+                "left"
+            end
+
+          p = Repo.get_by(Placement, user_id: card.id) |> Repo.preload(:user)
+
+          {position, p}
+        else
+          {"left", get_placement_by_username(sponsor_username)}
+        end
+      else
+        placement = get_placement_by_username(sponsor_username)
 
         position =
-          cond do
-            card.left == card.right ->
-              "left"
-
-            card.left > card.right ->
-              "right"
-
-            card.right > card.left ->
-              "left"
+          if placement.left > placement.right do
+            "right"
+          else
+            "left"
           end
 
-        {position, Repo.get_by(Placement, user_id: card.id)}
-      else
-        {"left", get_placement_by_username(sponsor_username)}
+        {position, placement}
       end
     else
       {"left", get_placement_by_username(sponsor_username)}
@@ -746,6 +787,7 @@ defmodule CommerceFront.Settings do
     |> group_by([m, pt, m2], [m2.id])
     |> select_statement.()
     |> Repo.all()
+    |> IO.inspect()
   end
 
   def reset do
