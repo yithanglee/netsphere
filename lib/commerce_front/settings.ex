@@ -8,6 +8,39 @@ defmodule CommerceFront.Settings do
   alias CommerceFront.Repo
   require IEx
   alias Ecto.Multi
+  alias CommerceFront.Settings.GroupSalesSummary
+
+  def list_group_sales_summaries() do
+    Repo.all(GroupSalesSummary)
+  end
+
+  def get_group_sales_summary!(id) do
+    Repo.get!(GroupSalesSummary, id)
+  end
+
+  def get_latest_gs_summary_by_user_id(user_id) do
+    Repo.all(
+      from(gss in GroupSalesSummary,
+        where:
+          gss.user_id == ^user_id and
+            gss.day == ^Date.utc_today().day and gss.month == ^Date.utc_today().month and
+            gss.year == ^Date.utc_today().year
+      )
+    )
+    |> List.first()
+  end
+
+  def create_group_sales_summary(params \\ %{}) do
+    GroupSalesSummary.changeset(%GroupSalesSummary{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_group_sales_summary(model, params) do
+    GroupSalesSummary.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_group_sales_summary(%GroupSalesSummary{} = model) do
+    Repo.delete(model)
+  end
 
   alias CommerceFront.Settings.PlacementGroupSalesDetail
 
@@ -20,9 +53,74 @@ defmodule CommerceFront.Settings do
   end
 
   def create_placement_group_sales_detail(params \\ %{}) do
-    PlacementGroupSalesDetail.changeset(%PlacementGroupSalesDetail{}, params)
-    |> Repo.insert()
+    Multi.new()
+    |> Multi.run(:gsd, fn _repo, %{} ->
+      PlacementGroupSalesDetail.changeset(%PlacementGroupSalesDetail{}, params)
+      |> Repo.insert()
+    end)
+    |> Multi.run(:gs_summary, fn _repo, %{gsd: gsd} ->
+      check = get_latest_gs_summary_by_user_id(gsd.to_user_id)
+
+      case check do
+        nil ->
+          map =
+            if gsd.position == "left" do
+              %{
+                total_left: gsd.amount,
+                total_right: 0
+              }
+            else
+              %{
+                total_left: 0,
+                total_right: gsd.amount
+              }
+            end
+
+          create_group_sales_summary(
+            %{
+              total_left: 0,
+              total_right: 0,
+              user_id: gsd.to_user_id,
+              day: Date.utc_today().day,
+              month: Date.utc_today().month,
+              year: Date.utc_today().year
+            }
+            |> Map.merge(map)
+          )
+
+        _ ->
+          map =
+            if gsd.position == "left" do
+              %{
+                total_left: check.total_left + gsd.amount
+              }
+            else
+              %{
+                total_right: check.total_right + gsd.amount
+              }
+            end
+
+          update_group_sales_summary(
+            check,
+            %{
+              user_id: gsd.to_user_id,
+              day: Date.utc_today().day,
+              month: Date.utc_today().month,
+              year: Date.utc_today().year
+            }
+            |> Map.merge(map)
+          )
+      end
+    end)
+    |> Repo.transaction()
     |> IO.inspect()
+    |> case do
+      {:ok, multi_res} ->
+        {:ok, multi_res |> Map.get(:gsd)}
+
+      _ ->
+        {:error, []}
+    end
   end
 
   def update_placement_group_sales_detail(model, params) do
@@ -244,7 +342,19 @@ defmodule CommerceFront.Settings do
       res = Repo.all(from(u in User, where: u.username == ^username)) |> List.first()
 
       if res != nil do
-        Repo.get_by(Placement, user_id: res.id) |> Repo.preload(:user)
+        gs_summary = get_latest_gs_summary_by_user_id(res.id) |> BluePotion.sanitize_struct()
+
+        gs_summary =
+          if gs_summary != nil do
+            gs_summary
+          else
+            %{total_left: 0, total_right: 0}
+          end
+
+        Repo.get_by(Placement, user_id: res.id)
+        |> Repo.preload(:user)
+        |> BluePotion.sanitize_struct()
+        |> Map.merge(%{total_left: gs_summary.total_left, total_right: gs_summary.total_right})
       end
     end
   end
@@ -316,11 +426,12 @@ defmodule CommerceFront.Settings do
       ) do
     to_map = fn list ->
       if tree == :placement do
-        [username, id, fullname, position, left, right] = list |> String.split("|")
+        [username, id, fullname, position, left, right, total_left, total_right] =
+          list |> String.split("|")
 
         zchildren =
           if include_empty do
-            [%{id: 0, name: "empty"}, %{id: 0, name: "empty"}]
+            [%{id: 0, name: "~"}, %{id: 0, name: "~"}]
           else
             []
           end
@@ -330,11 +441,15 @@ defmodule CommerceFront.Settings do
             %{
               username: username,
               left: left |> String.to_integer(),
-              right: right |> String.to_integer()
+              right: right |> String.to_integer(),
+              total_left: total_left || 0,
+              total_right: total_right || 0
             }
             |> Jason.encode!(),
           left: left |> String.to_integer(),
           right: right |> String.to_integer(),
+          total_left: total_left || 0,
+          total_right: total_right || 0,
           name: username,
           children: zchildren,
           username: username,
@@ -347,7 +462,7 @@ defmodule CommerceFront.Settings do
 
         zchildren =
           if include_empty do
-            [%{id: 0, name: "empty"}, %{id: 0, name: "empty"}]
+            []
           else
             []
           end
@@ -372,7 +487,7 @@ defmodule CommerceFront.Settings do
 
     transform = fn list, ori_data ->
       if tree == :placement do
-        [username, id, fullname, position, left, right] = list
+        [username, id, fullname, position, left, right, total_left, total_right] = list
 
         map = ori_data |> Enum.filter(&(&1.parent_username == username)) |> List.first()
 
@@ -393,7 +508,11 @@ defmodule CommerceFront.Settings do
             map.children
             |> Enum.map(&(&1 |> String.split("|") |> transform.(ori_data)))
 
-          l ++ [%{id: 0, name: "empty", position: "left"}]
+          if tree == :placement do
+            l ++ [%{id: 0, name: "~", position: "left"}]
+          else
+            l
+          end
         else
           map.children |> Enum.map(&(&1 |> String.split("|") |> transform.(ori_data)))
         end
@@ -413,6 +532,7 @@ defmodule CommerceFront.Settings do
           else
             smap
           end
+          |> IO.inspect()
 
         %{
           id: map.parent_id,
@@ -420,13 +540,17 @@ defmodule CommerceFront.Settings do
             %{
               username: map.parent_username,
               left: if(smap != nil, do: smap.left, else: "n/a"),
-              right: if(smap != nil, do: smap.right, else: "n/a")
+              right: if(smap != nil, do: smap.right, else: "n/a"),
+              total_left: if(smap != nil, do: smap.total_left, else: "n/a"),
+              total_right: if(smap != nil, do: smap.total_right, else: "n/a")
             }
             |> Jason.encode!(),
           name: map.parent_username,
           position: if(smap != nil, do: smap.position, else: "n/a"),
           left: if(smap != nil, do: smap.left, else: "n/a"),
           right: if(smap != nil, do: smap.right, else: "n/a"),
+          total_left: if(smap != nil, do: smap.total_left, else: "n/a"),
+          total_right: if(smap != nil, do: smap.total_right, else: "n/a"),
           children: children |> Enum.sort_by(& &1.position)
         }
       else
@@ -734,10 +858,10 @@ defmodule CommerceFront.Settings do
     select_statement = fn query ->
       if tree == :placement do
         query
-        |> select([m, pt, m2], %{
+        |> select([m, pt, m2, gss], %{
           children:
             fragment(
-              "ARRAY_AGG( CONCAT(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) )",
+              "ARRAY_AGG( CONCAT(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) )",
               m.username,
               "|",
               m.id,
@@ -748,7 +872,11 @@ defmodule CommerceFront.Settings do
               "|",
               pt.left,
               "|",
-              pt.right
+              pt.right,
+              "|",
+              gss.total_left,
+              "|",
+              gss.total_right
             ),
           parent: m2.fullname,
           parent_username: m2.username,
@@ -790,12 +918,21 @@ defmodule CommerceFront.Settings do
     |> with_cte("placement_tree", as: ^category_tree_query)
     |> join(:left, [m], pt in "placement_tree", on: m.id == pt.user_id)
     |> join(:left, [m, pt], m2 in User, on: m2.id == pt.parent_user_id)
+    |> join(:full, [m, pt, m2], gss in subquery(gs_subquery()), on: gss.user_id == pt.user_id)
     |> where([m, pt, m2], m.id > ^parent_user_id)
-    |> where([m, pt, m2], not is_nil(m2.id))
-    |> group_by([m, pt, m2], [m2.id])
+    |> where([m, pt, m2, gss], not is_nil(m2.id))
+    |> group_by([m, pt, m2, gss], [m2.id])
     |> select_statement.()
     |> Repo.all()
     |> IO.inspect()
+  end
+
+  def gs_subquery() do
+    from(gss in GroupSalesSummary,
+      where:
+        gss.day == ^Date.utc_today().day and gss.month == ^Date.utc_today().month and
+          gss.year == ^Date.utc_today().year
+    )
   end
 
   def reset do

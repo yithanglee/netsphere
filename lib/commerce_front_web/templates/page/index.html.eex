@@ -13,7 +13,7 @@ the priv static can only be access by the phoenix app
     <li><a class="dropdown-item" href="/home">Home</a></li>
     <li><a class="dropdown-item" href="/placement">Placement</a></li>
   
-    <li>
+    <li id="divider">
       <hr class="dropdown-divider">
     </li>
     <li><a class="dropdown-item" href="#">Add new</a></li>
