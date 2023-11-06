@@ -51,6 +51,27 @@ defmodule CommerceFrontWeb.ApiController do
   def get(conn, params) do
     res =
       case params["scope"] do
+        "node" ->
+          if params["token"] != nil do
+            if params["username"] == "damien" do
+              %{
+                icon: "fa fa-user text-success",
+                id: "root",
+                text: "root",
+                children: [
+                  %{id: "root1", text: "root1", children: true, icon: "fa fa-user"}
+                ],
+                type: "root"
+              }
+
+              Settings.display_refer_tree(params["username"])
+            else
+              []
+            end
+          else
+            []
+          end
+
         "get_ranks" ->
           Settings.list_ranks() |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
 

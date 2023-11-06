@@ -116,7 +116,8 @@ defmodule CommerceFront.Settings do
     |> IO.inspect()
     |> case do
       {:ok, multi_res} ->
-        {:ok, multi_res |> Map.get(:gsd)}
+        gs_summary = multi_res |> Map.get(:gs_summary)
+        {:ok, multi_res |> Map.get(:gsd) |> Map.put(:gs_summary, gs_summary)}
 
       _ ->
         {:error, []}
@@ -348,13 +349,18 @@ defmodule CommerceFront.Settings do
           if gs_summary != nil do
             gs_summary
           else
-            %{total_left: 0, total_right: 0}
+            %{total_left: 0, total_right: 0, balance_left: 0, balance_right: 0}
           end
 
         Repo.get_by(Placement, user_id: res.id)
         |> Repo.preload(:user)
         |> BluePotion.sanitize_struct()
-        |> Map.merge(%{total_left: gs_summary.total_left, total_right: gs_summary.total_right})
+        |> Map.merge(%{
+          total_left: gs_summary.total_left,
+          total_right: gs_summary.total_right,
+          balance_left: gs_summary.balance_left,
+          balance_right: gs_summary.balance_right
+        })
       end
     end
   end
@@ -390,7 +396,17 @@ defmodule CommerceFront.Settings do
     IO.inspect(tree)
 
     if tree == nil do
-      prev_node
+      if first_node.left > first_node.right do
+        # need to add to left + 1 
+
+        left = prev_node.left
+
+        prev_node |> Map.put(:left, left + 1)
+      else
+        right = prev_node.right
+
+        prev_node |> Map.put(:right, right + 1)
+      end
     else
       items = tree |> Map.get(:children) |> Enum.reject(&(&1.id == 0))
 
@@ -426,8 +442,18 @@ defmodule CommerceFront.Settings do
       ) do
     to_map = fn list ->
       if tree == :placement do
-        [username, id, fullname, position, left, right, total_left, total_right] =
-          list |> String.split("|")
+        [
+          username,
+          id,
+          fullname,
+          position,
+          left,
+          right,
+          total_left,
+          total_right,
+          balance_left,
+          balance_right
+        ] = list |> String.split("|")
 
         zchildren =
           if include_empty do
@@ -443,13 +469,18 @@ defmodule CommerceFront.Settings do
               left: left |> String.to_integer(),
               right: right |> String.to_integer(),
               total_left: total_left || 0,
-              total_right: total_right || 0
+              total_right: total_right || 0,
+              balance_left: balance_left || 0,
+              balance_right: balance_right || 0,
+              position: position
             }
             |> Jason.encode!(),
           left: left |> String.to_integer(),
           right: right |> String.to_integer(),
           total_left: total_left || 0,
           total_right: total_right || 0,
+          balance_left: balance_left || 0,
+          balance_right: balance_right || 0,
           name: username,
           children: zchildren,
           username: username,
@@ -468,7 +499,14 @@ defmodule CommerceFront.Settings do
           end
 
         %{
+          icon: "fa fa-user text-info",
           name: username <> " #{id}",
+          text: """
+          <span class='my-2'>
+            <span class='p-1 my-2'>#{username}</span>
+            <span class='m-0 px-1 ' style="width: 50%;position: absolute;right: 0px;">id: #{id}</span>
+          </span>
+          """,
           children: zchildren,
           username: username,
           id: id |> String.to_integer(),
@@ -487,7 +525,18 @@ defmodule CommerceFront.Settings do
 
     transform = fn list, ori_data ->
       if tree == :placement do
-        [username, id, fullname, position, left, right, total_left, total_right] = list
+        [
+          username,
+          id,
+          fullname,
+          position,
+          left,
+          right,
+          total_left,
+          total_right,
+          balance_left,
+          balance_right
+        ] = list
 
         map = ori_data |> Enum.filter(&(&1.parent_username == username)) |> List.first()
 
@@ -539,10 +588,13 @@ defmodule CommerceFront.Settings do
           value:
             %{
               username: map.parent_username,
+              position: if(smap != nil, do: smap.position, else: "n/a"),
               left: if(smap != nil, do: smap.left, else: "n/a"),
               right: if(smap != nil, do: smap.right, else: "n/a"),
               total_left: if(smap != nil, do: smap.total_left, else: "n/a"),
-              total_right: if(smap != nil, do: smap.total_right, else: "n/a")
+              total_right: if(smap != nil, do: smap.total_right, else: "n/a"),
+              balance_left: if(smap != nil, do: smap.balance_left, else: "n/a"),
+              balance_right: if(smap != nil, do: smap.balance_right, else: "n/a")
             }
             |> Jason.encode!(),
           name: map.parent_username,
@@ -551,6 +603,8 @@ defmodule CommerceFront.Settings do
           right: if(smap != nil, do: smap.right, else: "n/a"),
           total_left: if(smap != nil, do: smap.total_left, else: "n/a"),
           total_right: if(smap != nil, do: smap.total_right, else: "n/a"),
+          balance_left: if(smap != nil, do: smap.balance_left, else: "n/a"),
+          balance_right: if(smap != nil, do: smap.balance_right, else: "n/a"),
           children: children |> Enum.sort_by(& &1.position)
         }
       else
@@ -562,6 +616,13 @@ defmodule CommerceFront.Settings do
           end
 
         %{
+          icon: "fa fa-user text-success",
+          text: """
+          <span class='my-2'>
+            <span class='p-1 my-2'>#{username}</span>
+            <span class='m-0 px-1 ' style="width: 50%;position: absolute;right: 0px;">id: #{map.parent_id}</span>
+          </span>
+          """,
           id: map.parent_id,
           name: map.parent_username <> " #{if(smap != nil, do: smap.id, else: "n/a")}",
           children: children |> Enum.sort_by(& &1.id)
@@ -768,6 +829,10 @@ defmodule CommerceFront.Settings do
       |> Multi.run(:pgsd, fn _repo, %{user: user, sale: sale, placement: placement} ->
         contribute_group_sales(user.username, sale.total_point_value, sale, placement)
       end)
+      |> Multi.run(:team_bonus, fn _repo,
+                                   %{pgsd: pgsd, user: user, sale: sale, placement: placement} ->
+        team_bonus(user.username, sale.total_point_value, sale, placement, pgsd)
+      end)
       |> Repo.transaction()
       |> IO.inspect()
       |> case do
@@ -778,6 +843,99 @@ defmodule CommerceFront.Settings do
         _ ->
           {:error, []}
       end
+  end
+
+  def team_bonus(username, total_point_value, sale, placement, pgsd) do
+    multi = Multi.new()
+
+    summaries = pgsd |> Map.values() |> Enum.map(& &1)
+
+    calc_for_parent = fn map, multi_query ->
+      summary = map.gs_summary |> Repo.preload(:user)
+      # IEx.pry()
+
+      with true <- summary.total_left != nil,
+           true <- summary.total_left != 0,
+           true <- summary.total_right != nil,
+           true <- summary.total_right != 0 do
+        IO.inspect([summary.total_left, summary.total_right])
+
+        constant =
+          if summary.total_left > summary.total_right do
+            summary.total_left / summary.total_right
+          else
+            summary.total_right / summary.total_left
+          end
+
+        {paired, changeset} =
+          if constant > 1 do
+            # this means, the left is more than right
+            {total_point_value,
+             %{
+               balance_left: summary.total_left - summary.total_right,
+               balance_right: summary.total_right - summary.total_right
+             }}
+          else
+            {total_point_value,
+             %{
+               balance_left: summary.total_left - summary.total_left,
+               balance_right: summary.total_right - summary.total_left
+             }}
+          end
+          |> IO.inspect()
+
+        multi_query
+        |> Multi.run(String.to_atom("pgsd_left_#{summary.user_id}"), fn _repo, %{} ->
+          if map.position == "left" do
+            if map.after - paired < 0 do
+              Logger.info("[team bonus] - after: #{map.after} - paired: #{paired}")
+            end
+
+            CommerceFront.Settings.PlacementGroupSalesDetail.changeset(
+              %CommerceFront.Settings.PlacementGroupSalesDetail{},
+              %{
+                before: map.after,
+                after: map.after - paired,
+                amount: paired,
+                from_user_id: 0,
+                to_user_id: map.to_user_id,
+                remarks: "pairing bonus calculation",
+                sales_id: 0,
+                position: "left"
+              }
+            )
+          else
+            if map.after - paired < 0 do
+              Logger.info("[team bonus] - after: #{map.after} - paired: #{paired}")
+            end
+
+            CommerceFront.Settings.PlacementGroupSalesDetail.changeset(
+              %CommerceFront.Settings.PlacementGroupSalesDetail{},
+              %{
+                before: map.after,
+                after: map.after - paired,
+                amount: paired,
+                from_user_id: 0,
+                to_user_id: map.to_user_id,
+                remarks: "pairing bonus calculation",
+                sales_id: 0,
+                position: "right"
+              }
+            )
+          end
+          |> Repo.insert()
+        end)
+        |> Multi.run(String.to_atom("gs_summary_#{summary.user_id}"), fn _repo, %{} ->
+          update_group_sales_summary(summary, changeset)
+        end)
+      else
+        _ ->
+          multi_query
+      end
+    end
+
+    Enum.reduce(summaries, multi, &calc_for_parent.(&1, &2))
+    |> Repo.transaction()
   end
 
   def get_user_by_username(username) do
@@ -861,7 +1019,7 @@ defmodule CommerceFront.Settings do
         |> select([m, pt, m2, gss], %{
           children:
             fragment(
-              "ARRAY_AGG( CONCAT(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) )",
+              "ARRAY_AGG( CONCAT(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) )",
               m.username,
               "|",
               m.id,
@@ -876,7 +1034,11 @@ defmodule CommerceFront.Settings do
               "|",
               gss.total_left,
               "|",
-              gss.total_right
+              gss.total_right,
+              "|",
+              gss.balance_left,
+              "|",
+              gss.balance_right
             ),
           parent: m2.fullname,
           parent_username: m2.username,

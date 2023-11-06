@@ -18,7 +18,7 @@ export let memberApp_ = {
     console.log(dom)
     $(dom).closest("form")
     phxApp_.form($(dom).closest("form"), "register", () => {
-      phxApp_.navigateTo("/home")
+      phxApp_.navigateTo("/register")
     })
   },
   logout() {

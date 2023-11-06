@@ -6,8 +6,7 @@ import { Socket } from "./phoenix.js"
 import { phoenixModel } from './phoenixModel.js';
 
 
-console.log(phoenixModel)
-window.phoenixModel = phoenixModel;  
+window.phoenixModel = phoenixModel;
 window.phoenixModels = []
 window.commerceApp = commerceApp_
 window.phxApp = phxApp_
