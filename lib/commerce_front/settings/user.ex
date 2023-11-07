@@ -16,7 +16,7 @@ defmodule CommerceFront.Settings.User do
     field(:phone, :string)
     field(:rank_name, :string)
     field(:username, :string)
-
+    belongs_to(:rank, CommerceFront.Settings.Rank)
     timestamps()
   end
 
@@ -24,6 +24,7 @@ defmodule CommerceFront.Settings.User do
   def changeset(user, attrs) do
     user
     |> cast(attrs, [
+      :rank_id,
       :email,
       :username,
       :fullname,

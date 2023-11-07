@@ -8,6 +8,145 @@ defmodule CommerceFront.Settings do
   alias CommerceFront.Repo
   require IEx
   alias Ecto.Multi
+  alias CommerceFront.Settings.WalletTransaction
+
+  def list_wallet_transactions() do
+    Repo.all(WalletTransaction)
+  end
+
+  def get_wallet_transaction!(id) do
+    Repo.get!(WalletTransaction, id)
+  end
+
+  def update_wallet_transaction(model, params) do
+    WalletTransaction.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_wallet_transaction(%WalletTransaction{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.Ewallet
+
+  def get_latest_wallet_transaction_by_user_id(user_id, wallet_type) do
+    Repo.all(
+      from(wt in WalletTransaction,
+        left_join: ew in Ewallet,
+        on: ew.id == wt.ewallet_id,
+        where: wt.user_id == ^user_id and ew.wallet_type == ^wallet_type,
+        order_by: [desc: wt.id],
+        preload: [:ewallet]
+      )
+    )
+    |> List.first()
+  end
+
+  def list_ewallets() do
+    Repo.all(Ewallet)
+  end
+
+  def get_ewallet!(id) do
+    Repo.get!(Ewallet, id)
+  end
+
+  def create_ewallet(params \\ %{}) do
+    params |> IO.inspect()
+
+    Multi.new()
+    |> Multi.run(:ewallet, fn _repo, %{} ->
+      Ewallet.changeset(%Ewallet{}, params) |> Repo.insert()
+    end)
+    |> Multi.run(:wallet_transaction, fn _repo, %{ewallet: ewallet} ->
+      WalletTransaction.changeset(%WalletTransaction{}, %{
+        ewallet_id: ewallet.id,
+        user_id: ewallet.user_id,
+        before: 0.00,
+        amount: 0.00,
+        after: 0.00,
+        remarks: "initial"
+      })
+      |> Repo.insert()
+    end)
+    |> Repo.transaction()
+    |> IO.inspect()
+    |> case do
+      {:ok, multi_res} ->
+        {:ok, multi_res}
+
+      _ ->
+        {:error, []}
+    end
+  end
+
+  @doc """
+
+  this transaction need to have 
+  %{
+    user_id: 1,
+    amount: 100.00,
+
+    remarks: "something",
+    wallet_type: "bonus"
+  }
+  it will first find the wallet transaction first, if nid, need to create
+  """
+  def create_wallet_transaction(params \\ %{}) do
+    Multi.new()
+    |> Multi.run(:ewallet_n_transaction, fn _repo, %{} ->
+      check = get_latest_wallet_transaction_by_user_id(params.user_id, params.wallet_type)
+
+      if check == nil do
+        create_ewallet(params |> Map.put(:total, 0.00))
+      else
+        {:ok, %{wallet_transaction: check, ewallet: check.ewallet}}
+      end
+      |> IO.inspect()
+    end)
+    |> Multi.run(:wallet_transaction, fn _repo, %{ewallet_n_transaction: ewallet} ->
+      WalletTransaction.changeset(
+        %WalletTransaction{},
+        params
+        |> Map.merge(%{
+          before: ewallet.wallet_transaction.after,
+          after: ewallet.wallet_transaction.after + params.amount,
+          ewallet_id: ewallet.ewallet.id
+        })
+        |> IO.inspect()
+      )
+      |> Repo.insert()
+    end)
+    |> Multi.run(:ewallet, fn _repo,
+                              %{
+                                ewallet_n_transaction: ewallet,
+                                wallet_transaction: wallet_transaction
+                              } ->
+      Ewallet.changeset(ewallet.ewallet, %{total: wallet_transaction.after}) |> Repo.update()
+    end)
+    |> Repo.transaction()
+    |> IO.inspect()
+    |> case do
+      {:ok, multi_res} ->
+        # {:ok, multi_res |> Map.get(:ewallet)}
+        {:ok, multi_res}
+
+      _ ->
+        {:error, []}
+    end
+  end
+
+  def update_ewallet(model, params) do
+    Ewallet.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_ewallet(%Ewallet{} = model) do
+    Repo.delete(model)
+  end
+
+  def reset_all_ewallet() do
+    Repo.delete_all(WalletTransaction)
+    Repo.delete_all(from(e in Ewallet))
+  end
+
   alias CommerceFront.Settings.GroupSalesSummary
 
   def list_group_sales_summaries() do
@@ -792,6 +931,13 @@ defmodule CommerceFront.Settings do
       Multi.new()
       |> Multi.run(:user, fn _repo, %{} ->
         create_user(params)
+      end)
+      |> Multi.run(:ewallets, fn _repo, %{user: user} ->
+        nil
+        # create_ewallet(%{user_id: user.id, wallet_type: "bonus", total: 0})
+        # create_ewallet(%{user_id: user.id, wallet_type: "product", total: 0})
+        # create_ewallet(%{user_id: user.id, wallet_type: "register", total: 0})
+        # create_ewallet(%{user_id: user.id, wallet_type: "direct_recruitment", total: 0})
       end)
       |> Multi.run(:sale, fn _repo, %{user: user} ->
         rank = get_rank!(params["rank_id"])
