@@ -402,6 +402,8 @@ defmodule CommerceFrontWeb.ApiController do
     end
   end
 
+  require IEx
+
   def datatable(conn, params) do
     decode_token = fn params ->
       customer_id = Map.get(params, "user_id")

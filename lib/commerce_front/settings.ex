@@ -8,6 +8,29 @@ defmodule CommerceFront.Settings do
   alias CommerceFront.Repo
   require IEx
   alias Ecto.Multi
+
+  alias CommerceFront.Settings.Reward
+
+  def list_rewards() do
+    Repo.all(from(r in Reward, preload: :user))
+  end
+
+  def get_reward!(id) do
+    Repo.get!(Reward, id)
+  end
+
+  def create_reward(params \\ %{}) do
+    Reward.changeset(%Reward{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_reward(model, params) do
+    Reward.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_reward(%Reward{} = model) do
+    Repo.delete(model)
+  end
+
   alias CommerceFront.Settings.WalletTransaction
 
   def list_wallet_transactions() do
@@ -157,13 +180,21 @@ defmodule CommerceFront.Settings do
     Repo.get!(GroupSalesSummary, id)
   end
 
-  def get_latest_gs_summary_by_user_id(user_id) do
+  def get_latest_gs_summary_by_user_id(user_id, back_date \\ nil) do
+    {y, m, d} =
+      if back_date != nil do
+        back_date
+      else
+        Date.utc_today()
+      end
+      |> Date.to_erl()
+
     Repo.all(
       from(gss in GroupSalesSummary,
         where:
           gss.user_id == ^user_id and
-            gss.day == ^Date.utc_today().day and gss.month == ^Date.utc_today().month and
-            gss.year == ^Date.utc_today().year
+            gss.day == ^d and gss.month == ^m and
+            gss.year == ^y
       )
     )
     |> List.first()
@@ -191,14 +222,23 @@ defmodule CommerceFront.Settings do
     Repo.get!(PlacementGroupSalesDetail, id)
   end
 
-  def create_placement_group_sales_detail(params \\ %{}) do
+  def create_placement_group_sales_detail(params \\ %{}, back_date \\ nil) do
     Multi.new()
     |> Multi.run(:gsd, fn _repo, %{} ->
       PlacementGroupSalesDetail.changeset(%PlacementGroupSalesDetail{}, params)
       |> Repo.insert()
     end)
     |> Multi.run(:gs_summary, fn _repo, %{gsd: gsd} ->
-      check = get_latest_gs_summary_by_user_id(gsd.to_user_id)
+      check = get_latest_gs_summary_by_user_id(gsd.to_user_id, back_date)
+
+      if gsd.to_user_id == 584 do
+        r =
+          CommerceFront.Repo.all(
+            from(gss in CommerceFront.Settings.GroupSalesSummary, where: gss.user_id == ^584)
+          )
+
+        # IEx.pry()
+      end
 
       case check do
         nil ->
@@ -215,14 +255,21 @@ defmodule CommerceFront.Settings do
               }
             end
 
+          {y, m, d} =
+            if back_date != nil do
+              back_date |> Date.to_erl()
+            else
+              Date.utc_today() |> Date.to_erl()
+            end
+
           create_group_sales_summary(
             %{
               total_left: 0,
               total_right: 0,
               user_id: gsd.to_user_id,
-              day: Date.utc_today().day,
-              month: Date.utc_today().month,
-              year: Date.utc_today().year
+              day: d,
+              month: m,
+              year: y
             }
             |> Map.merge(map)
           )
@@ -239,17 +286,28 @@ defmodule CommerceFront.Settings do
               }
             end
 
+          {y, m, d} =
+            if back_date != nil do
+              back_date |> Date.to_erl()
+            else
+              Date.utc_today() |> Date.to_erl()
+            end
+
           update_group_sales_summary(
             check,
             %{
               user_id: gsd.to_user_id,
-              day: Date.utc_today().day,
-              month: Date.utc_today().month,
-              year: Date.utc_today().year
+              day: d,
+              month: m,
+              year: y
             }
             |> Map.merge(map)
           )
       end
+    end)
+    |> Multi.run(:gsd2, fn _repo, %{gsd: gsd, gs_summary: gs_summary} ->
+      PlacementGroupSalesDetail.changeset(gsd, %{gs_summary_id: gs_summary.id})
+      |> Repo.update()
     end)
     |> Repo.transaction()
     |> IO.inspect()
@@ -628,7 +686,7 @@ defmodule CommerceFront.Settings do
           position: position
         }
       else
-        [username, id, fullname] = list |> String.split("|")
+        [username, id, fullname, rank_name] = list |> String.split("|")
 
         zchildren =
           if include_empty do
@@ -637,13 +695,25 @@ defmodule CommerceFront.Settings do
             []
           end
 
+        bg =
+          case rank_name do
+            "黄金套餐" ->
+              "bg-warning"
+
+            "银色套餐" ->
+              "bg-info"
+
+            _ ->
+              "bg-primary"
+          end
+
         %{
           icon: "fa fa-user text-info",
           name: username <> " #{id}",
           text: """
           <span class='my-2'>
             <span class='p-1 my-2'>#{username}</span>
-            <span class='m-0 px-1 ' style="width: 50%;position: absolute;right: 0px;">id: #{id}</span>
+            <span class='m-0 px-1 ' style="width: 50%;position: absolute;right: 0px;">id: #{id} | <span class="badge #{bg}"> #{rank_name}</span></span>
           </span>
           """,
           children: zchildren,
@@ -681,7 +751,7 @@ defmodule CommerceFront.Settings do
 
         display_tree(username, ori_data, transformed_children)
       else
-        [username, id, fullname] = list
+        [username, id, fullname, rank_name] = list
 
         map = ori_data |> Enum.filter(&(&1.parent_username == username)) |> List.first()
 
@@ -754,15 +824,28 @@ defmodule CommerceFront.Settings do
             smap
           end
 
+        bg =
+          case map.rank_name do
+            "黄金套餐" ->
+              "bg-warning"
+
+            "银色套餐" ->
+              "bg-info"
+
+            _ ->
+              "bg-primary"
+          end
+
         %{
           icon: "fa fa-user text-success",
           text: """
           <span class='my-2'>
             <span class='p-1 my-2'>#{username}</span>
-            <span class='m-0 px-1 ' style="width: 50%;position: absolute;right: 0px;">id: #{map.parent_id}</span>
+            <span class='m-0 px-1 ' style="width: 50%;position: absolute;right: 0px;">id: #{map.parent_id} | <span class="badge #{bg}"> #{map.rank_name}</span></span>
           </span>
           """,
           id: map.parent_id,
+          rank_name: map.rank_name,
           name: map.parent_username <> " #{if(smap != nil, do: smap.id, else: "n/a")}",
           children: children |> Enum.sort_by(& &1.id)
         }
@@ -805,7 +888,7 @@ defmodule CommerceFront.Settings do
     end
   end
 
-  def latest_group_sales_details(username, position) do
+  def latest_group_sales_details(username, position, back_date \\ nil) do
     Repo.all(
       from(pgsd in PlacementGroupSalesDetail,
         left_join: u in User,
@@ -817,7 +900,14 @@ defmodule CommerceFront.Settings do
     |> List.first()
   end
 
-  def contribute_group_sales(from_username, amount, sales, placement, prev_multi \\ nil) do
+  def contribute_group_sales(
+        from_username,
+        amount,
+        sales,
+        placement,
+        prev_multi \\ nil,
+        back_date \\ nil
+      ) do
     from_user = get_user_by_username(from_username)
 
     add_gs = fn upline, multi_query ->
@@ -825,33 +915,37 @@ defmodule CommerceFront.Settings do
       |> Multi.run(String.to_atom("parent_#{upline.parent}"), fn _repo, %{} ->
         latest = latest_group_sales_details(upline.parent, upline.pt_position)
         # position has to be the first upline's position 
-        IO.inspect(upline.pt_position)
-        IO.inspect(placement.position)
 
         case latest do
           nil ->
-            create_placement_group_sales_detail(%{
-              before: 0,
-              after: amount,
-              amount: amount,
-              from_user_id: from_user.id,
-              to_user_id: upline.parent_id,
-              position: upline.pt_position,
-              sales_id: sales.id,
-              remarks: "from sales-#{sales.id}"
-            })
+            create_placement_group_sales_detail(
+              %{
+                before: 0,
+                after: amount,
+                amount: amount,
+                from_user_id: from_user.id,
+                to_user_id: upline.parent_id,
+                position: upline.pt_position,
+                sales_id: sales.id,
+                remarks: "from sales-#{sales.id}"
+              },
+              back_date
+            )
 
           _ ->
-            create_placement_group_sales_detail(%{
-              before: latest.after,
-              after: latest.after + amount,
-              amount: amount,
-              from_user_id: from_user.id,
-              to_user_id: upline.parent_id,
-              position: upline.pt_position,
-              sales_id: sales.id,
-              remarks: "from sales-#{sales.id}"
-            })
+            create_placement_group_sales_detail(
+              %{
+                before: latest.after,
+                after: latest.after + amount,
+                amount: amount,
+                from_user_id: from_user.id,
+                to_user_id: upline.parent_id,
+                position: upline.pt_position,
+                sales_id: sales.id,
+                remarks: "from sales-#{sales.id}"
+              },
+              back_date
+            )
         end
 
         # find the latest group sales details
@@ -870,9 +964,6 @@ defmodule CommerceFront.Settings do
       Enum.reduce(uplines, multi, &add_gs.(&1, &2))
       |> Repo.transaction()
     end
-  end
-
-  def update_placement_position_counter(placement, position, amount) do
   end
 
   @doc """
@@ -926,18 +1017,246 @@ defmodule CommerceFront.Settings do
     end
   end
 
+  @doc """
+  when the placement group sales details is in place, based on the inserted at date to reconstruct the group sales sumary
+  """
+  def reconstruct_daily_group_sales_summary(date \\ Date.utc_today()) do
+    {y, m, d} =
+      date
+      |> Date.to_erl()
+
+    datetime = NaiveDateTime.from_erl!({{y, m, d}, {0, 0, 0}})
+    end_datetime = datetime |> Timex.shift(days: 1)
+
+    Multi.new()
+    |> Multi.run(:delete_initial_entries, fn _repo, %{} ->
+      if date == ~D[2023-11-07] do
+        Repo.delete_all(GroupSalesSummary)
+        Repo.delete_all(PlacementGroupSalesDetail)
+
+        Repo.delete_all(
+          from(r in Reward,
+            where: r.name == "team bonus"
+          )
+        )
+      end
+
+      {:ok, nil}
+    end)
+    |> Multi.run(:delete_remaining_entries, fn _repo, %{} ->
+      ids =
+        Repo.all(
+          from(gss in GroupSalesSummary,
+            where:
+              gss.day == ^d and gss.month == ^m and
+                gss.year == ^y,
+            select: gss.id
+          )
+        )
+
+      q2 =
+        from(pgsd in PlacementGroupSalesDetail)
+        |> where(
+          [pgsd],
+          not ilike(pgsd.remarks, "bring forward%") and pgsd.gs_summary_id in ^ids
+        )
+
+      # need to exlude those carry forward and bring forward..
+
+      # Repo.delete_all(
+      #   from(gss in GroupSalesSummary,
+      #     where:
+      #       gss.day == ^d and gss.month == ^m and
+      #         gss.year == ^y
+      #   )
+      # )
+
+      Repo.delete_all(q2)
+
+      {:ok, nil}
+    end)
+    |> Multi.run(:sales, fn _repo, %{} ->
+      sales =
+        Repo.all(
+          from(s in CommerceFront.Settings.Sale,
+            where: s.inserted_at > ^datetime and s.inserted_at < ^end_datetime,
+            preload: :user,
+            order_by: [asc: s.id]
+          )
+        )
+
+      for sale <- sales do
+        {:ok, pgsd} =
+          contribute_group_sales(
+            sale.user.username,
+            sale.total_point_value,
+            sale,
+            nil,
+            nil,
+            date
+          )
+
+        team_bonus(sale.user.username, sale.total_point_value, sale, nil, pgsd)
+      end
+
+      {:ok, nil}
+    end)
+    |> Repo.transaction()
+  end
+
+  @doc """
+  end of day, the balance from the summary need to carry forward to next day
+  CommerceFront.Settings.carry_forward_entry(Date.utc_today() |> Timex.shift(days: -1))
+  """
+  def carry_forward_entry(from_date \\ Date.utc_today()) do
+    query =
+      from(pgsd in GroupSalesSummary,
+        left_join: u in User,
+        on: u.id == pgsd.user_id,
+        where:
+          pgsd.day == ^from_date.day and pgsd.month == ^from_date.month and
+            pgsd.year == ^from_date.year and not is_nil(u.username)
+      )
+
+    gs_summaries = Repo.all(query)
+
+    Multi.new()
+    |> Multi.run(:carry_forward, fn _repo, %{} ->
+      res =
+        for gs_summary <-
+              gs_summaries
+              |> Enum.reject(&(&1.balance_left == nil))
+              |> Enum.reject(&(&1.balance_right == nil)) do
+          gs_summary = gs_summary |> Repo.preload(:user)
+
+          # Repo.delete_all(
+          #   from(pgsd in PlacementGroupSalesDetail, where: pgsd.gs_summary_id == ^gs_summary.id and pgsd.remarks: == ^"carry_forward")
+          # )
+
+          {:ok, left} =
+            CommerceFront.Settings.PlacementGroupSalesDetail.changeset(
+              %CommerceFront.Settings.PlacementGroupSalesDetail{},
+              %{
+                before: gs_summary.balance_left,
+                after: 0,
+                amount: gs_summary.balance_left * -1,
+                remarks: "carry forward",
+                from_user_id: gs_summary.user_id,
+                to_user_id: gs_summary.user_id,
+                sales_id: 0,
+                position: "left",
+                gs_summary_id: gs_summary.id
+              }
+            )
+            |> Repo.insert()
+
+          {:ok, right} =
+            CommerceFront.Settings.PlacementGroupSalesDetail.changeset(
+              %CommerceFront.Settings.PlacementGroupSalesDetail{},
+              %{
+                before: gs_summary.balance_right,
+                after: 0,
+                amount: gs_summary.balance_right * -1,
+                remarks: "carry forward",
+                from_user_id: gs_summary.user_id,
+                to_user_id: gs_summary.user_id,
+                sales_id: 0,
+                position: "right",
+                gs_summary_id: gs_summary.id
+              }
+            )
+            |> Repo.insert()
+
+          to_date = from_date |> Timex.shift(days: 1)
+
+          {:ok, gs} =
+            CommerceFront.Settings.GroupSalesSummary.changeset(
+              %CommerceFront.Settings.GroupSalesSummary{},
+              %{
+                total_left: 0,
+                total_right: 0,
+                user_id: gs_summary.user_id,
+                day: to_date.day,
+                month: to_date.month,
+                year: to_date.year
+              }
+            )
+            |> Repo.insert()
+
+          # todo, check for existing PGSD entries
+
+          CommerceFront.Settings.PlacementGroupSalesDetail.changeset(
+            %CommerceFront.Settings.PlacementGroupSalesDetail{},
+            %{
+              before: 0,
+              after: gs_summary.balance_left,
+              amount: gs_summary.balance_left,
+              remarks: "bring forward from #{left.id}",
+              from_user_id: gs_summary.user_id,
+              to_user_id: gs_summary.user_id,
+              sales_id: 0,
+              position: "left",
+              gs_summary_id: gs.id
+            }
+          )
+          |> Repo.insert()
+
+          CommerceFront.Settings.PlacementGroupSalesDetail.changeset(
+            %CommerceFront.Settings.PlacementGroupSalesDetail{},
+            %{
+              before: 0,
+              after: gs_summary.balance_right,
+              amount: gs_summary.balance_right,
+              remarks: "bring forward from #{right.id}",
+              from_user_id: gs_summary.user_id,
+              to_user_id: gs_summary.user_id,
+              sales_id: 0,
+              position: "right",
+              gs_summary_id: gs.id
+            }
+          )
+          |> Repo.insert()
+
+          # IEx.pry()
+
+          CommerceFront.Settings.GroupSalesSummary.changeset(
+            gs,
+            %{
+              total_left: gs_summary.balance_left,
+              total_right: gs_summary.balance_right,
+              balance_left: gs_summary.balance_left,
+              balance_right: gs_summary.balance_right
+            }
+          )
+          |> Repo.update()
+        end
+
+      {:ok, res}
+    end)
+    |> Repo.transaction()
+  end
+
   def register(params) do
     multi =
       Multi.new()
       |> Multi.run(:user, fn _repo, %{} ->
-        create_user(params)
+        rank = get_rank!(params["rank_id"])
+        # IEx.pry()
+        create_user(params |> Map.put("rank_name", rank.name))
       end)
       |> Multi.run(:ewallets, fn _repo, %{user: user} ->
-        nil
-        # create_ewallet(%{user_id: user.id, wallet_type: "bonus", total: 0})
-        # create_ewallet(%{user_id: user.id, wallet_type: "product", total: 0})
-        # create_ewallet(%{user_id: user.id, wallet_type: "register", total: 0})
-        # create_ewallet(%{user_id: user.id, wallet_type: "direct_recruitment", total: 0})
+        wallets = ["bonus", "product", "register", "direct_recruitment"]
+
+        for wallet_type <- wallets do
+          CommerceFront.Settings.create_wallet_transaction(%{
+            user_id: user.id,
+            amount: 0.00,
+            remarks: "initial",
+            wallet_type: wallet_type
+          })
+        end
+
+        {:ok, nil}
       end)
       |> Multi.run(:sale, fn _repo, %{user: user} ->
         rank = get_rank!(params["rank_id"])
@@ -975,6 +1294,10 @@ defmodule CommerceFront.Settings do
       |> Multi.run(:pgsd, fn _repo, %{user: user, sale: sale, placement: placement} ->
         contribute_group_sales(user.username, sale.total_point_value, sale, placement)
       end)
+      |> Multi.run(:sharing_bonus, fn _repo,
+                                      %{pgsd: pgsd, user: user, sale: sale, referral: referral} ->
+        sharing_bonus(user.username, sale.total_point_value, sale, referral)
+      end)
       |> Multi.run(:team_bonus, fn _repo,
                                    %{pgsd: pgsd, user: user, sale: sale, placement: placement} ->
         team_bonus(user.username, sale.total_point_value, sale, placement, pgsd)
@@ -991,6 +1314,98 @@ defmodule CommerceFront.Settings do
       end
   end
 
+  @doc """
+
+
+  find uplines,
+  check upline rank,
+  compress until the total_point_value is paid completely...
+
+  """
+  def sharing_bonus(username, total_point_value, sale, referral) do
+    uplines = CommerceFront.Settings.check_uplines(username) |> Enum.with_index(1)
+
+    matrix = [
+      %{rank: "青铜套餐", l1: 0.2, calculated: false},
+      %{rank: "银色套餐", l1: 0.2, l2: 0.1, calculated: false},
+      %{rank: "黄金套餐", l1: 0.2, l2: 0.1, l3: 0.1, calculated: false}
+    ]
+
+    run_calc = fn {upline, index}, {calc_index, eval_matrix, remainder_point_value} ->
+      user = get_user_by_username(upline.parent)
+      rank = user.rank_id |> get_rank! |> IO.inspect()
+
+      calc_table =
+        matrix
+        |> Enum.filter(&(&1.rank == rank.name))
+        |> List.first()
+
+      perc =
+        case calc_index do
+          1 ->
+            calc_table |> Map.get(:l1, 0)
+
+          2 ->
+            calc_table |> Map.get(:l2, 0)
+
+          3 ->
+            calc_table |> Map.get(:l3, 0)
+
+          _ ->
+            0
+        end
+        |> IO.inspect()
+
+      with true <- calc_index < 4,
+           list <-
+             eval_matrix
+             |> Enum.reject(&(&1.calculated == true))
+             |> Enum.filter(&(&1.rank == rank.name)),
+           true <- list != [],
+           matrix_item <-
+             list
+             |> List.first(),
+           calculated <-
+             matrix_item
+             |> Map.get(:calculated),
+           true <- calculated == false do
+        bonus = remainder_point_value * perc
+
+        create_reward(%{
+          sales_id: sale.id,
+          is_paid: false,
+          remarks:
+            "sales-#{sale.id}|#{remainder_point_value} * #{perc} = #{bonus}|lvl:#{index}/#{rank.name}",
+          name: "sharing bonus",
+          amount: bonus,
+          user_id: user.id,
+          day: Date.utc_today().day,
+          month: Date.utc_today().month,
+          year: Date.utc_today().year
+        })
+
+        new_matrix_item =
+          matrix |> Enum.find(&(&1.rank == rank.name)) |> Map.put(:calculated, true)
+
+        remove_index = matrix |> Enum.find_index(&(&1.rank == rank.name))
+
+        pre_matrix = List.delete_at(matrix, 0)
+
+        next_matrix = List.insert_at(pre_matrix, 0, new_matrix_item)
+
+        # remainder_point_value - bonus
+        {calc_index + 1, next_matrix, total_point_value}
+      else
+        _ ->
+          {calc_index, eval_matrix, total_point_value}
+      end
+    end
+
+    Enum.reduce(uplines, {1, matrix, total_point_value}, &run_calc.(&1, &2))
+
+    {:ok, nil}
+  end
+
   def team_bonus(username, total_point_value, sale, placement, pgsd) do
     multi = Multi.new()
 
@@ -998,7 +1413,10 @@ defmodule CommerceFront.Settings do
 
     calc_for_parent = fn map, multi_query ->
       summary = map.gs_summary |> Repo.preload(:user)
-      # IEx.pry()
+
+      if summary.user.username == "summer" do
+        # IEx.pry()
+      end
 
       with true <- summary.total_left != nil,
            true <- summary.total_left != 0,
@@ -1006,22 +1424,32 @@ defmodule CommerceFront.Settings do
            true <- summary.total_right != 0 do
         IO.inspect([summary.total_left, summary.total_right])
 
-        constant =
-          if summary.total_left > summary.total_right do
-            summary.total_left / summary.total_right
-          else
-            summary.total_right / summary.total_left
-          end
+        latest_gs =
+          get_latest_gs_summary_by_user_id(
+            summary.user.id,
+            Date.from_erl!({summary.year, summary.month, summary.day})
+          )
+
+        constant = summary.total_left / summary.total_right
 
         {paired, changeset} =
           if constant > 1 do
             # this means, the left is more than right
+
+            if summary.total_left - summary.total_right < 0 do
+              IEx.pry()
+            end
+
             {total_point_value,
              %{
                balance_left: summary.total_left - summary.total_right,
                balance_right: summary.total_right - summary.total_right
              }}
           else
+            if summary.total_right - summary.total_left < 0 do
+              IEx.pry()
+            end
+
             {total_point_value,
              %{
                balance_left: summary.total_left - summary.total_left,
@@ -1033,37 +1461,33 @@ defmodule CommerceFront.Settings do
         multi_query
         |> Multi.run(String.to_atom("pgsd_left_#{summary.user_id}"), fn _repo, %{} ->
           if map.position == "left" do
-            if map.after - paired < 0 do
-              Logger.info("[team bonus] - after: #{map.after} - paired: #{paired}")
-            end
+            Logger.info("[team bonus] - after: #{map.after} - paired: #{paired}")
 
             CommerceFront.Settings.PlacementGroupSalesDetail.changeset(
               %CommerceFront.Settings.PlacementGroupSalesDetail{},
               %{
                 before: map.after,
                 after: map.after - paired,
-                amount: paired,
+                amount: -paired,
                 from_user_id: 0,
                 to_user_id: map.to_user_id,
-                remarks: "pairing bonus calculation",
+                remarks: "pairing bonus calculation|from sale-#{sale.id}",
                 sales_id: 0,
                 position: "left"
               }
             )
           else
-            if map.after - paired < 0 do
-              Logger.info("[team bonus] - after: #{map.after} - paired: #{paired}")
-            end
+            Logger.info("[team bonus] - after: #{map.after} - paired: #{paired}")
 
             CommerceFront.Settings.PlacementGroupSalesDetail.changeset(
               %CommerceFront.Settings.PlacementGroupSalesDetail{},
               %{
                 before: map.after,
                 after: map.after - paired,
-                amount: paired,
+                amount: -paired,
                 from_user_id: 0,
                 to_user_id: map.to_user_id,
-                remarks: "pairing bonus calculation",
+                remarks: "pairing bonus calculation|from sale-#{sale.id}",
                 sales_id: 0,
                 position: "right"
               }
@@ -1071,8 +1495,94 @@ defmodule CommerceFront.Settings do
           end
           |> Repo.insert()
         end)
+        |> Multi.run(String.to_atom("pgsd_right_#{summary.user_id}"), fn _repo, %{} ->
+          if map.position == "left" do
+            Logger.info("[team bonus] - after: #{map.after} - paired: #{paired}")
+
+            CommerceFront.Settings.PlacementGroupSalesDetail.changeset(
+              %CommerceFront.Settings.PlacementGroupSalesDetail{},
+              %{
+                before: map.after,
+                after: map.after - paired,
+                amount: -paired,
+                from_user_id: 0,
+                to_user_id: map.to_user_id,
+                remarks: "pairing bonus calculation|from sale-#{sale.id}",
+                sales_id: 0,
+                position: "right"
+              }
+            )
+          else
+            Logger.info("[team bonus] - after: #{map.after} - paired: #{paired}")
+
+            CommerceFront.Settings.PlacementGroupSalesDetail.changeset(
+              %CommerceFront.Settings.PlacementGroupSalesDetail{},
+              %{
+                before: map.after,
+                after: map.after - paired,
+                amount: -paired,
+                from_user_id: 0,
+                to_user_id: map.to_user_id,
+                remarks: "pairing bonus calculation|from sale-#{sale.id}",
+                sales_id: 0,
+                position: "left"
+              }
+            )
+          end
+          |> Repo.insert()
+        end)
         |> Multi.run(String.to_atom("gs_summary_#{summary.user_id}"), fn _repo, %{} ->
           update_group_sales_summary(summary, changeset)
+        end)
+        |> Multi.run(String.to_atom("bonus_#{summary.user_id}"), fn _repo, %{} ->
+          bonus = paired * 0.1
+
+          user = summary.user |> Repo.preload(:rank)
+          rank = user |> Map.get(:rank)
+
+          matrix = [
+            %{rank: "青铜套餐", cap: 100},
+            %{rank: "银色套餐", cap: 500},
+            %{rank: "黄金套餐", cap: 1500}
+          ]
+
+          {{y, m, d}, _time} = NaiveDateTime.to_erl(sale.inserted_at)
+
+          check =
+            Repo.all(
+              from(r in Reward,
+                where:
+                  r.user_id == ^user.id and r.name == "team bonus" and
+                    r.day == ^d and r.month == ^m and
+                    r.year == ^y,
+                select: r.amount
+              )
+            )
+            |> Enum.sum()
+
+          user_cap =
+            matrix |> Enum.filter(&(&1.rank == rank.name)) |> List.first() |> Map.get(:cap)
+
+          final_pay =
+            if check <= user_cap do
+              bonus
+            else
+              0
+            end
+
+          # todo: apply the reserve wallet
+          create_reward(%{
+            sales_id: sale.id,
+            is_paid: false,
+            remarks:
+              "sales-#{sale.id}|#{paired} * #{0.1} = #{bonus}|paid: #{check}|user_cap:#{user_cap}",
+            name: "team bonus",
+            amount: final_pay,
+            user_id: map.to_user_id,
+            day: d,
+            month: m,
+            year: y
+          })
         end)
       else
         _ ->
@@ -1195,16 +1705,19 @@ defmodule CommerceFront.Settings do
         |> select([m, pt, m2], %{
           children:
             fragment(
-              "ARRAY_AGG( CONCAT(?, ?, ?, ?, ?) )",
+              "ARRAY_AGG( CONCAT(?, ?, ?, ?, ?, ?, ?) )",
               m.username,
               "|",
               m.id,
               "|",
-              m.fullname
+              m.fullname,
+              "|",
+              m.rank_name
             ),
           parent: m2.fullname,
           parent_username: m2.username,
-          parent_id: m2.id
+          parent_id: m2.id,
+          rank_name: m2.rank_name
         })
       end
     end
@@ -1244,6 +1757,10 @@ defmodule CommerceFront.Settings do
   end
 
   def reset do
+    Repo.delete_all(Reward)
+    Repo.delete_all(WalletTransaction)
+
+    Repo.delete_all(Ewallet)
     Repo.delete_all(User)
     Repo.delete_all(Placement)
     Repo.delete_all(Referral)

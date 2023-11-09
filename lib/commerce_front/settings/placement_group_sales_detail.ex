@@ -11,6 +11,8 @@ defmodule CommerceFront.Settings.PlacementGroupSalesDetail do
     field(:position, :string)
     field(:remarks, :string)
     field(:sales_id, :integer)
+    # field(:gs_summary_id, :integer)
+    belongs_to(:gs_summary, CommerceFront.Settings.GroupSalesSummary)
     # field :to_user_id, :integer
 
     belongs_to(:to_user, CommerceFront.Settings.User)
@@ -21,6 +23,7 @@ defmodule CommerceFront.Settings.PlacementGroupSalesDetail do
   def changeset(placement_group_sales_detail, attrs) do
     placement_group_sales_detail
     |> cast(attrs, [
+      :gs_summary_id,
       :before,
       :after,
       :amount,

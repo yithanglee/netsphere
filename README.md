@@ -17,6 +17,65 @@ Ready to run in production? Please [check our deployment guides](https://hexdocs
   * Forum: https://elixirforum.com/c/phoenix-forum
   * Source: https://github.com/phoenixframework/phoenix
 
+1RP/BP=Rm5
+RB=Register Point 
+BP=Bonus Point
+DRP=Direct Recruitment Point
+
+Bronze Package > RP100｜50PV
+Silver Package > RP400｜200PV
+Gold Package > RP1000｜500PV
+
+A) Sharing Bonus 40%
+Bronze -G1-20%
+Silver -G1-20%,G2-10%
+Gold -G1-20%,G2-10%,G3-10%
+
+A.2）Special Sharing Reward
+For every 100PV shared, receive an additional #DRP 50
+#DRP only for registering new shared entries, PV not included.
+When choosing DRP at registration, you only need to pay the balance of RP 50%.
+
+B）Team Bonus-weak team 10%(MPO40%)
+Bronze-daily max BP100
+Silver-daily max BP500
+Gold-daily max BP1500
+
+C）Matching Bonus 30%(Match TB only ,MPO12%)
+Ever month weak team pv achieved 
+500PV qualified G1-10% 
+1,000PV qualified G1-10%+G2-10% 
+1,500PV qualified G1-10%+G2-10%+G3-10% 
+
+D）Elite Leader CTO sharing 5%
+Ever month weak team pv achieved 
+1,500PV-1star-1%
+3,000PV-2stars-1%+1%
+10,000PV-3stars-1%+1%+1%
+30,000PV-4stars-1%+1%+1%+1%
+50,000PV-5stars-1%+1%+1%+1%+1%
+
+E）Travel Fund 5%
+Ever month weak team pv achieved 
+1,500PV-1pt
+3,000PV-3pts
+5,000PV-6pts
+
+F）mobile stockist fee 3%
+Purchase products RP 2000 | 1000PV become mobile stockist ，
+Get 3 business centre U1,U2 & U3
+& Get extra DRP 1000
+
+E) Repurchase Bonus 50% (on new sales ) Automatically deducts 10% from B, C & D bonuses,
+Up to a maximum deduction of BP1000 per month (which means the bonus has reached BP10000). 1000 goes into the Product point wallet for product exchanges.
+
+Monthly weak team performance reaches 500PV
+Qualify to enjoy 20 levels x 2.5%
+
+———————
+remark：
+RB whidrawal charge 3% .
+
 
 1RP/BP=Rm5
 RB=注册积分

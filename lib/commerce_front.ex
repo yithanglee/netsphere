@@ -6,6 +6,59 @@ defmodule CommerceFront do
   Contexts are also responsible for managing your data, regardless
   if it comes from the database, an external API or others.
   """
+
+  def test() do
+    CommerceFront.Settings.reset()
+
+    samples = [
+      {"admin", "damien"},
+      {"damien", "summer"},
+      {"summer", "elis"},
+      {"elis", "orange"},
+      {"orange", "kathy"}
+    ]
+
+    samples = [
+      {"admin", "damien", 1},
+      {"damien", "summer", 3},
+      {"damien", "elis", 2},
+      {"damien", "orange", 1},
+      {"damien", "kathy", 2},
+      {"summer", "sm1", 1},
+      {"summer", "sm2", 3},
+      {"summer", "sm3", 1},
+      {"summer", "sm4", 3},
+      {"elis", "lsm1", 1},
+      {"elis", "lsm2", 2},
+      {"elis", "lsm3", 3},
+      {"elis", "lsm4", 3},
+      {"lsm1", "alsm1", 1},
+      {"lsm1", "alsm2", 1},
+      {"lsm1", "alsm3", 3},
+      {"lsm1", "alsm4", 3},
+      {"summer", "bsm1", 1},
+      {"summer", "bsm2", 3},
+      {"summer", "bsm3", 1},
+      {"summer", "bsm4", 3}
+    ]
+
+    for {sponsor, username, rank_id} = sample <- samples do
+      params =
+        %{
+          "email" => "a@1.com",
+          "fullname" => "1",
+          "password" => "abc123",
+          "phone" => "60122664254",
+          "rank_id" => rank_id,
+          "sponsor" => sponsor,
+          "username" => username
+        }
+        |> IO.inspect()
+
+      CommerceFront.Settings.register(params)
+    end
+  end
+
   def get_order() do
     pid = Process.whereis(:rest_1)
     Agent.get(pid, fn x -> x end)
