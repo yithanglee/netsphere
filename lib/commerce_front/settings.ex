@@ -9,6 +9,12 @@ defmodule CommerceFront.Settings do
   require IEx
   alias Ecto.Multi
 
+  import CommerceFront.Calculation,
+    only: [
+      sharing_bonus: 4,
+      team_bonus: 5
+    ]
+
   alias CommerceFront.Settings.Reward
 
   def list_rewards() do
@@ -244,13 +250,11 @@ defmodule CommerceFront.Settings do
         nil ->
           map =
             if gsd.position == "left" do
-              %{
-                total_left: gsd.amount,
-                total_right: 0
-              }
+              %{new_left: gsd.amount, total_left: gsd.amount, total_right: 0}
             else
               %{
                 total_left: 0,
+                new_right: gsd.amount,
                 total_right: gsd.amount
               }
             end
@@ -278,10 +282,12 @@ defmodule CommerceFront.Settings do
           map =
             if gsd.position == "left" do
               %{
+                new_left: check.new_left + gsd.amount,
                 total_left: check.total_left + gsd.amount
               }
             else
               %{
+                new_right: check.new_right + gsd.amount,
                 total_right: check.total_right + gsd.amount
               }
             end
@@ -546,7 +552,14 @@ defmodule CommerceFront.Settings do
           if gs_summary != nil do
             gs_summary
           else
-            %{total_left: 0, total_right: 0, balance_left: 0, balance_right: 0}
+            %{
+              total_left: 0,
+              total_right: 0,
+              balance_left: 0,
+              balance_right: 0,
+              new_left: 0,
+              new_right: 0
+            }
           end
 
         Repo.get_by(Placement, user_id: res.id)
@@ -556,7 +569,9 @@ defmodule CommerceFront.Settings do
           total_left: gs_summary.total_left,
           total_right: gs_summary.total_right,
           balance_left: gs_summary.balance_left,
-          balance_right: gs_summary.balance_right
+          balance_right: gs_summary.balance_right,
+          new_left: gs_summary.new_left,
+          new_right: gs_summary.new_right
         })
       end
     end
@@ -649,7 +664,9 @@ defmodule CommerceFront.Settings do
           total_left,
           total_right,
           balance_left,
-          balance_right
+          balance_right,
+          new_left,
+          new_right
         ] = list |> String.split("|")
 
         zchildren =
@@ -669,6 +686,8 @@ defmodule CommerceFront.Settings do
               total_right: total_right || 0,
               balance_left: balance_left || 0,
               balance_right: balance_right || 0,
+              new_left: new_left || 0,
+              new_right: new_right || 0,
               position: position
             }
             |> Jason.encode!(),
@@ -678,6 +697,8 @@ defmodule CommerceFront.Settings do
           total_right: total_right || 0,
           balance_left: balance_left || 0,
           balance_right: balance_right || 0,
+          new_left: new_left || 0,
+          new_right: new_right || 0,
           name: username,
           children: zchildren,
           username: username,
@@ -744,7 +765,9 @@ defmodule CommerceFront.Settings do
           total_left,
           total_right,
           balance_left,
-          balance_right
+          balance_right,
+          new_left,
+          new_right
         ] = list
 
         map = ori_data |> Enum.filter(&(&1.parent_username == username)) |> List.first()
@@ -803,7 +826,9 @@ defmodule CommerceFront.Settings do
               total_left: if(smap != nil, do: smap.total_left, else: "n/a"),
               total_right: if(smap != nil, do: smap.total_right, else: "n/a"),
               balance_left: if(smap != nil, do: smap.balance_left, else: "n/a"),
-              balance_right: if(smap != nil, do: smap.balance_right, else: "n/a")
+              balance_right: if(smap != nil, do: smap.balance_right, else: "n/a"),
+              new_left: if(smap != nil, do: smap.new_left, else: "n/a"),
+              new_right: if(smap != nil, do: smap.new_right, else: "n/a")
             }
             |> Jason.encode!(),
           name: map.parent_username,
@@ -812,6 +837,8 @@ defmodule CommerceFront.Settings do
           right: if(smap != nil, do: smap.right, else: "n/a"),
           total_left: if(smap != nil, do: smap.total_left, else: "n/a"),
           total_right: if(smap != nil, do: smap.total_right, else: "n/a"),
+          new_left: if(smap != nil, do: smap.new_left, else: "n/a"),
+          new_right: if(smap != nil, do: smap.new_right, else: "n/a"),
           balance_left: if(smap != nil, do: smap.balance_left, else: "n/a"),
           balance_right: if(smap != nil, do: smap.balance_right, else: "n/a"),
           children: children |> Enum.sort_by(& &1.position)
@@ -1125,13 +1152,30 @@ defmodule CommerceFront.Settings do
       res =
         for gs_summary <-
               gs_summaries
-              |> Enum.reject(&(&1.balance_left == nil))
-              |> Enum.reject(&(&1.balance_right == nil)) do
+              |> Enum.reject(&(&1.balance_left == nil && &1.balance_right == nil)) do
           gs_summary = gs_summary |> Repo.preload(:user)
 
           # Repo.delete_all(
           #   from(pgsd in PlacementGroupSalesDetail, where: pgsd.gs_summary_id == ^gs_summary.id and pgsd.remarks: == ^"carry_forward")
           # )
+
+          if gs_summary.user.username == "alsm3" do
+            # IEx.pry()
+          end
+
+          # possible that bal left and right are 0, even without pairing
+          gs_summary =
+            with true <- gs_summary.balance_left == 0 and gs_summary.balance_right == 0,
+                 true <- gs_summary.new_left == 0 || gs_summary.new_right == 0 do
+              if gs_summary.new_left > gs_summary.new_right do
+                gs_summary |> Map.put(:balance_left, gs_summary.total_left)
+              else
+                gs_summary |> Map.put(:balance_right, gs_summary.total_right)
+              end
+            else
+              _ ->
+                gs_summary
+            end
 
           {:ok, left} =
             CommerceFront.Settings.PlacementGroupSalesDetail.changeset(
@@ -1173,6 +1217,8 @@ defmodule CommerceFront.Settings do
             CommerceFront.Settings.GroupSalesSummary.changeset(
               %CommerceFront.Settings.GroupSalesSummary{},
               %{
+                new_left: 0,
+                new_right: 0,
                 total_left: 0,
                 total_right: 0,
                 user_id: gs_summary.user_id,
@@ -1314,286 +1360,6 @@ defmodule CommerceFront.Settings do
       end
   end
 
-  @doc """
-
-
-  find uplines,
-  check upline rank,
-  compress until the total_point_value is paid completely...
-
-  """
-  def sharing_bonus(username, total_point_value, sale, referral) do
-    uplines = CommerceFront.Settings.check_uplines(username) |> Enum.with_index(1)
-
-    matrix = [
-      %{rank: "青铜套餐", l1: 0.2, calculated: false},
-      %{rank: "银色套餐", l1: 0.2, l2: 0.1, calculated: false},
-      %{rank: "黄金套餐", l1: 0.2, l2: 0.1, l3: 0.1, calculated: false}
-    ]
-
-    run_calc = fn {upline, index}, {calc_index, eval_matrix, remainder_point_value} ->
-      user = get_user_by_username(upline.parent)
-      rank = user.rank_id |> get_rank! |> IO.inspect()
-
-      calc_table =
-        matrix
-        |> Enum.filter(&(&1.rank == rank.name))
-        |> List.first()
-
-      perc =
-        case calc_index do
-          1 ->
-            calc_table |> Map.get(:l1, 0)
-
-          2 ->
-            calc_table |> Map.get(:l2, 0)
-
-          3 ->
-            calc_table |> Map.get(:l3, 0)
-
-          _ ->
-            0
-        end
-        |> IO.inspect()
-
-      with true <- calc_index < 4,
-           list <-
-             eval_matrix
-             |> Enum.reject(&(&1.calculated == true))
-             |> Enum.filter(&(&1.rank == rank.name)),
-           true <- list != [],
-           matrix_item <-
-             list
-             |> List.first(),
-           calculated <-
-             matrix_item
-             |> Map.get(:calculated),
-           true <- calculated == false do
-        bonus = remainder_point_value * perc
-
-        create_reward(%{
-          sales_id: sale.id,
-          is_paid: false,
-          remarks:
-            "sales-#{sale.id}|#{remainder_point_value} * #{perc} = #{bonus}|lvl:#{index}/#{rank.name}",
-          name: "sharing bonus",
-          amount: bonus,
-          user_id: user.id,
-          day: Date.utc_today().day,
-          month: Date.utc_today().month,
-          year: Date.utc_today().year
-        })
-
-        new_matrix_item =
-          matrix |> Enum.find(&(&1.rank == rank.name)) |> Map.put(:calculated, true)
-
-        remove_index = matrix |> Enum.find_index(&(&1.rank == rank.name))
-
-        pre_matrix = List.delete_at(matrix, 0)
-
-        next_matrix = List.insert_at(pre_matrix, 0, new_matrix_item)
-
-        # remainder_point_value - bonus
-        {calc_index + 1, next_matrix, total_point_value}
-      else
-        _ ->
-          {calc_index, eval_matrix, total_point_value}
-      end
-    end
-
-    Enum.reduce(uplines, {1, matrix, total_point_value}, &run_calc.(&1, &2))
-
-    {:ok, nil}
-  end
-
-  def team_bonus(username, total_point_value, sale, placement, pgsd) do
-    multi = Multi.new()
-
-    summaries = pgsd |> Map.values() |> Enum.map(& &1)
-
-    calc_for_parent = fn map, multi_query ->
-      summary = map.gs_summary |> Repo.preload(:user)
-
-      if summary.user.username == "summer" do
-        # IEx.pry()
-      end
-
-      with true <- summary.total_left != nil,
-           true <- summary.total_left != 0,
-           true <- summary.total_right != nil,
-           true <- summary.total_right != 0 do
-        IO.inspect([summary.total_left, summary.total_right])
-
-        latest_gs =
-          get_latest_gs_summary_by_user_id(
-            summary.user.id,
-            Date.from_erl!({summary.year, summary.month, summary.day})
-          )
-
-        constant = summary.total_left / summary.total_right
-
-        {paired, changeset} =
-          if constant > 1 do
-            # this means, the left is more than right
-
-            if summary.total_left - summary.total_right < 0 do
-              IEx.pry()
-            end
-
-            {total_point_value,
-             %{
-               balance_left: summary.total_left - summary.total_right,
-               balance_right: summary.total_right - summary.total_right
-             }}
-          else
-            if summary.total_right - summary.total_left < 0 do
-              IEx.pry()
-            end
-
-            {total_point_value,
-             %{
-               balance_left: summary.total_left - summary.total_left,
-               balance_right: summary.total_right - summary.total_left
-             }}
-          end
-          |> IO.inspect()
-
-        multi_query
-        |> Multi.run(String.to_atom("pgsd_left_#{summary.user_id}"), fn _repo, %{} ->
-          if map.position == "left" do
-            Logger.info("[team bonus] - after: #{map.after} - paired: #{paired}")
-
-            CommerceFront.Settings.PlacementGroupSalesDetail.changeset(
-              %CommerceFront.Settings.PlacementGroupSalesDetail{},
-              %{
-                before: map.after,
-                after: map.after - paired,
-                amount: -paired,
-                from_user_id: 0,
-                to_user_id: map.to_user_id,
-                remarks: "pairing bonus calculation|from sale-#{sale.id}",
-                sales_id: 0,
-                position: "left"
-              }
-            )
-          else
-            Logger.info("[team bonus] - after: #{map.after} - paired: #{paired}")
-
-            CommerceFront.Settings.PlacementGroupSalesDetail.changeset(
-              %CommerceFront.Settings.PlacementGroupSalesDetail{},
-              %{
-                before: map.after,
-                after: map.after - paired,
-                amount: -paired,
-                from_user_id: 0,
-                to_user_id: map.to_user_id,
-                remarks: "pairing bonus calculation|from sale-#{sale.id}",
-                sales_id: 0,
-                position: "right"
-              }
-            )
-          end
-          |> Repo.insert()
-        end)
-        |> Multi.run(String.to_atom("pgsd_right_#{summary.user_id}"), fn _repo, %{} ->
-          if map.position == "left" do
-            Logger.info("[team bonus] - after: #{map.after} - paired: #{paired}")
-
-            CommerceFront.Settings.PlacementGroupSalesDetail.changeset(
-              %CommerceFront.Settings.PlacementGroupSalesDetail{},
-              %{
-                before: map.after,
-                after: map.after - paired,
-                amount: -paired,
-                from_user_id: 0,
-                to_user_id: map.to_user_id,
-                remarks: "pairing bonus calculation|from sale-#{sale.id}",
-                sales_id: 0,
-                position: "right"
-              }
-            )
-          else
-            Logger.info("[team bonus] - after: #{map.after} - paired: #{paired}")
-
-            CommerceFront.Settings.PlacementGroupSalesDetail.changeset(
-              %CommerceFront.Settings.PlacementGroupSalesDetail{},
-              %{
-                before: map.after,
-                after: map.after - paired,
-                amount: -paired,
-                from_user_id: 0,
-                to_user_id: map.to_user_id,
-                remarks: "pairing bonus calculation|from sale-#{sale.id}",
-                sales_id: 0,
-                position: "left"
-              }
-            )
-          end
-          |> Repo.insert()
-        end)
-        |> Multi.run(String.to_atom("gs_summary_#{summary.user_id}"), fn _repo, %{} ->
-          update_group_sales_summary(summary, changeset)
-        end)
-        |> Multi.run(String.to_atom("bonus_#{summary.user_id}"), fn _repo, %{} ->
-          bonus = paired * 0.1
-
-          user = summary.user |> Repo.preload(:rank)
-          rank = user |> Map.get(:rank)
-
-          matrix = [
-            %{rank: "青铜套餐", cap: 100},
-            %{rank: "银色套餐", cap: 500},
-            %{rank: "黄金套餐", cap: 1500}
-          ]
-
-          {{y, m, d}, _time} = NaiveDateTime.to_erl(sale.inserted_at)
-
-          check =
-            Repo.all(
-              from(r in Reward,
-                where:
-                  r.user_id == ^user.id and r.name == "team bonus" and
-                    r.day == ^d and r.month == ^m and
-                    r.year == ^y,
-                select: r.amount
-              )
-            )
-            |> Enum.sum()
-
-          user_cap =
-            matrix |> Enum.filter(&(&1.rank == rank.name)) |> List.first() |> Map.get(:cap)
-
-          final_pay =
-            if check <= user_cap do
-              bonus
-            else
-              0
-            end
-
-          # todo: apply the reserve wallet
-          create_reward(%{
-            sales_id: sale.id,
-            is_paid: false,
-            remarks:
-              "sales-#{sale.id}|#{paired} * #{0.1} = #{bonus}|paid: #{check}|user_cap:#{user_cap}",
-            name: "team bonus",
-            amount: final_pay,
-            user_id: map.to_user_id,
-            day: d,
-            month: m,
-            year: y
-          })
-        end)
-      else
-        _ ->
-          multi_query
-      end
-    end
-
-    Enum.reduce(summaries, multi, &calc_for_parent.(&1, &2))
-    |> Repo.transaction()
-  end
-
   def get_user_by_username(username) do
     Repo.get_by(User, username: username)
   end
@@ -1675,7 +1441,7 @@ defmodule CommerceFront.Settings do
         |> select([m, pt, m2, gss], %{
           children:
             fragment(
-              "ARRAY_AGG( CONCAT(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) )",
+              "ARRAY_AGG( CONCAT(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) )",
               m.username,
               "|",
               m.id,
@@ -1694,7 +1460,11 @@ defmodule CommerceFront.Settings do
               "|",
               gss.balance_left,
               "|",
-              gss.balance_right
+              gss.balance_right,
+              "|",
+              gss.new_left,
+              "|",
+              gss.new_right
             ),
           parent: m2.fullname,
           parent_username: m2.username,

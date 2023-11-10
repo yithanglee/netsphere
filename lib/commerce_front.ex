@@ -7,6 +7,18 @@ defmodule CommerceFront do
   if it comes from the database, an external API or others.
   """
 
+  def test_carry_forward() do
+    CommerceFront.Settings.reconstruct_daily_group_sales_summary(~D[2023-11-07])
+    CommerceFront.Settings.carry_forward_entry(~D[2023-11-07])
+    CommerceFront.Settings.reconstruct_daily_group_sales_summary(~D[2023-11-08])
+    CommerceFront.Settings.carry_forward_entry(~D[2023-11-08])
+    CommerceFront.Settings.reconstruct_daily_group_sales_summary(~D[2023-11-09])
+    CommerceFront.Settings.carry_forward_entry(~D[2023-11-09])
+
+    CommerceFront.Settings.reconstruct_daily_group_sales_summary(~D[2023-11-10])
+    CommerceFront.Settings.carry_forward_entry(~D[2023-11-10])
+  end
+
   def test() do
     CommerceFront.Settings.reset()
 
