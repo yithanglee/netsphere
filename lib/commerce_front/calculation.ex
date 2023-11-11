@@ -415,7 +415,7 @@ defmodule CommerceFront.Calculation do
                 sales_id: 0,
                 is_paid: false,
                 remarks:
-                  "#{check.sum} * #{constant} = #{bonus}|lvl:#{index}|#{user.username} weak_leg: #{weak_amount}",
+                  "#{check.sum} * #{constant} = #{bonus}|lvl:#{index}|#{user.username}: #{check.sum}|#{weak_leg.username} leg: #{weak_leg.left}|#{weak_leg.right}",
                 name: "matching bonus",
                 amount: bonus,
                 user_id: upline.parent_id,
@@ -437,6 +437,223 @@ defmodule CommerceFront.Calculation do
           Enum.reduce(uplines, 1, &calc.(&1, &2))
         end
       end
+
+      {:ok, nil}
+    end)
+    |> Repo.transaction()
+  end
+
+  @doc """
+  D）Elite Leader CTO sharing 5%
+  Ever month weak team pv achieved 
+  1,500PV-1star-1%
+  3,000PV-2stars-1%+1%
+  10,000PV-3stars-1%+1%+1%
+  30,000PV-4stars-1%+1%+1%+1%
+  50,000PV-5stars-1%+1%+1%+1%+1%
+
+
+  each weak leg will be given 1% from current month sales PV
+
+  """
+
+  def elite_leader(month, year) do
+    date = Date.from_erl!({year, month, 1})
+
+    subquery = """
+
+    select sum(s.total_point_value) from sales s where s.month = $1 and s.year = $2 group by s.month , s.year;
+    """
+
+    {:ok, %Postgrex.Result{columns: columns, rows: rows} = res} =
+      Ecto.Adapters.SQL.query(Repo, subquery, [month, year])
+
+    monthly_sales =
+      for row <- rows do
+        Enum.zip(columns |> Enum.map(&(&1 |> String.to_atom())), row) |> Enum.into(%{})
+      end
+      |> List.first()
+      |> IO.inspect()
+
+    Repo.delete_all(
+      from(r in Reward,
+        where: r.name == ^"elite leader" and r.month == ^month and r.year == ^year
+      )
+    )
+
+    subquery2 = """
+    select
+    sum(gss.new_left) as left,
+    sum(gss.new_right) as right,
+    u.username,
+    gss.user_id ,
+    gss.month,
+    gss.year
+    from
+    group_sales_summaries gss
+    left join users u on u.id = gss.user_id
+    where 
+    gss.month = $1
+    and gss.year = $2
+    group by
+    u.username, 
+    gss.user_id,
+    gss.month,
+    gss.year ;
+    """
+
+    {:ok, %Postgrex.Result{columns: columns, rows: rows} = res} =
+      Ecto.Adapters.SQL.query(Repo, subquery2, [month, year])
+
+    users_weak_leg =
+      for row <- rows do
+        Enum.zip(columns |> Enum.map(&(&1 |> String.to_atom())), row) |> Enum.into(%{})
+      end
+
+    Repo.delete_all(
+      from(r in Reward,
+        where: r.name == ^"elite leader" and r.month == ^month and r.year == ^year
+      )
+    )
+
+    Multi.new()
+    |> Multi.run(:calculation, fn _repo, %{} ->
+      total_sales_pv = monthly_sales.sum
+      # 8k
+
+      # 1star pool = 8k * 0.01  ?
+
+      matrix = [
+        %{name: "1star", qualify: 1500},
+        %{name: "2star", qualify: 3000},
+        %{name: "3star", qualify: 10000},
+        %{name: "4star", qualify: 30000},
+        %{name: "5star", qualify: 50000}
+      ]
+
+      for %{name: star_name, qualify: amount} = star <- matrix do
+        one_star_qualifier =
+          for weak_leg <- users_weak_leg do
+            weak_amount =
+              if weak_leg.left > weak_leg.right do
+                weak_leg.right
+              else
+                weak_leg.left
+              end
+
+            if weak_amount > amount do
+              weak_leg
+            else
+              nil
+            end
+          end
+          |> Enum.reject(&(&1 == nil))
+
+        count = Enum.count(one_star_qualifier)
+
+        if count > 0 do
+          one_star_amount = total_sales_pv * 0.01 / count
+
+          for weak_leg <- one_star_qualifier do
+            weak_amount =
+              if weak_leg.left > weak_leg.right do
+                weak_leg.right
+              else
+                weak_leg.left
+              end
+
+            CommerceFront.Settings.create_reward(%{
+              sales_id: 0,
+              is_paid: false,
+              remarks:
+                "#{total_sales_pv} * 0.01/ #{count} = #{one_star_amount}|weak_leg: #{weak_amount}|pool qualifiers: #{count}|#{star_name}",
+              name: "elite leader",
+              amount: one_star_amount,
+              user_id: weak_leg.user_id,
+              day: Timex.end_of_month(date).day,
+              month: month,
+              year: year
+            })
+          end
+        end
+      end
+
+      {:ok, nil}
+    end)
+    |> Repo.transaction()
+  end
+
+  def travel_fund(month, year) do
+    date = Date.from_erl!({year, month, 1})
+
+    subquery2 = """
+    select
+    sum(gss.new_left) as left,
+    sum(gss.new_right) as right,
+    u.username,
+    gss.user_id ,
+    gss.month,
+    gss.year
+    from
+    group_sales_summaries gss
+    left join users u on u.id = gss.user_id
+    where 
+    gss.month = $1
+    and gss.year = $2
+    group by
+    u.username, 
+    gss.user_id,
+    gss.month,
+    gss.year ;
+    """
+
+    {:ok, %Postgrex.Result{columns: columns, rows: rows} = res} =
+      Ecto.Adapters.SQL.query(Repo, subquery2, [month, year])
+
+    users_weak_leg =
+      for row <- rows do
+        Enum.zip(columns |> Enum.map(&(&1 |> String.to_atom())), row) |> Enum.into(%{})
+      end
+
+    matrix = [
+      %{point: 1, amount: 1500},
+      %{point: 3, amount: 3000},
+      %{point: 6, amount: 5000}
+    ]
+
+    Repo.delete_all(
+      from(r in Reward,
+        where: r.name == ^"travel fund" and r.month == ^month and r.year == ^year
+      )
+    )
+
+    Multi.new()
+    |> Multi.run(:calculation, fn _repo, %{} ->
+      travel_qualifier =
+        for weak_leg <- users_weak_leg do
+          weak_amount =
+            if weak_leg.left > weak_leg.right do
+              weak_leg.right
+            else
+              weak_leg.left
+            end
+
+          map = Enum.filter(matrix, &(&1.amount <= weak_amount)) |> List.last()
+
+          if map != nil do
+            CommerceFront.Settings.create_reward(%{
+              sales_id: 0,
+              is_paid: false,
+              remarks: "#{weak_leg.username} leg: #{weak_leg.left}|#{weak_leg.right}",
+              name: "travel fund",
+              amount: map.point,
+              user_id: weak_leg.user_id,
+              day: Timex.end_of_month(date).day,
+              month: month,
+              year: year
+            })
+          end
+        end
 
       {:ok, nil}
     end)
