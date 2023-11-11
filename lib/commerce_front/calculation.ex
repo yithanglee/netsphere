@@ -5,6 +5,8 @@ defmodule CommerceFront.Calculation do
   alias CommerceFront.Repo
   require IEx
   alias Ecto.Multi
+  alias CommerceFront.Settings
+  alias CommerceFront.Settings.{User, Reward}
 
   @doc """
 
@@ -291,6 +293,153 @@ defmodule CommerceFront.Calculation do
   but we can always rerun it everyday after running contribute group sales, pairing bonus
   this require to check every user's group sales summary on the total left right accumulated in that month
   """
-  def matching_bonus() do
+  def matching_bonus(month, year) do
+    date = Date.from_erl!({year, month, 1})
+
+    subquery = """
+    select
+      u.username,
+      r.user_id,
+      sum(r.amount),
+      r.month,
+      r.year
+    from
+      rewards r
+    left join users u on
+      u.id = r.user_id
+    where
+      r.name = 'team bonus'
+      and r.month = $1
+      and r.year = $2
+    group by
+      u.username,
+      r.user_id,
+      r.month,
+      r.year;
+    """
+
+    {:ok, %Postgrex.Result{columns: columns, rows: rows} = res} =
+      Ecto.Adapters.SQL.query(Repo, subquery, [month, year])
+
+    team_bonuses =
+      for row <- rows do
+        Enum.zip(columns |> Enum.map(&(&1 |> String.to_atom())), row) |> Enum.into(%{})
+      end
+
+    subquery2 = """
+    select
+    sum(gss.new_left) as left,
+    sum(gss.new_right) as right,
+    u.username,
+    gss.user_id ,
+    gss.month,
+    gss.year
+    from
+    group_sales_summaries gss
+    left join users u on u.id = gss.user_id
+    where 
+    gss.month = $1
+    and gss.year = $2
+    group by
+    u.username, 
+    gss.user_id,
+    gss.month,
+    gss.year ;
+    """
+
+    {:ok, %Postgrex.Result{columns: columns, rows: rows} = res} =
+      Ecto.Adapters.SQL.query(Repo, subquery2, [month, year])
+
+    users_weak_leg =
+      for row <- rows do
+        Enum.zip(columns |> Enum.map(&(&1 |> String.to_atom())), row) |> Enum.into(%{})
+      end
+
+    Repo.delete_all(
+      from(r in Reward,
+        where: r.name == ^"matching bonus" and r.month == ^month and r.year == ^year
+      )
+    )
+
+    users = Repo.all(from(u in User, order_by: [desc: u.id]))
+
+    Multi.new()
+    |> Multi.run(:calculation, fn _repo, %{} ->
+      for user <- users do
+        uplines = Settings.check_uplines(user.username)
+        # check user has team bonus
+
+        check = team_bonuses |> Enum.filter(&(&1.user_id == user.id)) |> List.first()
+
+        calc = fn upline, index ->
+          nil
+
+          weak_leg =
+            users_weak_leg |> Enum.filter(&(&1.user_id == upline.parent_id)) |> List.first()
+
+          weak_amount =
+            if weak_leg.left > weak_leg.right do
+              weak_leg.right
+            else
+              weak_leg.left
+            end
+
+          matrix = [
+            %{amount: 500, l1: 0.1},
+            %{amount: 1000, l1: 0.1, l2: 0.1},
+            %{amount: 1500, l1: 0.1, l2: 0.1, l3: 0.1}
+          ]
+
+          map = Enum.filter(matrix, &(&1.amount <= weak_amount)) |> List.last()
+
+          if map != nil do
+            if index < 4 do
+              constant =
+                case index do
+                  1 ->
+                    map |> Map.get(:l1, 0)
+
+                  2 ->
+                    map |> Map.get(:l2, 0)
+
+                  3 ->
+                    map |> Map.get(:l3, 0)
+
+                  _ ->
+                    0
+                end
+
+              bonus = check.sum * constant
+
+              CommerceFront.Settings.create_reward(%{
+                sales_id: 0,
+                is_paid: false,
+                remarks:
+                  "#{check.sum} * #{constant} = #{bonus}|lvl:#{index}|#{user.username} weak_leg: #{weak_amount}",
+                name: "matching bonus",
+                amount: bonus,
+                user_id: upline.parent_id,
+                day: Timex.end_of_month(date).day,
+                month: month,
+                year: year
+              })
+            end
+
+            index + 1
+          else
+            index
+          end
+
+          # check upline's weak leg 
+        end
+
+        if check != nil do
+          Enum.reduce(uplines, 1, &calc.(&1, &2))
+        end
+      end
+
+      {:ok, nil}
+    end)
+    |> Repo.transaction()
   end
 end
