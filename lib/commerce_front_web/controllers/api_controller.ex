@@ -51,6 +51,12 @@ defmodule CommerceFrontWeb.ApiController do
   def get(conn, params) do
     res =
       case params["scope"] do
+        "get_product" ->
+          Settings.get_product!(params["id"]) |> BluePotion.sanitize_struct()
+
+        "announcements" ->
+          Settings.list_announcements() |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
+
         "node" ->
           if params["token"] != nil do
             if params["username"] == "damien" do
@@ -325,23 +331,23 @@ defmodule CommerceFrontWeb.ApiController do
               append_params(p)
           end
 
-        c when c in ["Blog", "Shop", "Announcement"] ->
-          case p["corporate_account_id"] |> Integer.parse() do
-            :error ->
-              {:ok, map} =
-                Phoenix.Token.verify(
-                  CommerceFrontWeb.Endpoint,
-                  "corporate_account_signature",
-                  p["corporate_account_id"]
-                )
+        # c when c in ["Blog", "Shop", "Announcement"] ->
+        #   case p["corporate_account_id"] |> Integer.parse() do
+        #     :error ->
+        #       {:ok, map} =
+        #         Phoenix.Token.verify(
+        #           CommerceFrontWeb.Endpoint,
+        #           "corporate_account_signature",
+        #           p["corporate_account_id"]
+        #         )
 
-              p = Map.put(p, "corporate_account_id", map.id)
+        #       p = Map.put(p, "corporate_account_id", map.id)
 
-              append_params(p)
+        #       append_params(p)
 
-            _ ->
-              append_params(p)
-          end
+        #     _ ->
+        #       append_params(p)
+        #   end
 
         "CorporateTopup" ->
           cond do

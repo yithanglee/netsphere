@@ -20,7 +20,14 @@ defmodule CommerceFront.Application do
 
     {:ok, pid} = Agent.start_link(fn -> %{} end)
     Process.register(pid, :kv)
+    path = File.cwd!() <> "/media"
 
+    if File.exists?(path) == false do
+      File.mkdir(File.cwd!() <> "/media")
+    end
+
+    File.rm_rf("./priv/static/images/uploads")
+    File.ln_s("#{File.cwd!()}/media/", "./priv/static/images/uploads")
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: CommerceFront.Supervisor]

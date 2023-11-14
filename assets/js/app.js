@@ -12,8 +12,36 @@ window.commerceApp = commerceApp_
 window.phxApp = phxApp_
 window.memberApp = memberApp_
 
+window.addEventListener(
+  "popstate",
+  function(event) {
+    try {
+      // supposing rerun the navigate?
+      if (history.valueOf().state != null) {
 
+        console.log(history.valueOf().state.fn)
+        // var adder = new Function(history.valueOf().state.fn);
+        window.back = true;
+        window.parsePage = true;
+
+        phxApp.navigateTo(history.valueOf().state.route)
+
+        // adder();
+      } else {
+        phxApp.notify("cant back")
+        phxApp.navigateTo("/home")
+      }
+    } catch (e) {
+      // alert("!")
+
+      console.log("!")
+      // window.init();
+    }
+  },
+  true
+);
 const route_list = [
+  { html: "product.html", title: "Product ", route: "/products/:id/:name" },
   { html: "register.html", title: "Register", route: "/register" },
   { html: "logout.html", title: "Logout", route: "/logout" },
   { html: "login.html", title: "Login", route: "/login" },

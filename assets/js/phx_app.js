@@ -131,7 +131,8 @@ export let phxApp_ = {
         window.back = false
       } else {
         var stateObj = {
-          fn: `navigateTo('` + route + `', '` + xParamString + `')`,
+          route: route,  
+          fn: `phxApp.navigateTo('` + route + `', '` + xParamString + `')`,
           params: params
         };
         console.log("xparams")
@@ -197,7 +198,7 @@ export let phxApp_ = {
       header: "Modal Header",
       content: "Here is content for modal body",
       footer: "",
-      drawFn: regularModal,
+      drawFn: () => {},
       autoClose: true
 
     }
@@ -256,9 +257,9 @@ export let phxApp_ = {
     $(this.selector).toast('show')
     this.drawFn();
     if (this.autoClose) {
-      setTimeout(() => {
-        $(this.selector).toast('hide')
-      }, 15000);
+      // setTimeout(() => {
+      //   $(this.selector).toast('hide')
+      // }, 15000);
     }
 
 
@@ -543,6 +544,7 @@ export let phxApp_ = {
   },
   async navigateCallback() {
     memberApp_.restoreUser();
+     commerceApp_.restoreCart();
     commerceApp_.render();
     this.evaluateLang();
     this.toTop();
@@ -1686,7 +1688,7 @@ export let phxApp_ = {
       } else {
         v.fnParams = fnParams
       }
-      var child = new phxApp_.childGroupedFormButton(v.name, v.onClickFunction, v.fnParams)
+      var child =  phxApp_.childGroupedFormButton(v.name, v.onClickFunction, v.fnParams)
 
       div3.append(child)
     })
@@ -1739,8 +1741,9 @@ export let phxApp_ = {
     $(table_selector).closest(parent_container_selector).find(".module_buttons").html(`
                 <button type="submit" onclick="toggleView('` + table_selector + `')" class="btn btn-fill btn-round btn-primary" data-href="" data-module="" data-ref="">
                 <i class="fa fa-th-large"></i></button>
-                <button type="submit" onclick="App.Functions.reinit()" class="btn btn-fill btn-round btn-primary" data-href="" data-module="" data-ref="">
-                <i class="fa fa-repeat"></i></button>
+                <button type="submit" onclick="phxApp.Functions.reinit()" class="btn btn-fill btn-round btn-primary" data-href="" data-module="" data-ref="">
+                <i class="fa fa-circle-notch
+"></i></button>
                 <button type="submit" class="btn btn-fill btn-round btn-primary"  data-href="" data-module="add_new" data-ref=""><i class="fa fa-plus"></i></button>
                 `);
 

@@ -48,13 +48,15 @@ export class phoenixModel {
           var cols = []
           object.columns.forEach((v, i) => {
             var col = `
-             <div class="d-flex flex-column pb-2" role="grid_data" aria-label="` + v.label + 
-             `"><label class="fw-light">` + v.label + `</label>` + ColumnFormater.dataFormatter(data, v) + `</div>`
+              <div class="d-flex flex-column pb-2" role="grid_data" aria-label="` + v.label + `">
+                <label class="fw-light font-sm text-secondary">` + v.label + `</label>
+              ` + ColumnFormater.dataFormatter(data, v) + `
+              </div>`
             cols.push(col)
           })
 
           var div = document.createElement("div")
-          div.className = " card"
+          div.className = " card p-2"
           div.innerHTML = cols.join("")
           console.log("ts")
           console.log(div)
@@ -79,17 +81,29 @@ export class phoenixModel {
 
         // <---- this function used to populate the grid view button ---->
         $(this.tableSelector).closest(".table-responsive").find(".module_buttons").html(`
-        <div class="d-flex align-items-center">
-          <div class="dropdown morphing scale-left ">
-                     <a href="#" class="more-icon dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"><i class="fa fa-ellipsis-h"></i></a>
-                      <ul class="dropdown-menu dropdown-animation dropdown-menu-end shadow border-0">
-                        <li><a class="dropdown-item" href="javascript:void(0);" onclick="toggleView('` + this.tableSelector + `')">Grid View<i class="fa fa-th-large"></i></a></li>
-                        <li><a class="dropdown-item" href="javascript:void(0);" onclick="App.Functions.reinit()">Reload<i class="fa fa-repeat"></i></a></li>
-                        <li><a class="dropdown-item" href="javascript:void(0);" data-href="" data-module="add_new" data-ref="">New
-                        <i class="fa fa-arrow-right"></i></a></li>
-                      </ul>
-                    </div>
-        </div>
+              <div class="d-flex align-items-center">
+                <div class="dropdown morphing scale-left ">
+                  <a href="#" class="more-icon dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"><i class="fa fa-ellipsis-h"></i></a>
+                  <ul class="dropdown-menu dropdown-animation dropdown-menu-end shadow border-0">
+                    <li>
+                      <a class="dropdown-item" href="javascript:void(0);" onclick="toggleView('` + this.tableSelector + `')">
+                        <i class="me-3 fa fa-th-large"></i>Grid View
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item" href="javascript:void(0);" onclick="phxApp.Functions.reinit()">
+                        <i class="me-3 fa fa-circle-notch"></i>Reload
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item" href="javascript:void(0);" data-href="" data-module="add_new" data-ref="">
+                        
+                        <i class="me-3 fa fa-arrow-right"></i>New
+                      </a>
+                    </li>
+                  </ul>
+                </div>
+              </div>
 
                 `)
 

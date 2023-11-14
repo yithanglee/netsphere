@@ -13,6 +13,7 @@ export let ColumnFormater = {
         })
       try {
         var str = dtdata[v.data]
+        str = Date.parse(str)
         var dt = new Date(str)
         dt.setTime(dt.getTime() + ((8 + offset) * 60 * 60 * 1000));
         var edate = dt.toGMTString().split(",")[1].split(" ").splice(0, 4).join(" ")
@@ -357,6 +358,7 @@ background-repeat: no-repeat;
       case 'formatDateTime':
         // code block
         var str = dtdata[v.data]
+        str = Date.parse(str)
         var dt = new Date(str)
         dt.setTime(dt.getTime() + (8 * 60 * 60 * 1000));
         var edate = dt.toGMTString().split(",")[1].split(" ").splice(0, 4).join(" ")
@@ -381,8 +383,7 @@ background-repeat: no-repeat;
 
   },
   formatDate() {
-
-    $(".format_float").each((i, v) => {
+    $(" .format-int").each((i, v) => {
       var prefix = ""
       if ($(v).html().split(" ").includes("DR")) {
         prefix = "DR"
@@ -393,7 +394,28 @@ background-repeat: no-repeat;
       var content = $(v).html().replace("-", "")
 
       if (parseFloat(content) > 0) {
-        var span = `<span class="text-end" >` + currencyFormat(parseFloat(content)) + ` ` + prefix + `</span>`
+        var span = `<span class="text-end" >` + this.currencyFormat(parseFloat(content)).replace(".00", "") + ` ` + prefix + `</span>`
+        $(v).html(span)
+
+      } else if (parseFloat(content) == 0) {
+        $(v).html("0.00")
+      } else {
+        $(v).html(content)
+      }
+
+    })
+    $(".format_float, .format-float").each((i, v) => {
+      var prefix = ""
+      if ($(v).html().split(" ").includes("DR")) {
+        prefix = "DR"
+      }
+      if ($(v).html().split(" ").includes("CR")) {
+        prefix = "CR"
+      }
+      var content = $(v).html().replace("-", "")
+
+      if (parseFloat(content) > 0) {
+        var span = `<span class="text-end" >` + this.currencyFormat(parseFloat(content)) + ` ` + prefix + `</span>`
         $(v).html(span)
 
       } else if (parseFloat(content) == 0) {
@@ -492,5 +514,8 @@ background-repeat: no-repeat;
     } else {
       return num.toFixed(2).replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')
     }
+  },
+  capitalize(string) {
+    return string.replace(/^\w/, c => c.toUpperCase());
   }
 }

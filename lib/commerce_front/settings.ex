@@ -15,6 +15,28 @@ defmodule CommerceFront.Settings do
       team_bonus: 5
     ]
 
+  alias CommerceFront.Settings.Announcement
+
+  def list_announcements() do
+    Repo.all(Announcement)
+  end
+
+  def get_announcement!(id) do
+    Repo.get!(Announcement, id)
+  end
+
+  def create_announcement(params \\ %{}) do
+    Announcement.changeset(%Announcement{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_announcement(model, params) do
+    Announcement.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_announcement(%Announcement{} = model) do
+    Repo.delete(model)
+  end
+
   alias CommerceFront.Settings.Reward
 
   def list_rewards() do
@@ -1282,12 +1304,21 @@ defmodule CommerceFront.Settings do
     |> Repo.transaction()
   end
 
+  @doc """
+  the registration is paid with RP 
+  which can be bought from company,
+  admin just need to approve the RP purchase...
+
+  during registration, the checkout contains the products
+  """
+
   def register(params) do
     multi =
       Multi.new()
       |> Multi.run(:user, fn _repo, %{} ->
         rank = get_rank!(params["rank_id"])
         # IEx.pry()
+
         create_user(params |> Map.put("rank_name", rank.name))
       end)
       |> Multi.run(:ewallets, fn _repo, %{user: user} ->
@@ -1306,6 +1337,9 @@ defmodule CommerceFront.Settings do
       end)
       |> Multi.run(:sale, fn _repo, %{user: user} ->
         rank = get_rank!(params["rank_id"])
+        pv = rank.point_value
+
+        # need to check if DRP was used
 
         create_sale(%{
           month: Date.utc_today().month,
@@ -1313,7 +1347,7 @@ defmodule CommerceFront.Settings do
           sale_date: Date.utc_today(),
           status: :processing,
           subtotal: rank.retail_price,
-          total_point_value: rank.point_value,
+          total_point_value: pv,
           user_id: user.id
         })
       end)
