@@ -147,9 +147,9 @@ export let commerceApp_ = {
                 </div>
                 <span>` + v.name + ` <small>(x` + v.qty + `)</small></span>
               </div>
-              <div class="d-flex justify-content-between align-items-center">
+              <div class="d-flex flex-column flex-lg-row justify-content-between align-items-center">
                 <span class="font-sm format-float">` + (v.retail_price * v.qty).toFixed(2) + `</span>
-                <div class="">
+                <div class="text-center">
                   <div class="btn btn-sm" minus-product-id="` + v.id + `"><i class="text-danger fa fa-minus"></i></div>
                   <div class="btn btn-sm" delete-product-id="` + v.id + `"><i class="text-danger fa fa-times"></i></div>
                 </div>
@@ -166,7 +166,7 @@ export let commerceApp_ = {
                 <div class="d-flex flex-column gap-2">` + list.join("") + `
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="fs-4">Subtotal</span>
-                    <span class="format-float">` + subtotal + `</span>
+                    <span class="format-float me-4">` + subtotal + `</span>
                   </div>
                 </div>
 
@@ -420,6 +420,8 @@ export let commerceApp_ = {
         function addToCart_() {
           commerceApp_.addItem_(data)
           commerceApp_.components["updateCart"]()
+
+          phxApp.notify("Added " + data.name)
 
         }
 

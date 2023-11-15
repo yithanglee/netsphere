@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="<%= Routes.static_path(@conn, "/css/themes/default/style.min.css") %>"/>
     <link rel="stylesheet" href="<%= Routes.static_path(@conn, "/css/datatables.min.css") %>"/>
     <script   type="text/javascript" src="/js/datatables.min.js"></script>
+    <script src="/js/bootstrap.notify.js"></script>
     <script   defer src="/js/amcharts/index.js"></script>
     <script   defer src="/js/amcharts/hierarchy.js"></script>
     <script   defer src="/js/amcharts/animated.js"></script>

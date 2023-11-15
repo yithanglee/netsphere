@@ -1310,6 +1310,29 @@ defmodule CommerceFront.Settings do
   admin just need to approve the RP purchase...
 
   during registration, the checkout contains the products
+
+
+  %{      
+  "email" => "a@1.com",
+  "fullname" => "1",
+  "password" => "abc123",
+  "payment" => %{"method" => "FPX"},
+  "phone" => "1",
+  "rank_id" => "3",
+  "shipping" => %{
+    "city" => "city",
+    "fullname" => "1",
+    "line1" => "line1",
+    "line2" => "line2",
+    "phone" => "1",
+    "postcode" => "postcode",
+    "state" => "state"
+  },
+  "sponsor" => "damien",
+  "username" => "damien"
+  }
+
+
   """
 
   def register(params) do
@@ -1317,7 +1340,7 @@ defmodule CommerceFront.Settings do
       Multi.new()
       |> Multi.run(:user, fn _repo, %{} ->
         rank = get_rank!(params["rank_id"])
-        # IEx.pry()
+        IEx.pry()
 
         create_user(params |> Map.put("rank_name", rank.name))
       end)
