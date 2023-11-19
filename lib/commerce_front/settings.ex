@@ -15,6 +15,131 @@ defmodule CommerceFront.Settings do
       team_bonus: 5
     ]
 
+  alias CommerceFront.Settings.Payment
+
+  def list_payments() do
+    Repo.all(Payment)
+  end
+
+  def get_payment_by_billplz_code(code) do
+    Repo.get_by(Payment, billplz_code: code) |> Repo.preload(:sales)
+  end
+
+  def get_payment!(id) do
+    Repo.get!(Payment, id)
+  end
+
+  def create_payment(params \\ %{}) do
+    Payment.changeset(%Payment{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_payment(model, params) do
+    Payment.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_payment(%Payment{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.PaymentChannel
+
+  def list_payment_channels() do
+    Repo.all(PaymentChannel)
+  end
+
+  def get_payment_channel_by_code(code) do
+    Repo.get_by(PaymentChannel, code: code)
+  end
+
+  def get_payment_channel!(id) do
+    Repo.get!(PaymentChannel, id)
+  end
+
+  def create_payment_channel(params \\ %{}) do
+    sample = %{"active" => true, "category" => "razerpay", "code" => "BP-RZRMB2QR"}
+
+    check = get_payment_channel_by_code(params["code"])
+
+    if check == nil do
+      PaymentChannel.changeset(%PaymentChannel{}, params) |> Repo.insert()
+    else
+      PaymentChannel.changeset(check, params) |> Repo.update()
+    end
+    |> IO.inspect()
+  end
+
+  def update_payment_channel(model, params) do
+    PaymentChannel.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_payment_channel(%PaymentChannel{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.WalletType
+
+  def list_wallet_types() do
+    Repo.all(WalletType)
+  end
+
+  def get_wallet_type!(id) do
+    Repo.get!(WalletType, id)
+  end
+
+  def create_wallet_type(params \\ %{}) do
+    WalletType.changeset(%WalletType{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_wallet_type(model, params) do
+    WalletType.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_wallet_type(%WalletType{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.EwalletTransfer
+
+  def list_ewallet_transfers() do
+    Repo.all(EwalletTransfer)
+  end
+
+  def get_ewallet_transfer!(id) do
+    Repo.get!(EwalletTransfer, id)
+  end
+
+  def create_ewallet_transfer(params \\ %{}) do
+    IO.inspect(params)
+
+    from_username =
+      Map.get(params, "from_username") |> CommerceFront.Settings.get_user_by_username()
+
+    to_username = Map.get(params, "to_username") |> CommerceFront.Settings.get_user_by_username()
+
+    with true <- from_username != nil,
+         true <- to_username != nil do
+      params =
+        Map.merge(params, %{
+          "from_user_id" => from_username.id,
+          "to_user_id" => to_username.id
+        })
+        |> IO.inspect()
+
+      EwalletTransfer.changeset(%EwalletTransfer{}, params) |> Repo.insert() |> IO.inspect()
+    else
+      _ ->
+        nil
+    end
+  end
+
+  def update_ewallet_transfer(model, params) do
+    EwalletTransfer.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_ewallet_transfer(%EwalletTransfer{} = model) do
+    Repo.delete(model)
+  end
+
   alias CommerceFront.Settings.Announcement
 
   def list_announcements() do
@@ -90,6 +215,10 @@ defmodule CommerceFront.Settings do
       )
     )
     |> List.first()
+  end
+
+  def list_ewallets_by_user_id(id) do
+    Repo.all(from(e in Ewallet, where: e.user_id == ^id))
   end
 
   def list_ewallets() do
@@ -455,7 +584,7 @@ defmodule CommerceFront.Settings do
     )
   end
 
-  def decode_customer_token(token) do
+  def decode_token(token) do
     case Phoenix.Token.verify(CommerceFrontWeb.Endpoint, "member_signature", token) do
       {:ok, map} ->
         map
@@ -514,7 +643,16 @@ defmodule CommerceFront.Settings do
         attrs
       end
 
-    User.changeset(model, attrs) |> Repo.update() |> IO.inspect()
+    cg = User.changeset(model, attrs) |> Repo.update() |> IO.inspect()
+
+    case cg do
+      {:ok, u} ->
+        u = u |> Map.put(:token, CommerceFront.Settings.member_token(u.id))
+        {:ok, u}
+
+      {:error, cg} ->
+        {:error, cg}
+    end
   end
 
   def delete_user(%User{} = model) do
@@ -617,12 +755,12 @@ defmodule CommerceFront.Settings do
 
   def display_refer_tree(username) do
     list = check_downlines(username, :referral)
-    display_tree(username, list, [], :referral, false)
+    display_tree(username, list, [], :referral, false, 0)
   end
 
   def display_place_tree(username) do
     list = check_downlines(username)
-    display_tree(username, list, [], :placement, false)
+    display_tree(username, list, [], :placement, false, 0)
   end
 
   def find_weak_placement(tree, use_one_direction, first_node, prev_node \\ nil) do
@@ -672,7 +810,8 @@ defmodule CommerceFront.Settings do
         ori_data,
         transformed_children \\ [],
         tree \\ :placement,
-        include_empty \\ true
+        include_empty \\ true,
+        count
       ) do
     to_map = fn list ->
       if tree == :placement do
@@ -701,6 +840,7 @@ defmodule CommerceFront.Settings do
         %{
           value:
             %{
+              level: count,
               username: username,
               left: left |> String.to_integer(),
               right: right |> String.to_integer(),
@@ -773,6 +913,7 @@ defmodule CommerceFront.Settings do
       |> List.flatten()
       |> Enum.map(&(&1 |> to_map.()))
 
+    # initial data
     map = ori_data |> Enum.filter(&(&1.parent_username == username)) |> List.first()
 
     transform = fn list, ori_data ->
@@ -794,19 +935,26 @@ defmodule CommerceFront.Settings do
 
         map = ori_data |> Enum.filter(&(&1.parent_username == username)) |> List.first()
 
-        display_tree(username, ori_data, transformed_children)
+        display_tree(username, ori_data, transformed_children, tree, include_empty, count + 1)
       else
         [username, id, fullname, rank_name] = list
 
         map = ori_data |> Enum.filter(&(&1.parent_username == username)) |> List.first()
 
-        display_tree(username, ori_data, transformed_children, :referral)
+        display_tree(
+          username,
+          ori_data,
+          transformed_children,
+          :referral,
+          include_empty,
+          count + 1
+        )
       end
     end
 
     children =
       if map != nil do
-        if Enum.count(map.children) < 2 do
+        if Enum.count(map.children) < 2 && count < 5 do
           l =
             map.children
             |> Enum.map(&(&1 |> String.split("|") |> transform.(ori_data)))
@@ -817,10 +965,22 @@ defmodule CommerceFront.Settings do
             l
           end
         else
-          map.children |> Enum.map(&(&1 |> String.split("|") |> transform.(ori_data)))
+          if tree == :placement do
+            if count < 5 do
+              map.children |> Enum.map(&(&1 |> String.split("|") |> transform.(ori_data)))
+            else
+              [%{id: 0, name: "~", position: "left"}, %{id: 0, name: "~", position: "right"}]
+            end
+          else
+            map.children |> Enum.map(&(&1 |> String.split("|") |> transform.(ori_data)))
+          end
         end
       else
-        []
+        if tree == :placement do
+          [%{id: 0, name: "~", position: "left"}, %{id: 0, name: "~", position: "right"}]
+        else
+          []
+        end
       end
 
     if map == nil do
@@ -841,6 +1001,7 @@ defmodule CommerceFront.Settings do
           id: map.parent_id,
           value:
             %{
+              level: count,
               username: map.parent_username,
               position: if(smap != nil, do: smap.position, else: "n/a"),
               left: if(smap != nil, do: smap.left, else: "n/a"),
@@ -1305,6 +1466,52 @@ defmodule CommerceFront.Settings do
   end
 
   @doc """
+  this is to create the billplz link and let user to complete the flow 
+  """
+  def create_sales_transaction(params) do
+    IO.inspect(params)
+
+    Multi.new()
+    |> Multi.run(:sale, fn _repo, %{} ->
+      rank = get_rank!(params["user"]["rank_id"]) |> IO.inspect()
+      pv = rank.point_value
+
+      # need to check if DRP was used
+
+      create_sale(%{
+        month: Date.utc_today().month,
+        year: Date.utc_today().year,
+        sale_date: Date.utc_today(),
+        status: :processing,
+        subtotal: rank.retail_price,
+        total_point_value: pv,
+        registration_details: Jason.encode!(params)
+        # user_id: user.id
+      })
+    end)
+    |> Multi.run(:payment, fn _repo, %{sale: sale} ->
+      res = Billplz.create_collection("Sales Order: #{sale.id}")
+      collection_id = Map.get(res, "id")
+
+      bill_res =
+        Billplz.create_bill(collection_id, %{
+          description: "Sales Order: #{sale.id}",
+          email: params["user"]["email"],
+          name: params["user"]["fullname"],
+          amount: sale.subtotal
+        })
+
+      create_payment(%{
+        amount: sale.subtotal,
+        sales_id: sale.id,
+        billplz_code: Map.get(bill_res, "id"),
+        payment_url: Map.get(bill_res, "url")
+      })
+    end)
+    |> Repo.transaction()
+  end
+
+  @doc """
   the registration is paid with RP 
   which can be bought from company,
   admin just need to approve the RP purchase...
@@ -1335,12 +1542,11 @@ defmodule CommerceFront.Settings do
 
   """
 
-  def register(params) do
+  def register(params, sales) do
     multi =
       Multi.new()
       |> Multi.run(:user, fn _repo, %{} ->
         rank = get_rank!(params["rank_id"])
-        IEx.pry()
 
         create_user(params |> Map.put("rank_name", rank.name))
       end)
@@ -1359,20 +1565,22 @@ defmodule CommerceFront.Settings do
         {:ok, nil}
       end)
       |> Multi.run(:sale, fn _repo, %{user: user} ->
-        rank = get_rank!(params["rank_id"])
-        pv = rank.point_value
+        # rank = get_rank!(params["rank_id"])
+        # pv = rank.point_value
 
-        # need to check if DRP was used
+        # # need to check if DRP was used
 
-        create_sale(%{
-          month: Date.utc_today().month,
-          year: Date.utc_today().year,
-          sale_date: Date.utc_today(),
-          status: :processing,
-          subtotal: rank.retail_price,
-          total_point_value: pv,
-          user_id: user.id
-        })
+        # create_sale(%{
+        #   month: Date.utc_today().month,
+        #   year: Date.utc_today().year,
+        #   sale_date: Date.utc_today(),
+        #   status: :processing,
+        #   subtotal: rank.retail_price,
+        #   total_point_value: pv,
+        #   user_id: user.id
+        # })
+
+        {:ok, sales}
       end)
       |> Multi.run(:referral, fn _repo, %{user: user} ->
         parent_r = get_referral_by_username(params["sponsor"])
@@ -1581,6 +1789,82 @@ defmodule CommerceFront.Settings do
         gss.day == ^Date.utc_today().day and gss.month == ^Date.utc_today().month and
           gss.year == ^Date.utc_today().year
     )
+  end
+
+  def pay_unpaid_bonus(date, bonus_list) do
+    {y, m, d} = date |> Date.to_erl()
+
+    month_rewards =
+      Repo.all(
+        from(r in Reward,
+          where:
+            r.month == ^m and
+              r.year == ^y,
+          select: %{sum: sum(r.amount), user_id: r.user_id},
+          group_by: [r.user_id]
+        )
+      )
+
+    check_this_month_reward = fn user_id, month_rewards ->
+      month_rewards |> Enum.filter(&(&1.user_id == user_id)) |> List.first() |> Map.get(:sum, 0)
+    end
+
+    for bonus <- bonus_list do
+      rewards =
+        Repo.all(
+          from(r in Reward,
+            where:
+              r.is_paid == false and
+                r.name == ^bonus and r.day == ^d and r.month == ^m and
+                r.year == ^y
+          )
+        )
+
+      pay_to_bonus_wallet = fn reward, multi ->
+        multi
+        |> Multi.run(String.to_atom("reward_#{reward.id}"), fn _repo, %{} ->
+          matrix = ["team bonus", "matching bonus", "elite leader"]
+          total_this_month = check_this_month_reward.(reward.user_id, month_rewards)
+
+          {amount, remarks} =
+            if total_this_month > 10000 do
+              {reward.amount, "month total: #{total_this_month}|pay: 100%"}
+            else
+              {reward.amount * 0.9, "month total: #{total_this_month}|pay: 90%"}
+            end
+
+          params = %{
+            user_id: reward.user_id,
+            amount: amount,
+            remarks: reward.remarks <> "|" <> remarks,
+            wallet_type: "bonus"
+          }
+
+          case create_wallet_transaction(params) do
+            {:ok, wt} ->
+              if total_this_month <= 10000 do
+                params2 = %{
+                  user_id: reward.user_id,
+                  amount: reward.amount * 0.1,
+                  remarks: reward.remarks <> "|" <> "month total: #{total_this_month}|pay: 10%",
+                  wallet_type: "product"
+                }
+
+                create_wallet_transaction(params2)
+              end
+
+              update_reward(reward, %{is_paid: true})
+
+            {:error, cg} ->
+              {:error, cg}
+          end
+        end)
+      end
+
+      Enum.reduce(rewards, Multi.new(), &pay_to_bonus_wallet.(&1, &2))
+      |> Repo.transaction()
+      |> IO.inspect()
+    end
   end
 
   def reset do

@@ -40,3 +40,10 @@ config :commerce_front, CommerceFrontWeb.Endpoint,
 # Then you can assemble a release by calling `mix release`.
 # See `mix help release` for more information.
 config :commerce_front, CommerceFrontWeb.Endpoint, server: true
+
+config :commerce_front, url: System.get_env("ENDPOINT_PROD")
+
+config :commerce_front, :billplz,
+  key: System.get_env("BILLPLZ_API_KEY_PROD"),
+  endpoint: System.get_env("BILLPLZ_API_ENDPOINT_PROD"),
+  callback: System.get_env("BILLPLZ_API_CALLBACK_URL_PROD")

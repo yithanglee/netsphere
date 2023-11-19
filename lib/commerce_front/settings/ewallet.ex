@@ -40,7 +40,8 @@ defmodule CommerceFront.Settings.WalletTransaction do
     field(:amount, :float)
     field(:before, :float)
     field(:remarks, :binary)
-    field(:user_id, :integer)
+    # field(:user_id, :integer)
+    belongs_to(:user, CommerceFront.Settings.User)
     # field(:ewallet_id, :integer)
     belongs_to(:ewallet, CommerceFront.Settings.Ewallet)
 

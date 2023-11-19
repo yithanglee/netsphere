@@ -42,6 +42,7 @@ config :commerce_front, CommerceFrontWeb.Endpoint,
   live_reload: [
     patterns: [
       ~r"priv/static/.*(html|js|css|png|jpeg|jpg|gif|svg)$",
+      ~r"lib/commerce_front/.*(ex)$",
       ~r"lib/commerce_front_web/.*(ex)$",
       ~r"lib/commerce_front_web/templates/.*(eex)$"
     ]
@@ -56,3 +57,10 @@ config :phoenix, :stacktrace_depth, 20
 
 # Initialize plugs at runtime for faster development compilation
 config :phoenix, :plug_init_mode, :runtime
+
+config :commerce_front, url: System.get_env("ENDPOINT")
+
+config :commerce_front, :billplz,
+  key: System.get_env("BILLPLZ_API_KEY"),
+  endpoint: System.get_env("BILLPLZ_API_ENDPOINT"),
+  callback: System.get_env("BILLPLZ_API_CALLBACK_URL")

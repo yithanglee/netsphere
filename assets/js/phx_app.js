@@ -75,6 +75,8 @@ export let phxApp_ = {
   },
   navigateTo(route, additionalParamString) {
 
+
+
     if (route == null) {
       route = window.location.pathname
     }
@@ -106,7 +108,7 @@ export let phxApp_ = {
         return z[0] == current_pattern[0]
       })
     this.hide()
-    this.show()
+
     if (match_2.length > 0) {
 
       var params = {}
@@ -117,6 +119,14 @@ export let phxApp_ = {
           }
         })
       })
+      $("#content").html(`
+          <div class="text-center mt-4">
+            <div class="spinner-border loading2" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+
+      `)
       console.log("params here")
       console.log(params)
       window.pageParams = params
@@ -131,7 +141,7 @@ export let phxApp_ = {
         window.back = false
       } else {
         var stateObj = {
-          route: route,  
+          route: route,
           fn: `phxApp.navigateTo('` + route + `', '` + xParamString + `')`,
           params: params
         };
@@ -152,25 +162,28 @@ export let phxApp_ = {
           history.pushState(stateObj, this.evalTitle(match_2[0].title), route);
         }
       }
+      var nav = this.html("blog_nav.html")
       var footer_modals = this.html("footer_modals.html")
       var html = this.html(match_2[0].html)
       var initPage = `
       <div class="page-content pb-0">
         ` + html + `
-    
       </div>
         ` + footer_modals + `
           `
       var keys = Object.keys(match_2[0])
       if (keys.includes("skipNav")) {
+
         $("#content").html(initPage)
         this.navigateCallback()
 
       } else {
-        var nav = this.html("blog_nav.html")
+
         if (keys.includes("customNav")) {
           var nav = this.html(match_2[0].customNav)
         }
+
+
         $("#content").html(nav)
         $("#content").append(initPage)
         this.navigateCallback()
@@ -183,6 +196,8 @@ export let phxApp_ = {
       <div class="page-content pb-0">
         ` + html + `
       </div>        ` + footer_modals + ``
+
+
       $("#content").html(initPage)
       this.navigateCallback()
 
@@ -315,8 +330,6 @@ export let phxApp_ = {
         obj[v] = message_obj[v]
       }
     })
-    console.log(obj)
-    console.log(this)
     try {
       if (typeof $.notify === "function") {
         $.notify(obj, options)
@@ -380,7 +393,7 @@ export let phxApp_ = {
     if (failed_inputs.length > 0) {
       var labels = []
       failed_inputs.map((v, i) => {
-        $(i).addClass("not-valid")
+        $(i).addClass("is-invalid")
         var label = $(i).closest('.input-style').find("label div").html()
         if (label == null) {
           label = $(i).attr("name")
@@ -540,15 +553,25 @@ export let phxApp_ = {
 
   },
   toTop() {
-
+  $("body")[0].scrollIntoView();
   },
   async navigateCallback() {
+
+
     memberApp_.restoreUser();
-     commerceApp_.restoreCart();
-    commerceApp_.render();
+    commerceApp_.restoreCart();
+    try {
+
+      commerceApp_.render();
+    } catch (e) {
+
+    }
     this.evaluateLang();
     this.toTop();
     this.hide();
+
+
+
   },
   show() {
     console.log("drop shadow..")
@@ -1688,7 +1711,7 @@ export let phxApp_ = {
       } else {
         v.fnParams = fnParams
       }
-      var child =  phxApp_.childGroupedFormButton(v.name, v.onClickFunction, v.fnParams)
+      var child = phxApp_.childGroupedFormButton(v.name, v.onClickFunction, v.fnParams)
 
       div3.append(child)
     })
@@ -1770,7 +1793,7 @@ export let phxApp_ = {
           console.log("creating grouped...button...")
           params.fnParams.dataSource = dataSource;
           params.fnParams.aParams = dataSource.data;
-          var buttonz =  phxApp_.groupedFormButton(
+          var buttonz = phxApp_.groupedFormButton(
             params.name,
             params.color,
             params.buttonList,
@@ -1782,7 +1805,7 @@ export let phxApp_ = {
         } else {
           params.fnParams.dataSource = dataSource;
           params.fnParams.aParams = dataSource.data;
-          var buttonz =  phxApp_.formButton({
+          var buttonz = phxApp_.formButton({
               iconName: params.iconName,
               color: params.color,
               name: params.name
@@ -1801,7 +1824,7 @@ export let phxApp_ = {
         console.log("appending rw dt")
         params.fnParams.dataSource = dataSource;
         params.fnParams.aParams = dataSource.data;
-        var buttonz =  phxApp_.formButton({
+        var buttonz = phxApp_.formButton({
             iconName: params.iconName,
             color: params.color,
             name: params.name,
@@ -1939,7 +1962,7 @@ export let phxApp_ = {
       location = dataSource.data.host + "/api/"
     }
     var custPageLength = 10
-    var custDom = '<"row align-items-center"<"col-lg-4"l><"gap-2 col-lg-8 text-center module_buttons d-flex justify-content-lg-end justify-content-center  py-2 py-lg-0">><"row grid_view d-block d-lg-none"><"list_view d-lg-block d-none"t><"row p-4"<"col-lg-6"i><"col-lg-6"p>>'
+    var custDom = '<"row align-items-center"<"col-lg-4"l><"gap-2 col-lg-8 text-center module_buttons d-flex justify-content-lg-end justify-content-center  py-2 py-lg-0">><"row grid_view d-block d-lg-none"><"list_view d-lg-block d-none"t><"row transform-75 p-4"<"col-lg-6"i><"col-lg-6"p>>'
     if (dataSource.data.dom != null) {
       custDom = dataSource.data.dom
     }
@@ -2021,7 +2044,7 @@ export let phxApp_ = {
               console.log("creating grouped...button...")
               params.fnParams.dataSource = dataSource;
               params.fnParams.aParams = dataSource.data;
-              var buttonz =  phxApp_.groupedFormButton(
+              var buttonz = phxApp_.groupedFormButton(
                 params.name,
                 params.color,
                 params.buttonList,
@@ -2032,7 +2055,7 @@ export let phxApp_ = {
             } else {
               params.fnParams.dataSource = dataSource;
               params.fnParams.aParams = dataSource.data;
-              var buttonz =  phxApp_.formButton({
+              var buttonz = phxApp_.formButton({
                   iconName: params.iconName,
                   color: params.color,
                   name: params.name
@@ -2045,7 +2068,7 @@ export let phxApp_ = {
 
             params.fnParams.dataSource = dataSource;
             params.fnParams.aParams = dataSource.data;
-            var buttonz =  phxApp_.formButton({
+            var buttonz = phxApp_.formButton({
                 iconName: params.iconName,
                 color: params.color,
                 name: params.name,

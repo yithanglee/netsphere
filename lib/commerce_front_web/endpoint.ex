@@ -22,7 +22,7 @@ defmodule CommerceFrontWeb.Endpoint do
     at: "/",
     from: :commerce_front,
     gzip: false,
-    only: ~w(css fonts images vendor html js favicon.ico webfonts robots.txt)
+    only: ~w(sw.js css fonts images vendor html js favicon.ico webfonts robots.txt)
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.

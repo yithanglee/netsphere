@@ -5,6 +5,16 @@ import { memberApp_ } from './member_app.js';
 import { Socket } from "./phoenix.js"
 import { phoenixModel } from './phoenixModel.js';
 
+const useSw = false
+if ('serviceWorker' in navigator && useSw) {
+  navigator.serviceWorker.register('/sw.js')
+    .then(registration => {
+      console.log('Service Worker registered with scope:', registration.scope);
+    })
+    .catch(error => {
+      console.error('Service Worker registration failed:', error);
+    });
+}
 
 window.phoenixModel = phoenixModel;
 window.phoenixModels = []
@@ -41,6 +51,7 @@ window.addEventListener(
   true
 );
 const route_list = [
+  { html: "wallet_transaction.html", title: "Transactions ", route: "/wallets/:id" },
   { html: "product.html", title: "Product ", route: "/products/:id/:name" },
   { html: "register.html", title: "Register", route: "/register" },
   { html: "logout.html", title: "Logout", route: "/logout" },
@@ -123,12 +134,20 @@ if (window.location.hostname == "localhost") {
     var reloadStrategy = reloadStrategies[msg.asset_type] || reloadStrategies.page;
     setTimeout(function() { reloadStrategy(chan); }, 1000);
   });
+  chan.join();
 }
-chan.join();
 
 
 
 $(document).on("click", "a.navi", function(event) {
+  $("#content").html(`
+      <div class="text-center mt-4">
+            <div class="spinner-border loading2" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+
+      `)
   event.preventDefault();
   setTimeout(() => {
     if ($(this).attr("href").includes("#")) {

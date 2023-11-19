@@ -41,6 +41,7 @@ export let commerceApp_ = {
     if (index >= 0) {
 
       var foundItem = this.cart_[index]
+      phxApp.notify("item " + foundItem.name + " deducted !")
       foundItem.qty -= 1
 
     } else {
@@ -54,10 +55,10 @@ export let commerceApp_ = {
     console.log(this.cart_)
   },
   removeItem_(id) {
-    var index = this.cart_.findIndex(item => item.id === id);
-    var removed = this.cart_.splice(index, 1)[0]
-
-    console.log("item " + removed.name + " removed !")
+    var index = this.cart_.findIndex(item => item.id == parseInt(id));
+   var foundItem = this.cart_[index]
+    phxApp.notify("item " + foundItem .name + " removed !")
+    var removed = this.cart_.splice(index, 1)
     localStorage.setItem("cart", JSON.stringify(this.cart_))
     console.log(this.cart_)
   },
@@ -88,8 +89,13 @@ export let commerceApp_ = {
     cartItems() {
       var count = 0,
         list = [],
+        total_pv = 0,
         subtotal = 0.0;
-
+      total_pv = commerceApp_.cart_.map((v, i) => {
+        return (v.qty * v.point_value)
+      }).reduce((a, b) => {
+        return a + b
+      }, 0)
       subtotal = commerceApp_.cart_.map((v, i) => {
         return (v.qty * v.retail_price)
       }).reduce((a, b) => {
@@ -148,7 +154,10 @@ export let commerceApp_ = {
                 <span>` + v.name + ` <small>(x` + v.qty + `)</small></span>
               </div>
               <div class="d-flex flex-column flex-lg-row justify-content-between align-items-center">
-                <span class="font-sm format-float">` + (v.retail_price * v.qty).toFixed(2) + `</span>
+                <div class="d-flex flex-column align-items-end">
+                  <span class="font-sm ">$ <span class="format-float">` + (v.retail_price * v.qty).toFixed(2) + `</span></span>
+                  <span class="font-sm text-info format-integer">` + (v.point_value * v.qty) + ` PV</span>
+                </div>
                 <div class="text-center">
                   <div class="btn btn-sm" minus-product-id="` + v.id + `"><i class="text-danger fa fa-minus"></i></div>
                   <div class="btn btn-sm" delete-product-id="` + v.id + `"><i class="text-danger fa fa-times"></i></div>
@@ -166,7 +175,11 @@ export let commerceApp_ = {
                 <div class="d-flex flex-column gap-2">` + list.join("") + `
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="fs-4">Subtotal</span>
-                    <span class="format-float me-4">` + subtotal + `</span>
+                    <span class=" me-4">$ <span class="format-float">` + subtotal + `</span></span>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="fs-5">Total PV</span>
+                    <span class="text-info me-4"><span class="format-integer">` + total_pv + ` PV</span></span>
                   </div>
                 </div>
 
@@ -357,8 +370,8 @@ export let commerceApp_ = {
 
         $(v).html(`
             <div class="dropdown  ">
-              <div class="mx-4 py-2 btn btn-outline-success rounded-xl position-relative"  data-bs-toggle="dropdown" aria-expanded="false">
-                <div class="badge bg-warning position-absolute top-0 start-100 translate-middle bc">` + count + `</div>
+              <div class="mx-3 py-2 btn btn-outline-success rounded-xl position-relative"  data-bs-toggle="dropdown" aria-expanded="false">
+                <div style="top: 4px !important;" class="badge bg-warning position-absolute top-0 start-100 translate-middle bc">` + count + `</div>
                 <i class="fa fa-shopping-cart"></i>
               </div>
               <ul class="dropdown-menu dropdown-menu-end dropdown-menu-lg-start ac">
@@ -447,9 +460,9 @@ export let commerceApp_ = {
                   style="
                     position: relative; 
                     width: 320px;
-                    height: 240px;">
+                    height: 340px;">
               <div class="rounded py-2" style="
-                    height: 240px;
+                    height: 340px;
                     width: 88%;
                     filter: blur(4px);
                     position: absolute;
@@ -462,7 +475,7 @@ export let commerceApp_ = {
                     ">
               </div>
               <div class="rounded py-2" style="
-                    height: 240px;
+                    height: 340px;
                     width:  100%;
                     z-index: 1;
                     background-position: center;
@@ -499,7 +512,7 @@ export let commerceApp_ = {
             
 
           <div class="row gx-0 d-none loading">
-            <div class="col-12 col-lg-8 offset-lg-2">
+            <div class="col-12 col-lg-10 offset-lg-1">
               <div id="tab1"></div>
             </div>
           </div>
@@ -537,10 +550,10 @@ export let commerceApp_ = {
                   style="
                     cursor: pointer;   
                     position: relative; 
-                    height: 180px;">
+                    height: 260px;">
               <div class="rounded py-2" style="
-                    height: 140px;
-                    width: 72%;
+                    height: 220px;
+                    width: 80%;
                     filter: blur(4px);
                     position: absolute;
                     background-repeat: no-repeat;
@@ -552,7 +565,7 @@ export let commerceApp_ = {
                     ">
               </div>
               <div class="rounded py-2" style="
-                    height: 140px;
+                    height: 220px;
                     width:  100%;
                     z-index: 1;
                     background-position: center;
@@ -576,7 +589,7 @@ export let commerceApp_ = {
           },
           data: {
             grid_class: "col-6 col-lg-3",
-            dom: '<"row px-4"<"col-lg-6 col-12"i><"col-12 col-lg-6">><"row grid_view "><"list_view d-none"t><"row px-4"<"col-lg-6 col-12"><"col-lg-6 col-12"p>>'
+            dom: '<"row px-4"<"col-lg-6 col-12"i><"col-12 col-lg-6">><"row grid_view "><"list_view d-none"t><"row transform-75 px-4"<"col-lg-6 col-12"><"col-lg-6 col-12"p>>'
           },
           columns: [
 
@@ -622,23 +635,23 @@ export let commerceApp_ = {
 
           var url = v.img_url,
             doc = `
-            <div class="d-flex flex-column align-items-center" announcement-id="` + v.id + `">
+            <div class="d-flex flex-column align-items-center" >
 
-              <div class="d-flex justify-content-center " style="cursor: pointer;   position: relative; height: 240px;">
-                <div class=" rounded py-2" style="
-                    width:  300px;
-                    height: 220px;
+              <div class="d-flex justify-content-center " style="cursor: pointer;   
+              position: relative; height: 240px;" announcement-id="` + v.id + `">
+                <div class="sub rounded py-2" style="
+                 
                     position: absolute;
                     filter: blur(10px); 
                                 background-repeat: no-repeat;
                     background-position: center;
                     background-size: contain; 
                     background-image: url('` + url + `');
-                    top: 16px;">
+                   ">
                 </div>
                 <div class="su rounded py-2" style="
-                    width:  300px;
-                    height: 220px;
+              
+             
 
                     background-position: center;
                     background-repeat: no-repeat;
@@ -669,37 +682,48 @@ export let commerceApp_ = {
       $(".anc").slick()
     },
     wallet() {
+      if (memberApp.user != null) {
 
-      var user = memberApp.user;
-      $("wallet").each((i, v) => {
+        var user = memberApp.user,
+          wallets = phxApp.api("user_wallet", { token: user.token })
+        $("wallet").each((i, v) => {
+          var wallet = wallets.filter((wv, wi) => {
+            return wv.wallet_type == $(v).attr("aria-data")
+          })[0]
 
-        var wallet_name = $(v).attr("aria-data").split("_").map((v, i) => {
-          return ColumnFormater.capitalize(v)
-        }).join(" ")
+          console.log(wallet)
+          var wallet_name = $(v).attr("aria-data").split("_").map((v, i) => {
+            return ColumnFormater.capitalize(v)
+          }).join(" ")
 
-        $(v).html(`
-
+          $(v).html(`
+            <a href="/wallets/` + wallet.id + `" class="navi" >
             <div class="card mb-3 mb-lg-0">
               <div class="card-body p-1 py-2 ">
                 <div class="d-flex gap-1 align-items-center">
-                  <div class="d-none d-lg-block mx-2 py-2 btn btn-outline-success rounded-xl">
+                  <div wallet-id="` + wallet.id + `" class="d-none d-lg-block mx-2 py-2 btn btn-outline-success rounded-xl">
                     <i class=" fa fa-dollar-sign "></i>
                   </div>
                   <div class="ps-2 ps-lg-0">
                     <span class="text-sm text-secondary text-truncate">` + wallet_name + `</span>
                     <div class="d-flex align-items-center gap-2">
-                      <div class="fs-4 format-int" style="">2000</div>
+                      <div class="fs-4 format-int" style="">` + wallet.total + `</div>
                       <small>pts</small>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
+            </a>
 
         `)
-      })
 
-      ColumnFormater.formatDate()
+
+
+        })
+
+        ColumnFormater.formatDate()
+      }
 
 
 

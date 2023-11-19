@@ -17,11 +17,16 @@ defmodule CommerceFrontWeb.Router do
     plug :put_secure_browser_headers, %{"content-security-policy" => @content_security_policy}
   end
 
+  pipeline :plain_api do
+    plug :accepts, ["json"]
+  end
+
   pipeline :api do
     plug :accepts, ["json"]
 
     plug CORSPlug,
       origin: [
+        "f770-115-164-46-61.ngrok-free.app",
         "https://fonts.gstatic.com",
         "https://svt.damienslab.com",
         "http://svt.damienslab.com",
@@ -29,6 +34,12 @@ defmodule CommerceFrontWeb.Router do
       ]
 
     plug(CommerceFront.ApiAuthorization)
+  end
+
+  scope "/api", CommerceFrontWeb do
+    pipe_through :plain_api
+
+    post "/payment/billplz", ApiController, :payment
   end
 
   scope "/api", CommerceFrontWeb do
@@ -48,6 +59,7 @@ defmodule CommerceFrontWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :index
+    get "/thank_you", PageController, :thank_you
     get "/*path", PageController, :index
   end
 

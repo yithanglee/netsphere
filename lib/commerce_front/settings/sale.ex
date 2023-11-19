@@ -27,6 +27,8 @@ defmodule CommerceFront.Settings.Sale do
     field(:status, StatusEnum, default: :pending_confirmation)
     field(:subtotal, :float)
     field(:total_point_value, :integer)
+    field(:registration_details, :binary)
+    field(:payment_id, :integer)
     # field(:user_id, :integer)
     belongs_to(:user, CommerceFront.Settings.User)
     field(:year, :integer)
@@ -38,6 +40,8 @@ defmodule CommerceFront.Settings.Sale do
   def changeset(sale, attrs) do
     sale
     |> cast(attrs, [
+      :registration_details,
+      :payment_id,
       :sale_date,
       :month,
       :year,
@@ -52,7 +56,7 @@ defmodule CommerceFront.Settings.Sale do
       :month,
       :year,
       :subtotal,
-      :user_id,
+      # :user_id,
       :status,
       :total_point_value
     ])

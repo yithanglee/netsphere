@@ -15,10 +15,14 @@ export let memberApp_ = {
     localStorage.setItem("user", JSON.stringify(j))
   },
   register(dom) {
-    console.log(dom)
     $(dom).closest("form")
-    phxApp_.form($(dom).closest("form"), "register", () => {
-      phxApp_.navigateTo("/register")
+    phxApp_.validateForm("form", () => {
+      
+      phxApp_.form($(dom).closest("form"), "register", (e) => {
+        console.log(e)
+        window.location = e.payment_url
+        // phxApp_.navigateTo("/register")
+      })
     })
   },
   logout() {
@@ -28,7 +32,6 @@ export let memberApp_ = {
     $("[aria-label='login']").removeClass("d-none")
     $("[aria-label='logout']").addClass("d-none")
     phxApp_.notify("Log out!")
-
     phxApp_.navigateTo("/home")
   },
   updateUser(user) {
@@ -36,7 +39,7 @@ export let memberApp_ = {
     memberApp_.save(user)
   },
   login(dom) {
-    console.log(dom)
+
     $(dom).closest("form")
     phxApp_.form($(dom).closest("form"), "login", (j) => {
       memberApp_.user = j

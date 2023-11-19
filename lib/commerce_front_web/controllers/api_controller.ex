@@ -48,9 +48,27 @@ defmodule CommerceFrontWeb.ApiController do
     )
   end
 
+  def decode_token(token) do
+    Settings.decode_token(token)
+  end
+
   def get(conn, params) do
+    token = params |> Map.get("token")
+
+    %{id: id} =
+      if token != nil do
+        token |> decode_token
+      else
+        %{id: 0}
+      end
+
     res =
       case params["scope"] do
+        "user_wallet" ->
+          res =
+            Settings.list_ewallets_by_user_id(id)
+            |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
+
         "get_product" ->
           Settings.get_product!(params["id"]) |> BluePotion.sanitize_struct()
 
@@ -69,11 +87,11 @@ defmodule CommerceFrontWeb.ApiController do
                 ],
                 type: "root"
               }
-
-              Settings.display_refer_tree(params["username"])
             else
               []
             end
+
+            Settings.display_refer_tree(params["username"])
           else
             []
           end
@@ -94,6 +112,63 @@ defmodule CommerceFrontWeb.ApiController do
           %{status: "ok"}
       end
 
+    append_cache_request = fn conn ->
+      # if conn.req_headers
+      #    |> Enum.into(%{})
+      #    |> Map.get("referer", "")
+      #    |> String.contains?("admin") do
+      #   conn
+      # else
+      #   conn
+      #   |> put_resp_header("cache-control", "max-age=900, must-revalidate")
+      # end
+
+      conn
+    end
+
+    conn
+    |> append_cache_request.()
+    |> put_resp_content_type("application/json")
+    |> send_resp(200, Jason.encode!(res))
+  end
+
+  def payment(conn, params) do
+    res =
+      with true <- params["paid"] == "true",
+           payment <-
+             Settings.get_payment_by_billplz_code(params["id"]),
+           true <- payment != nil,
+           true <- payment.sales != nil,
+           sales <- payment.sales,
+           {:ok, register_params} <- sales.registration_details |> Jason.decode() do
+        case Settings.register(register_params["user"], sales) do
+          {:ok, multi_res} ->
+            %{status: "ok", res: multi_res |> BluePotion.sanitize_struct()}
+
+          _ ->
+            %{status: "error"}
+        end
+      else
+        _ ->
+          %{status: "ok"}
+      end
+
+    sample = %{
+      "amount" => "500000",
+      "collection_id" => "greljvdq",
+      "due_at" => "2023-11-18",
+      "email" => "a@1.com",
+      "id" => "ywkq6y7x",
+      "mobile" => "",
+      "name" => "1",
+      "paid" => "true",
+      "paid_amount" => "500000",
+      "paid_at" => "2023-11-18 16:16:29 +0800",
+      "state" => "paid",
+      "url" => "https://www.billplz-sandbox.com/bills/ywkq6y7x",
+      "x_signature" => "20fe8afe691277badffd74ad3bbeaafe6f54b5c502ed91bd557b88678338b627"
+    }
+
     json(conn, res)
   end
 
@@ -112,9 +187,12 @@ defmodule CommerceFrontWeb.ApiController do
           %{status: "ok", res: token}
 
         "register" ->
-          case Settings.register(params["user"]) do
-            {:ok, user} ->
-              %{status: "ok", res: user |> BluePotion.sanitize_struct()}
+          # get the billplz link first, then make payment
+          # create the sales first
+          # Settings.register(params["user"])
+          case Settings.create_sales_transaction(params) do
+            {:ok, multi_res} ->
+              %{status: "ok", res: multi_res.payment |> BluePotion.sanitize_struct()}
 
             _ ->
               %{status: "error"}
@@ -419,7 +497,7 @@ defmodule CommerceFrontWeb.ApiController do
           params
           |> Map.put(
             "user_id",
-            CommerceFront.Settings.decode_customer_token(customer_id)
+            CommerceFront.Settings.decode_token(customer_id)
           )
         else
           params
@@ -515,8 +593,9 @@ defmodule CommerceFrontWeb.ApiController do
               end
 
             true ->
-              ss = params["search"]["value"] |> IO.inspect()
-              items = String.split(item, "|")
+              ss = params["search"]["value"]
+              items = String.split(item, "|") |> IO.inspect()
+              # ["a.name", "b.username", "a.is_paid"]
 
               subquery =
                 for i <- items do
@@ -555,7 +634,9 @@ defmodule CommerceFrontWeb.ApiController do
                           end
                         else
                           with true <- i |> String.contains?("id"),
-                               false <- i |> String.contains?("uuid") do
+                               false <- i |> String.contains?("uuid"),
+                               false <- i |> String.contains?("paid"),
+                               false <- i |> String.contains?("is_") do
                             case Integer.parse(ss) do
                               {ss, _val} ->
                                 """
@@ -602,9 +683,14 @@ defmodule CommerceFrontWeb.ApiController do
                           a.#{i} == ^#{ss}
                           """
                         else
-                          """
-                          ilike(#{prefix}.#{i}, ^"%#{ss}%")
-                          """
+                          if ss == nil do
+                            """
+                            """
+                          else
+                            """
+                            ilike(#{prefix}.#{i}, ^"%#{ss}%")
+                            """
+                          end
                         end
                       else
                         tuple
@@ -661,17 +747,18 @@ defmodule CommerceFrontWeb.ApiController do
                   end
                 end
                 |> Enum.reject(&(&1 == nil))
+                |> Enum.reject(&(&1 == ""))
                 |> Enum.join(" and ")
                 |> IO.inspect()
 
-              if subquery != "" && ss != "" do
+              with true <- subquery != "",
+                   true <- ss != nil do
                 """
                 |> or_where([a,b,c,d], #{subquery})
                 """
               else
-                """
-                |> or_where([a,b,c,d], #{subquery})
-                """
+                _ ->
+                  nil
               end
           end
         end

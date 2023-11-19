@@ -7,6 +7,20 @@ defmodule CommerceFront do
   if it comes from the database, an external API or others.
   """
 
+  def daily_calculations do
+    {y, m, d} = Date.utc_today() |> Date.to_erl()
+    CommerceFront.Calculation.matching_bonus(m, y)
+    CommerceFront.Calculation.elite_leader(m, y)
+    CommerceFront.Calculation.travel_fund(m, y)
+  end
+
+  def carry_forward_task do
+    for date <- Date.range(~D[2023-11-11], ~D[2023-11-15]) do
+      CommerceFront.Settings.reconstruct_daily_group_sales_summary(date)
+      CommerceFront.Settings.carry_forward_entry(date)
+    end
+  end
+
   def test_carry_forward() do
     CommerceFront.Settings.reconstruct_daily_group_sales_summary(~D[2023-11-07])
     CommerceFront.Settings.carry_forward_entry(~D[2023-11-07])
@@ -14,13 +28,12 @@ defmodule CommerceFront do
     CommerceFront.Settings.carry_forward_entry(~D[2023-11-08])
     CommerceFront.Settings.reconstruct_daily_group_sales_summary(~D[2023-11-09])
     CommerceFront.Settings.carry_forward_entry(~D[2023-11-09])
-
     CommerceFront.Settings.reconstruct_daily_group_sales_summary(~D[2023-11-10])
     CommerceFront.Settings.carry_forward_entry(~D[2023-11-10])
   end
 
   def test() do
-    CommerceFront.Settings.reset()
+    # CommerceFront.Settings.reset()
 
     samples = [
       {"admin", "damien"},
@@ -31,27 +44,27 @@ defmodule CommerceFront do
     ]
 
     samples = [
-      {"admin", "damien", 1},
-      {"damien", "summer", 3},
-      {"damien", "elis", 2},
-      {"damien", "orange", 1},
-      {"damien", "kathy", 2},
-      {"summer", "sm1", 1},
-      {"summer", "sm2", 3},
-      {"summer", "sm3", 1},
-      {"summer", "sm4", 3},
-      {"elis", "lsm1", 1},
-      {"elis", "lsm2", 2},
-      {"elis", "lsm3", 3},
-      {"elis", "lsm4", 3},
-      {"lsm1", "alsm1", 1},
-      {"lsm1", "alsm2", 1},
-      {"lsm1", "alsm3", 3},
-      {"lsm1", "alsm4", 3},
-      {"summer", "bsm1", 1},
-      {"summer", "bsm2", 3},
-      {"summer", "bsm3", 1},
-      {"summer", "bsm4", 3}
+      # {"admin", "damien", 1},
+      # {"damien", "summer", 3},
+      # {"damien", "elis", 2},
+      # {"damien", "orange", 1},
+      # {"damien", "kathy", 2},
+      {"summer", "wsm1", 1},
+      {"summer", "wsm2", 3},
+      {"summer", "wsm3", 1},
+      {"summer", "wsm4", 3},
+      {"elis", "wlsm1", 1},
+      {"elis", "wlsm2", 2},
+      {"elis", "wlsm3", 3},
+      {"elis", "wlsm4", 3},
+      {"lsm1", "walsm1", 1},
+      {"lsm1", "walsm2", 1},
+      {"lsm1", "walsm3", 3},
+      {"lsm1", "walsm4", 3},
+      {"summer", "wbsm1", 1},
+      {"summer", "wbsm2", 3},
+      {"summer", "wbsm3", 1},
+      {"summer", "wbsm4", 3}
     ]
 
     for {sponsor, username, rank_id} = sample <- samples do
