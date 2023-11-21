@@ -34,6 +34,9 @@ export let phxApp_ = {
 
 
   ],
+  formatDate(){
+    ColumnFormater.formatDate()
+  },
   ping() {
 
     console.log("tell ping o")
@@ -190,6 +193,7 @@ export let phxApp_ = {
       }
       return match_2[0]
     } else {
+           var nav = this.html("blog_nav.html")
       var footer_modals = this.html("footer_modals.html")
       var html = this.html("landing.html")
       var initPage = `
@@ -198,7 +202,8 @@ export let phxApp_ = {
       </div>        ` + footer_modals + ``
 
 
-      $("#content").html(initPage)
+        $("#content").html(nav)
+        $("#content").append(initPage)
       this.navigateCallback()
 
     }
@@ -332,6 +337,7 @@ export let phxApp_ = {
     })
     try {
       if (typeof $.notify === "function") {
+        console.log(options)
         $.notify(obj, options)
 
       } else {
@@ -553,7 +559,7 @@ export let phxApp_ = {
 
   },
   toTop() {
-  $("body")[0].scrollIntoView();
+    $("body")[0].scrollIntoView();
   },
   async navigateCallback() {
 
@@ -735,12 +741,16 @@ export let phxApp_ = {
 
   },
   generateInputs(j, v, object, qv) {
-    var input2 = "";
-    var label_title = v.charAt(0).toUpperCase() + v.slice(1)
+    var input2 = "",
+      alt_class = "col-12 col-lg-6",
+      label_title = v.charAt(0).toUpperCase() + v.slice(1)
 
     if (typeof qv == "object") {
       if (qv.alt_name != null) {
         label_title = qv.alt_name
+      }
+      if (qv.alt_class != null) {
+        alt_class = qv.alt_class
       }
 
     }
@@ -750,7 +760,7 @@ export let phxApp_ = {
       case "string":
         // code block
 
-        input2 = `<div class="col-12 col-lg-5">
+        input2 = `<div class="`+alt_class+`">
                       <div class="ps-1 py-2">` + label_title + `</div>
                       <div class="col-sm-12">
                         <div class="form-group bmd-form-group">
@@ -799,7 +809,7 @@ export let phxApp_ = {
             ']" type="hidden" class="form-control" value="0">';
         } else {
 
-          input2 = `<div class="col-12 col-lg-5">
+          input2 = `<div class="`+alt_class+`">
                       <div class="ps-1 py-2">` + label_title + `</div>
                       <div class="col-sm-12">
                         <div class="form-group bmd-form-group">
@@ -811,7 +821,7 @@ export let phxApp_ = {
         break;
       case "date":
 
-        input2 = `<div class="col-12 col-lg-5">
+        input2 = `<div class="`+alt_class+`">
                       <div class="ps-1 py-2">` + label_title + `</div>
                       <div class="col-sm-12">
                         <div class="form-group">
@@ -822,7 +832,7 @@ export let phxApp_ = {
         break;
       case "naive_datetime":
 
-        input2 = `<div class="col-12 col-lg-5">
+        input2 = `<div class="`+alt_class+`">
                       <div class="ps-1 py-2">` + label_title + `</div>
                       <div class="col-sm-12">
                         <div class="form-group bmd-form-group">
@@ -844,7 +854,7 @@ export let phxApp_ = {
             ']" type="hidden" class="form-control" value="0">';
         } else {
 
-          input2 = `<div class="col-12 col-lg-5">
+          input2 = `<div class="`+alt_class+`">
                       <div class="ps-1 py-2">` + label_title + `</div>
                       <div class="col-sm-12">
                         <div class="form-group bmd-form-group">
@@ -886,7 +896,7 @@ export let phxApp_ = {
 
 
 
-        input2 = `<div class="col-12 col-lg-5">
+        input2 = `<div class="`+alt_class+`">
                       <div class="ps-1 py-2">` + label_title + `</div>
                       <div class="col-sm-12">
                         <div class="form-group">
@@ -902,7 +912,7 @@ export let phxApp_ = {
       if (qv.binary) {
 
 
-        input2 = `<div class="col-12 col-lg-6">
+        input2 = `<div class="`+alt_class+`">
                       <div class="ps-1 py-2">` + label_title + `</div>
                       <div class="col-sm-12">
                         <div class="form-group bmd-form-group">
@@ -963,7 +973,7 @@ export let phxApp_ = {
       if (qv.upload) {
 
 
-        input2 = `<div class="col-12 col-lg-5">
+        input2 = `<div class="`+alt_class+`">
                       <div class="pb-1 pt-1 ps-1 text-start">` + label_title + `</div>
                       <div class="col-sm-12">
                         
@@ -1017,7 +1027,7 @@ export let phxApp_ = {
 
           if (assoc_val.length == 2) {
 
-            input2 = `<div class="col-12 col-lg-5">
+            input2 = `<div class="`+alt_class+`">
                         <div class="pb-1 pt-1 ps-1 text-start">` + label_title + `</div>
                         <div class="row gx-0">
                           <div class="col-10">
@@ -1034,7 +1044,7 @@ export let phxApp_ = {
 
           if (assoc_val.length == 3) {
 
-            input2 = `<div class="col-12 col-lg-5">
+            input2 = `<div class="`+alt_class+`">
                         <div class="pb-1 pt-1 ps-1 text-start">` + label_title + `</div>
                         <div class="row">
                           <div class="col-10">
@@ -1052,7 +1062,7 @@ export let phxApp_ = {
         } else {
           if (assoc_val.length == 2) {
 
-            input2 = `<div class="col-12 col-lg-5">
+            input2 = `<div class="`+alt_class+`">
                               <div class="pb-1 pt-1 ps-1 text-start">` + label_title + `</div>
                               <div class="row">
                                 <div class="col-12">
@@ -1066,7 +1076,7 @@ export let phxApp_ = {
 
             if (qv.binary) {
 
-              input2 = `<div class="col-12 col-lg-5">
+              input2 = `<div class="`+alt_class+`">
                                         <div class="ps-1 py-2">` + label_title + `</div>
                                         <div class="col-sm-12">
                                           <div class="form-group bmd-form-group">
@@ -1081,7 +1091,7 @@ export let phxApp_ = {
 
             if (qv.editor) {
 
-              input2 = `<div class="col-12 col-lg-5">
+              input2 = `<div class="`+alt_class+`">
                                         <div class="ps-1 py-2">` + label_title + `</div>
                                         <div class="col-sm-12">
                                           <div class="form-group bmd-form-group">
@@ -1096,7 +1106,7 @@ export let phxApp_ = {
           }
           if (assoc_val.length == 3) {
 
-            input2 = `<div class="col-12 col-lg-5">
+            input2 = `<div class="`+alt_class+`">
                               <div class="pb-1 pt-1 ps-1 text-start">` + label_title + `</div>
                               <div class="row">
                                 <div class="col-12">
@@ -1270,14 +1280,14 @@ export let phxApp_ = {
 
             $(xv).html(`
                             <div class="row">
-                              <div class="col-sm-3">
+                              <div class="col-12 col-lg-4">
                                 <ul class="nav nav-pills flex-column form_nav">
                                  
                                
                                 </ul>
 
                               </div>
-                              <div class="col-sm-9 p-lg-1 p-4" id="form_panels">
+                              <div class="col-12 col-lg-8 p-4 pt-lg-0 px-lg-4 " id="form_panels">
 
                               </div>
                             </div>
@@ -1285,22 +1295,38 @@ export let phxApp_ = {
                         `)
 
 
-
+            function formNavClick(index) {
+              $(".form_nav .nav-link").removeClass("active")
+              $(".nav-link[aria-index='" + index + "']").toggleClass("active")
+              $(".fp").addClass("d-none")
+              $("#panel_" + index).toggleClass("d-none")
+            }
             $(customCols).each((i, v) => {
               if (i == 0) {
                 $(".form_nav").append(`
                                    <li class="nav-item">
-                                      <a class="active nav-link" aria-index="` + i + `" href="javascript:void(0);" onclick="formNavClick('` + i + `')" >` + v.name + `</a>
+                                      <a class="active nav-link fnc" aria-index="` + i + `" href="javascript:void(0);"  >` + v.name + `</a>
                                     </li>
                           `)
               } else {
 
                 $(".form_nav").append(`
                                    <li class="nav-item">
-                                      <a class="nav-link" aria-index="` + i + `" href="javascript:void(0);" onclick="formNavClick('` + i + `')" >` + v.name + `</a>
+                                      <a class="nav-link fnc" aria-index="` + i + `" href="javascript:void(0);"  >` + v.name + `</a>
                                     </li>
                           `)
               }
+              $(".fnc").each((i, v) => {
+
+                v.onclick = () => {
+                  var index = $(v).attr("aria-index")
+                  $(".form_nav .nav-link").removeClass("active")
+                  $(".nav-link[aria-index='" + index + "']").toggleClass("active")
+                  $(".fp").addClass("d-none")
+                  $("#panel_" + index).toggleClass("d-none")
+                }
+
+              })
               // insert the panels
               if (i == 0) {
                 $("#form_panels").append(`<div class="fp row" id="panel_` + i + `"></div>`)

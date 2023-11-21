@@ -7,6 +7,20 @@ defmodule CommerceFront do
   if it comes from the database, an external API or others.
   """
 
+  @doc """
+
+  like everyday before 8am, you need to run this using yesterday's date...
+
+  """
+  def daily_task(date \\ Date.utc_today()) do
+    CommerceFront.Settings.carry_forward_entry(date)
+    {y, m, d} = date |> Date.to_erl()
+    CommerceFront.Settings.pay_unpaid_bonus(date, ["team_bonus", "sharing_bonus"])
+    CommerceFront.Calculation.matching_bonus(m, y)
+    CommerceFront.Calculation.elite_leader(m, y)
+    CommerceFront.Calculation.travel_fund(m, y)
+  end
+
   def daily_calculations do
     {y, m, d} = Date.utc_today() |> Date.to_erl()
     CommerceFront.Calculation.matching_bonus(m, y)

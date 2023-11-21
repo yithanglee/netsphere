@@ -112,7 +112,9 @@ background-repeat: no-repeat;
         // populate the list
         var pg = []
         var perc = 1 / progressList.length * 100
-        var check_index = progressList.findIndex((v, i) => { return v == content });
+        var check_index = progressList.findIndex((v, i) => {
+          return v == content
+        });
         progressList.forEach((progress, pi) => {
           if (check_index >= pi) {
             var bar = `<div class="progress-bar bg-warning " role="progressbar" style="width: ` + perc + `%;" ></div>
@@ -299,7 +301,7 @@ background-repeat: no-repeat;
     console.log(formatType[selectedKey])
     switch (formatType[selectedKey]) {
       case 'formatFloat':
-        input2 = currencyFormat(dtdata[v.data]);
+        input2 = this.currencyFormat(dtdata[v.data]);
         break;
       case 'showImg':
         try {
@@ -383,7 +385,7 @@ background-repeat: no-repeat;
 
   },
   formatDate() {
-    $(" .format-int").each((i, v) => {
+    $(" .format-int, .format-integer").each((i, v) => {
       var prefix = ""
       if ($(v).html().split(" ").includes("DR")) {
         prefix = "DR"
@@ -454,37 +456,24 @@ background-repeat: no-repeat;
     $(".format_datetime").each((i, v) => {
 
 
-      var offset = 0
+      var edate, offset = 0
       if ($(v).attr("aria-offset") != null) {
-
         offset = parseInt($(v).attr("aria-offset"))
       }
 
-      // console.log() 
-      var d = $(v).html();
-      if (Date.parse(d.split(" ")[0]) > 0) {
-        var date = new Date(d.split(" ")[0])
-        var day;
-        if (date.getDate().toString().length > 1) {
-          day = date.getDate()
-        } else {
-          day = "0" + date.getDate()
-        }
-        var month;
-        if ((date.getMonth() + 1).toString().length > 1) {
-          month = (date.getMonth() + 1)
-        } else {
-          month = "0" + (date.getMonth() + 1)
-        }
-
-        var dt = new Date(d)
-        dt.setTime(dt.getTime() + (8 * 60 * 60 * 1000));
-        var edate = dt.toGMTString().split(",")[1].split(" ").splice(0, 4).join(" ")
-        var etime = dt.toLocaleTimeString()
-
-
-        $(v).html(`` + edate + ` ` + etime + ``)
+      var str = $(v).html();
+      str = Date.parse($(v).html().replace(" ", ""))
+      var dt = new Date(str)
+      dt.setTime(dt.getTime() + (8 * 60 * 60 * 1000));
+      try {
+        edate = dt.toGMTString().split(",")[1].split(" ").splice(1, 3).join(" ")
+      } catch (e) {
+        console.log(e)
       }
+      var etime = dt.toLocaleTimeString()
+
+      $(v).html(`` + edate + ` ` + etime + ``)
+
 
     })
 

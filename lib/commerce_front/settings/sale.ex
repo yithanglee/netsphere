@@ -28,9 +28,16 @@ defmodule CommerceFront.Settings.Sale do
     field(:subtotal, :float)
     field(:total_point_value, :integer)
     field(:registration_details, :binary)
-    field(:payment_id, :integer)
+    # field(:payment_id, :integer)
+    has_one(:payment, CommerceFront.Settings.Payment, foreign_key: :sales_id)
+    has_many(:sales_items, CommerceFront.Settings.SalesItem, foreign_key: :sales_id)
+
+    # add :sales_person_id, :integer
     # field(:user_id, :integer)
+    # this is the new user
     belongs_to(:user, CommerceFront.Settings.User)
+
+    belongs_to(:sales_person, CommerceFront.Settings.User)
     field(:year, :integer)
 
     timestamps()
@@ -40,8 +47,9 @@ defmodule CommerceFront.Settings.Sale do
   def changeset(sale, attrs) do
     sale
     |> cast(attrs, [
+      :sales_person_id,
       :registration_details,
-      :payment_id,
+      # :payment_id,
       :sale_date,
       :month,
       :year,

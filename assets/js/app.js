@@ -22,6 +22,7 @@ window.commerceApp = commerceApp_
 window.phxApp = phxApp_
 window.memberApp = memberApp_
 
+
 window.addEventListener(
   "popstate",
   function(event) {
@@ -51,6 +52,7 @@ window.addEventListener(
   true
 );
 const route_list = [
+  { html: "sales.html", title: "Sales ", route: "/sales" },
   { html: "wallet_transaction.html", title: "Transactions ", route: "/wallets/:id" },
   { html: "product.html", title: "Product ", route: "/products/:id/:name" },
   { html: "register.html", title: "Register", route: "/register" },
@@ -58,6 +60,7 @@ const route_list = [
   { html: "login.html", title: "Login", route: "/login" },
   { html: "profile.html", title: "Profile", route: "/profile" },
   { html: "placement.html", title: "Placement", route: "/placement" },
+  { html: "placement_full.html", title: "Placement(Full)", route: "/placement_full" },
   { html: "referal.html", title: "Referal", route: "/referal" },
   { html: "group_sales.html", title: "Group Sales", route: "/group_sales" },
 ]

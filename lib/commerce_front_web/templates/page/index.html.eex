@@ -56,8 +56,12 @@ tl.to(page1, { duration: 1, opacity: 0 })
     <i class="fa fa-plus"></i>
   </div>
   <ul class="dropdown-menu">
-    <li><a class="dropdown-item" href="/home">Home</a></li>
-    <li><a class="dropdown-item" href="/placement">Placement</a></li>
+    <li><a class="dropdown-item navi" href="/home">Home</a></li>
+    <li><a class="dropdown-item navi" href="/sales">Personal Sales</a></li>
+    <li><a class="dropdown-item navi" href="/group_sales">Group Sales</a></li>
+    <li><a class="dropdown-item navi" href="/placement">Placement</a></li>
+    <li><a class="dropdown-item navi" href="/placement_full">Placement(Full)</a></li>
+    <li><a class="dropdown-item navi" href="/referal">Referal</a></li>
     <li id="divider">
       <hr class="dropdown-divider">
     </li>

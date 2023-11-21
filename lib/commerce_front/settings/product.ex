@@ -3,6 +3,7 @@ defmodule CommerceFront.Settings.Product do
   import Ecto.Changeset
 
   schema "products" do
+    field(:qty, :integer, virtual: true)
     field(:category, :string)
     field(:category_id, :integer)
     field(:cname, :string)

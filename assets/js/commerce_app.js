@@ -1,7 +1,9 @@
 import {
   ColumnFormater
 } from './column_formatter.js';
-import { phoenixModel } from './phoenixModel.js';
+import {
+  phoenixModel
+} from './phoenixModel.js';
 export let commerceApp_ = {
   cart_: [],
 
@@ -41,7 +43,14 @@ export let commerceApp_ = {
     if (index >= 0) {
 
       var foundItem = this.cart_[index]
-      phxApp.notify("item " + foundItem.name + " deducted !")
+      phxApp.notify("item " + foundItem.name + " deducted !", {
+        delay: 2000,
+        type: "success",
+        placement: {
+          from: "top",
+          align: "center"
+        }
+      })
       foundItem.qty -= 1
 
     } else {
@@ -56,8 +65,16 @@ export let commerceApp_ = {
   },
   removeItem_(id) {
     var index = this.cart_.findIndex(item => item.id == parseInt(id));
-   var foundItem = this.cart_[index]
-    phxApp.notify("item " + foundItem .name + " removed !")
+    var foundItem = this.cart_[index]
+
+    phxApp.notify("item " + foundItem.name + " removed !", {
+      delay: 2000,
+      type: "warning",
+      placement: {
+        from: "top",
+        align: "center"
+      }
+    })
     var removed = this.cart_.splice(index, 1)
     localStorage.setItem("cart", JSON.stringify(this.cart_))
     console.log(this.cart_)
@@ -74,7 +91,7 @@ export let commerceApp_ = {
     // this find all all the related components on the page and transform them.
     // has to be done after rendering page, 
     // callback function to call this render
-    var list = ["cart", "cartItems", "userProfile", "wallet", "announcement", "products", "product"]
+    var list = ["cart", "cartItems", "userProfile", "wallet", "announcement", "products", "product", "rewardList"]
 
     list.forEach((v, i) => {
       console.log("rendering components")
@@ -122,6 +139,9 @@ export let commerceApp_ = {
         list.push(`
 
             <div class="d-flex align-items-center justify-content-between gap-2">
+            <input type="hidden"  name="user[products][` + i + `][item_name]" value="` + v.name + `">
+            <input type="hidden"  name="user[products][` + i + `][item_price]" value="` + v.retail_price + `">
+            <input type="hidden"  name="user[products][` + i + `][qty]" value="` + v.qty + `">
               <div class="d-flex align-items-center justify-content-between gap-2">
                 <div class="d-flex justify-content-center align-items-center " style="
                                   cursor: pointer;   
@@ -266,7 +286,6 @@ export let commerceApp_ = {
       console.log("updateing...")
 
 
-
       $(".ac").each((i, vv) => {
         console.log(vv)
         var html = list.join("") + `
@@ -284,10 +303,6 @@ export let commerceApp_ = {
         console.log(html)
         $(vv).html(html)
       })
-
-
-
-
 
 
 
@@ -429,12 +444,21 @@ export let commerceApp_ = {
         <div class="loading2 d-none" id="pcontent" />
         `)
 
-      phxApp.api("get_product", { id: pageParams.id }, null, (data) => {
+      phxApp.api("get_product", {
+        id: pageParams.id
+      }, null, (data) => {
         function addToCart_() {
           commerceApp_.addItem_(data)
           commerceApp_.components["updateCart"]()
 
-          phxApp.notify("Added " + data.name)
+          phxApp.notify("Added " + data.name, {
+            delay: 2000,
+            type: "success",
+            placement: {
+              from: "top",
+              align: "center"
+            }
+          })
 
         }
 
@@ -593,8 +617,13 @@ export let commerceApp_ = {
           },
           columns: [
 
-            { label: 'id', data: 'id' },
-            { label: 'Action', data: 'id' }
+            {
+              label: 'id',
+              data: 'id'
+            }, {
+              label: 'Action',
+              data: 'id'
+            }
 
           ],
           moduleName: "Product",
@@ -629,7 +658,12 @@ export let commerceApp_ = {
         list.forEach((v, i) => {
 
           function showContent() {
-            phxApp.modal({ selector: "#mySubModal", content: v.content, autoClose: false, header: v.title })
+            phxApp.modal({
+              selector: "#mySubModal",
+              content: v.content,
+              autoClose: false,
+              header: v.title
+            })
           }
 
 
@@ -681,11 +715,163 @@ export let commerceApp_ = {
 
       $(".anc").slick()
     },
+    rewardList() {
+
+
+
+
+      $("rewardList").html(`
+          <div class="text-center mt-4">
+            <div class="spinner-border loading" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+            
+
+          <div class="row gx-0 d-none loading">
+            <div class="col-12 col-lg-10 offset-lg-1">
+              <div id="tab1"></div>
+            </div>
+          </div>
+        `)
+
+
+
+      var customCols = null,
+        random_id = "rewards"
+      rewardSource = new phoenixModel({
+        onDrawFn: () => {
+          $(".spinner-border.loading").parent().remove()
+          $(".loading").removeClass("d-none")
+
+          setTimeout(() => {
+            phxApp.formatDate()
+
+
+          }, 200)
+
+
+        },
+        xcard: (params) => {
+          console.log(params)
+          var data = params
+
+          var font_class = "text-success", paid = `<span class="badge bg-warning">UNPAID</span>`
+          if (data.amount < 0) {
+            font_class = "text-danger"
+          }
+
+          if (data.is_paid) {
+            paid = `<span class="badge bg-success">PAID</span>`
+          }
+
+          var card = `
+          <div class="row mt-2" >
+           <div class="col-8 text-secondary format_datetime text-sm">` + data.inserted_at + `</div>
+      
+           <div class="col-4 text-sm text-end">` + paid + `</div>
+          </div>
+          <div class="row " >
+           
+           <div class="col-12 text-sm">` + data.remarks + `</div>
+          </div>
+
+          <div class="row">
+           <div class="col-6 text-start text-sm">Bonus</div>
+           <div class="col-6 text-end text-sm">Amount</div>
+          </div>
+          <div class="row">
+           <div class="col-6 text-start">` + data.name + `</div>
+           <div class="col-6 text-end  format-float ` + font_class + `">` + data.amount + `</div>
+           
+          </div>
+
+          `
+          return card
+        },
+        data: {
+          grid_class: "col-12 ",
+          dom: `
+        <"row px-4"
+          <"col-lg-6 col-12"i>
+          <"col-12 col-lg-6">
+        >
+        <"row grid_view d-block d-lg-none">
+        <"list_view d-none d-lg-block"t>
+        <"row transform-75 px-4"
+            <"col-lg-6 col-12">
+            <"col-lg-6 col-12"p>
+          >
+      `,
+
+
+          preloads: ["user"],
+          additional_join_statements: [{
+
+            user: "user"
+
+          }],
+          additional_search_queries: [
+            "b.id=" + memberApp.user.id
+          ],
+        },
+        columns: [
+
+          {
+            label: 'id',
+            data: 'id',
+            className: "d-none"
+          },
+
+
+          {
+            label: 'Date',
+            data: 'inserted_at',
+            formatDateTime: true,
+            offset: 0
+          },
+          {
+            label: 'Paid?',
+            data: 'is_paid',
+            showBoolean: true
+          },
+          {
+            label: 'Bonus',
+            data: 'name'
+          },
+
+          {
+            label: 'Amount',
+            className: "text-end",
+            data: 'amount',
+            formatFloat: true
+          },
+          {
+            label: 'Calculation',
+            data: 'remarks'
+          }, {
+            label: 'Action',
+            data: 'id',
+            className: "d-none"
+          }
+
+        ],
+        moduleName: "Reward",
+        link: "Reward",
+        customCols: customCols,
+        buttons: [],
+        tableSelector: "#" + random_id
+      })
+
+      rewardSource.load(random_id, "#tab1")
+    },
     wallet() {
       if (memberApp.user != null) {
 
         var user = memberApp.user,
-          wallets = phxApp.api("user_wallet", { token: user.token })
+          wallets = phxApp.api("user_wallet", {
+            token: user.token
+          })
         $("wallet").each((i, v) => {
           var wallet = wallets.filter((wv, wi) => {
             return wv.wallet_type == $(v).attr("aria-data")

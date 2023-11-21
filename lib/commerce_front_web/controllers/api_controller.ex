@@ -100,7 +100,7 @@ defmodule CommerceFrontWeb.ApiController do
           Settings.list_ranks() |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
 
         "placement" ->
-          Settings.display_place_tree(params["username"])
+          Settings.display_place_tree(params["username"], params["full"])
 
         "referral" ->
           Settings.display_refer_tree(params["username"])

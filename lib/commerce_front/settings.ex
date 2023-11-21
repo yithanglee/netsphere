@@ -3,7 +3,7 @@ defmodule CommerceFront.Settings do
   The Settings context.
   """
   require Logger
-  import Mogrify
+  # import Mogrify
   import Ecto.Query, warn: false
   alias CommerceFront.Repo
   require IEx
@@ -536,6 +536,10 @@ defmodule CommerceFront.Settings do
     Repo.all(Product)
   end
 
+  def get_product_by_name(name) do
+    Repo.all(from(p in Product, where: p.name == ^name)) |> List.first()
+  end
+
   def get_product!(id) do
     Repo.get!(Product, id)
   end
@@ -758,9 +762,133 @@ defmodule CommerceFront.Settings do
     display_tree(username, list, [], :referral, false, 0)
   end
 
-  def display_place_tree(username) do
+  def display_place_tree(username, full \\ false) do
     list = check_downlines(username)
-    display_tree(username, list, [], :placement, false, 0)
+
+    # {far_left_data, fl_child} =
+    #   with fl <- check_downlines(username, :placement, "left") |> List.last(),
+    #        true <- fl != nil,
+    #        left_children <-
+    #          fl
+    #          |> Map.get(:children)
+    #          |> Enum.filter(&(&1 |> String.contains?("left"))),
+    #        left_child <- left_children |> List.first(),
+    #        true <- left_child != nil do
+    #     [
+    #       far_left_username,
+    #       id,
+    #       fullname,
+    #       position,
+    #       left,
+    #       right,
+    #       total_left,
+    #       total_right,
+    #       balance_left,
+    #       balance_right,
+    #       new_left,
+    #       new_right
+    #     ] = left_child |> String.split("|")
+
+    #     {
+    #       fl |> Map.get(:parent_username),
+    #       far_left_username
+    #     }
+    #   else
+    #     _ ->
+    #       {nil, nil}
+    #   end
+
+    # {far_right_data, fr_child} =
+    #   with fl <- check_downlines(username, :placement, "right") |> List.last(),
+    #        true <- fl != nil,
+    #        right_children <-
+    #          fl
+    #          |> Map.get(:children)
+    #          |> Enum.filter(&(&1 |> String.contains?("right"))),
+    #        right_child <- right_children |> List.first(),
+    #        true <- right_child != nil do
+    #     [
+    #       far_right_username,
+    #       id,
+    #       fullname,
+    #       position,
+    #       left,
+    #       right,
+    #       total_left,
+    #       total_right,
+    #       balance_left,
+    #       balance_right,
+    #       new_left,
+    #       new_right
+    #     ] = right_child |> String.split("|")
+
+    #     {
+    #       fl |> Map.get(:parent_username),
+    #       far_right_username
+    #     }
+    #   else
+    #     _ ->
+    #       {nil, nil}
+    #   end
+
+    tree = display_tree(username, list, [], :placement, false, 0, full)
+
+    if tree != nil do
+      [fl_child, far_left_data] = far_node("left", username, %{})
+
+      [fr_child, far_right_data] = far_node("right", username, %{})
+
+      map = %{
+        far_left: far_left_data,
+        far_left_child: fl_child,
+        far_right: far_right_data,
+        far_right_child: fr_child
+      }
+
+      tree
+      |> Map.merge(map)
+    end
+
+    # tree
+  end
+
+  def far_node(position, username, tree \\ %{}, parent_username \\ nil) do
+    IO.inspect("far #{username}")
+
+    if username |> String.contains?("~") do
+      [parent_username, parent_username]
+    else
+      list = check_downlines(username)
+
+      tree =
+        if tree == %{} do
+          display_tree(username, list, [], :placement, false, 0, true)
+        else
+          tree
+        end
+
+      children = tree |> Map.get(:children)
+
+      if :position in (Enum.map(children, &Map.keys(&1)) |> List.flatten() |> Enum.uniq()) do
+        new_tree = children |> Enum.filter(&(&1.position == position)) |> List.first()
+
+        if new_tree != nil do
+          far_node(
+            position,
+            new_tree |> Map.get(:name),
+            new_tree,
+            List.first(list) |> Map.get(:parent_username)
+          )
+        else
+          [
+            List.first(list) |> Map.get(:parent_username),
+            List.first(list) |> Map.get(:parent_username)
+          ]
+        end
+      else
+        [username, parent_username]
+      end
+    end
   end
 
   def find_weak_placement(tree, use_one_direction, first_node, prev_node \\ nil) do
@@ -811,7 +939,8 @@ defmodule CommerceFront.Settings do
         transformed_children \\ [],
         tree \\ :placement,
         include_empty \\ true,
-        count
+        count,
+        full \\ false
       ) do
     to_map = fn list ->
       if tree == :placement do
@@ -834,25 +963,10 @@ defmodule CommerceFront.Settings do
           if include_empty do
             [%{id: 0, name: "~"}, %{id: 0, name: "~"}]
           else
-            []
+            [%{id: 0, name: "~空"}]
           end
 
-        %{
-          value:
-            %{
-              level: count,
-              username: username,
-              left: left |> String.to_integer(),
-              right: right |> String.to_integer(),
-              total_left: total_left || 0,
-              total_right: total_right || 0,
-              balance_left: balance_left || 0,
-              balance_right: balance_right || 0,
-              new_left: new_left || 0,
-              new_right: new_right || 0,
-              position: position
-            }
-            |> Jason.encode!(),
+        map = %{
           left: left |> String.to_integer(),
           right: right |> String.to_integer(),
           total_left: total_left || 0,
@@ -868,6 +982,29 @@ defmodule CommerceFront.Settings do
           fullname: fullname,
           position: position
         }
+
+        if full do
+          map
+        else
+          map
+          |> Map.put(
+            :value,
+            %{
+              level: count,
+              username: username,
+              left: left |> String.to_integer(),
+              right: right |> String.to_integer(),
+              total_left: total_left || 0,
+              total_right: total_right || 0,
+              balance_left: balance_left || 0,
+              balance_right: balance_right || 0,
+              new_left: new_left || 0,
+              new_right: new_right || 0,
+              position: position
+            }
+            |> Jason.encode!()
+          )
+        end
       else
         [username, id, fullname, rank_name] = list |> String.split("|")
 
@@ -935,7 +1072,15 @@ defmodule CommerceFront.Settings do
 
         map = ori_data |> Enum.filter(&(&1.parent_username == username)) |> List.first()
 
-        display_tree(username, ori_data, transformed_children, tree, include_empty, count + 1)
+        display_tree(
+          username,
+          ori_data,
+          transformed_children,
+          tree,
+          include_empty,
+          count + 1,
+          full
+        )
       else
         [username, id, fullname, rank_name] = list
 
@@ -947,37 +1092,62 @@ defmodule CommerceFront.Settings do
           transformed_children,
           :referral,
           include_empty,
-          count + 1
+          count + 1,
+          full
         )
       end
     end
 
     children =
       if map != nil do
-        if Enum.count(map.children) < 2 && count < 5 do
-          l =
-            map.children
-            |> Enum.map(&(&1 |> String.split("|") |> transform.(ori_data)))
+        if full do
+          if Enum.count(map.children) < 2 do
+            l =
+              map.children
+              |> Enum.map(&(&1 |> String.split("|") |> transform.(ori_data)))
 
-          if tree == :placement do
-            l ++ [%{id: 0, name: "~", position: "left"}]
-          else
-            l
-          end
-        else
-          if tree == :placement do
-            if count < 5 do
-              map.children |> Enum.map(&(&1 |> String.split("|") |> transform.(ori_data)))
+            if tree == :placement do
+              l ++ [%{id: 0, name: "~空", position: "left"}]
             else
-              [%{id: 0, name: "~", position: "left"}, %{id: 0, name: "~", position: "right"}]
+              l
             end
           else
-            map.children |> Enum.map(&(&1 |> String.split("|") |> transform.(ori_data)))
+            if tree == :placement do
+              map.children |> Enum.map(&(&1 |> String.split("|") |> transform.(ori_data)))
+            else
+              map.children |> Enum.map(&(&1 |> String.split("|") |> transform.(ori_data)))
+            end
+          end
+        else
+          if Enum.count(map.children) < 2 && count < 2 do
+            l =
+              map.children
+              |> Enum.map(&(&1 |> String.split("|") |> transform.(ori_data)))
+
+            if tree == :placement do
+              l ++ [%{id: 0, name: "~空", position: "left"}]
+            else
+              l
+            end
+          else
+            if tree == :placement do
+              if count < 2 do
+                map.children |> Enum.map(&(&1 |> String.split("|") |> transform.(ori_data)))
+              else
+                [
+                  %{id: 0, name: "~ More", position: "left"}
+                ]
+              end
+            else
+              map.children |> Enum.map(&(&1 |> String.split("|") |> transform.(ori_data)))
+            end
           end
         end
       else
         if tree == :placement do
-          [%{id: 0, name: "~", position: "left"}, %{id: 0, name: "~", position: "right"}]
+          [
+            %{id: 0, name: "~空", position: "right"}
+          ]
         else
           []
         end
@@ -997,9 +1167,27 @@ defmodule CommerceFront.Settings do
           end
           |> IO.inspect()
 
-        %{
+        inner_map = %{
           id: map.parent_id,
-          value:
+          name: map.parent_username,
+          position: if(smap != nil, do: smap.position, else: "n/a"),
+          left: if(smap != nil, do: smap.left, else: "n/a"),
+          right: if(smap != nil, do: smap.right, else: "n/a"),
+          total_left: if(smap != nil, do: smap.total_left, else: "n/a"),
+          total_right: if(smap != nil, do: smap.total_right, else: "n/a"),
+          new_left: if(smap != nil, do: smap.new_left, else: "n/a"),
+          new_right: if(smap != nil, do: smap.new_right, else: "n/a"),
+          balance_left: if(smap != nil, do: smap.balance_left, else: "n/a"),
+          balance_right: if(smap != nil, do: smap.balance_right, else: "n/a"),
+          children: children |> Enum.sort_by(& &1.position)
+        }
+
+        if full do
+          inner_map
+        else
+          inner_map
+          |> Map.put(
+            :value,
             %{
               level: count,
               username: map.parent_username,
@@ -1013,19 +1201,9 @@ defmodule CommerceFront.Settings do
               new_left: if(smap != nil, do: smap.new_left, else: "n/a"),
               new_right: if(smap != nil, do: smap.new_right, else: "n/a")
             }
-            |> Jason.encode!(),
-          name: map.parent_username,
-          position: if(smap != nil, do: smap.position, else: "n/a"),
-          left: if(smap != nil, do: smap.left, else: "n/a"),
-          right: if(smap != nil, do: smap.right, else: "n/a"),
-          total_left: if(smap != nil, do: smap.total_left, else: "n/a"),
-          total_right: if(smap != nil, do: smap.total_right, else: "n/a"),
-          new_left: if(smap != nil, do: smap.new_left, else: "n/a"),
-          new_right: if(smap != nil, do: smap.new_right, else: "n/a"),
-          balance_left: if(smap != nil, do: smap.balance_left, else: "n/a"),
-          balance_right: if(smap != nil, do: smap.balance_right, else: "n/a"),
-          children: children |> Enum.sort_by(& &1.position)
-        }
+            |> Jason.encode!()
+          )
+        end
       else
         smap =
           if smap == nil do
@@ -1187,7 +1365,7 @@ defmodule CommerceFront.Settings do
   def determine_position(sponsor_username, use_tree \\ true) do
     if sponsor_username != "admin" do
       if use_tree do
-        tree = CommerceFront.Settings.display_place_tree(sponsor_username)
+        tree = CommerceFront.Settings.display_place_tree(sponsor_username, true)
 
         if tree != nil do
           card = CommerceFront.Settings.find_weak_placement(tree, true, tree)
@@ -1485,11 +1663,47 @@ defmodule CommerceFront.Settings do
         status: :processing,
         subtotal: rank.retail_price,
         total_point_value: pv,
-        registration_details: Jason.encode!(params)
+        registration_details: Jason.encode!(params),
+        sales_person_id: params["user"]["sales_person_id"]
         # user_id: user.id
       })
     end)
-    |> Multi.run(:payment, fn _repo, %{sale: sale} ->
+    |> Multi.run(:sales2, fn _repo, %{sale: sale} ->
+      sample = %{
+        "0" => %{"item_name" => "Product C", "item_price" => "200", "qty" => "3"},
+        "1" => %{"item_name" => "Product B", "item_price" => "500", "qty" => "2"},
+        "2" => %{"item_name" => "Product A", "item_price" => "1000", "qty" => "1"}
+      }
+
+      products = params |> Kernel.get_in(["user", "products"])
+
+      res =
+        for key <- Map.keys(products) do
+          product_params =
+            products[key]
+            |> Map.put("sales_id", sale.id)
+
+          {:ok, pres} = product_params |> CommerceFront.Settings.create_sales_item()
+
+          p = get_product_by_name(product_params["item_name"])
+          p |> Map.put(:qty, product_params["qty"] |> String.to_integer())
+        end
+
+      calc_rp = fn product, acc ->
+        acc + product.retail_price * product.qty
+      end
+
+      total_rp = Enum.reduce(res, 0, &calc_rp.(&1, &2))
+
+      calc_pv = fn product, acc ->
+        acc + product.point_value * product.qty
+      end
+
+      total_pv = Enum.reduce(res, 0, &calc_pv.(&1, &2))
+
+      update_sale(sale, %{total_point_value: total_pv, subtotal: total_rp})
+    end)
+    |> Multi.run(:payment, fn _repo, %{sales2: sale} ->
       res = Billplz.create_collection("Sales Order: #{sale.id}")
       collection_id = Map.get(res, "id")
 
@@ -1689,9 +1903,20 @@ defmodule CommerceFront.Settings do
     |> Repo.all()
   end
 
-  def check_downlines(parent_username, tree \\ :placement) do
+  def check_downlines(parent_username, tree \\ :placement, direction \\ nil) do
     parent_user = get_user_by_username(parent_username)
     parent_user_id = parent_user.id
+
+    seek_direction = fn query, direction ->
+      if direction == nil do
+        query
+        # |> limit([m, pt, m2, gss], 10)
+      else
+        query
+        # |> join(:full, [m, pt, m2, gss], pt2 in Placement, on: pt2.user_id == m2.id)
+        |> where([m, pt, m2, gss], pt.position == ^direction)
+      end
+    end
 
     module =
       if tree == :placement do
