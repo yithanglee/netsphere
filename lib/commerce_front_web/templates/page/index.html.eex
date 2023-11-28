@@ -20,6 +20,7 @@ tl.to(page1, { duration: 1, opacity: 0 })
 
 
 -->
+
 <div id="content">
   <div class="text-center mt-4">
     <div class="spinner-border " role="status">
@@ -34,8 +35,8 @@ tl.to(page1, { duration: 1, opacity: 0 })
         <img src="/images/haho_logo.png" width="120px" />
         <span class="ms-2 d-flex flex-column">
           <span class="my-2 fw-bold">HAHO LIFE SDN BHD</span>
-          <span class="my-1"><i class="fa fa-building me-1"></i>151 Lorong Haruan 5/5<br>Oakland Commercial Square<br>
-            70300 Seremban, Negeri Sembilan</span>
+          <span class="my-1"><i class="fa fa-building me-1"></i>J-2-10, Kuchai Business Park,<br> No.2, Jalan 1/127,<br>Off Jalan Kuchai Lama,<br>
+58200 Kuala Lumpur, Malaysia.</span>
           <span><i class="fa fa-phone me-1"></i>Phone: 012 2664 254 (Admin)</span>
           <span><i class="fa fa-envelope me-1"></i>Email: haho_support@gmail.com</span>
         </span>
@@ -102,8 +103,8 @@ tl.to(page1, { duration: 1, opacity: 0 })
     </div>
   </div>
 </div>
-<div class="position-absolute top-0 start-50 translate-middle mt-8">
-  <div class="toast" role="alert" aria-live="assertive" aria-atomic="true" id="notification-1">
+<div class="m-4 position-fixed bottom-0 start-0 " style="z-index: 100;">
+  <div class="w-100 toast" role="alert" aria-live="assertive" aria-atomic="true" id="notification-1">
     <div class="toast-header">
       <strong class="me-auto">HAHO</strong>
       <button type="button" class="btn-close ms-2 mb-1" data-bs-dismiss="toast" aria-label="Close">

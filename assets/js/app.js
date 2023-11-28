@@ -1,3 +1,9 @@
+// import jQuery from "./jquery.min";
+// window.$ = window.jQuery = jQuery;
+// import { jstree } from './jstree.min';
+// import { slick } from './slick';
+// import { notify } from './bootstrap.notify';
+// import { DataTable } from './datatables';
 import { Bootstrap } from './bootstrap.bundle.min';
 import { commerceApp_ } from './commerce_app.js';
 import { phxApp_ } from './phx_app.js';
@@ -5,7 +11,8 @@ import { memberApp_ } from './member_app.js';
 import { Socket } from "./phoenix.js"
 import { phoenixModel } from './phoenixModel.js';
 
-const useSw = false
+const useSw = false,
+  isDev = window.location.hostname == "localhost";
 if ('serviceWorker' in navigator && useSw) {
   navigator.serviceWorker.register('/sw.js')
     .then(registration => {
@@ -18,10 +25,13 @@ if ('serviceWorker' in navigator && useSw) {
 
 window.phoenixModel = phoenixModel;
 window.phoenixModels = []
-window.commerceApp = commerceApp_
 window.phxApp = phxApp_
-window.memberApp = memberApp_
+if (!isDev) {
 
+  window.commerceApp = commerceApp_
+  window.memberApp = memberApp_
+
+}
 
 window.addEventListener(
   "popstate",
@@ -52,6 +62,10 @@ window.addEventListener(
   true
 );
 const route_list = [
+  { html: "new_topup.html", title: "Register Point Topup ", route: "/topup_register_point" },
+  
+  { html: "reward_details.html", title: "Reward Details ", route: "/reward_details/:name" },
+  { html: "sales_detail.html", title: "Sales ", route: "/sales/:id" },
   { html: "sales.html", title: "Sales ", route: "/sales" },
   { html: "wallet_transaction.html", title: "Transactions ", route: "/wallets/:id" },
   { html: "product.html", title: "Product ", route: "/products/:id/:name" },
@@ -62,15 +76,15 @@ const route_list = [
   { html: "placement.html", title: "Placement", route: "/placement" },
   { html: "placement_full.html", title: "Placement(Full)", route: "/placement_full" },
   { html: "referal.html", title: "Referal", route: "/referal" },
-  { html: "group_sales.html", title: "Group Sales", route: "/group_sales" },
+  { html: "gs_summary.html", title: "Group Sales", route: "/group_sales" },
 ]
 
 route_list.forEach((v, i) => {
-  phxApp.route_names.push(v)
+  phxApp_.route_names.push(v)
 })
 
 
-phxApp.navigateTo();
+phxApp_.navigateTo();
 
 const socket = new Socket("/socket", { params: { token: window.userToken } });
 
@@ -128,7 +142,7 @@ var reloadStrategies = {
   css: cssStrategy,
   page: pageStrategy
 };
-if (window.location.hostname == "localhost") {
+if (isDev) {
 
   const rsocket = new Socket("/phoenix/live_reload/socket", { params: { token: window.userToken } });
   rsocket.connect();
@@ -156,7 +170,7 @@ $(document).on("click", "a.navi", function(event) {
     if ($(this).attr("href").includes("#")) {
 
     } else {
-      phxApp.navigateTo($(this).attr("href"))
+      phxApp_.navigateTo($(this).attr("href"))
     }
   }, 200)
 

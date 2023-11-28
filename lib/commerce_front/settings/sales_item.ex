@@ -8,14 +8,15 @@ defmodule CommerceFront.Settings.SalesItem do
     field(:qty, :integer)
     field(:remarks, :string)
     field(:sales_id, :integer)
-
+    field(:item_pv, :integer)
+    field(:img_url, :string)
     timestamps()
   end
 
   @doc false
   def changeset(sales_item, attrs) do
     sales_item
-    |> cast(attrs, [:sales_id, :item_name, :qty, :item_price, :remarks])
+    |> cast(attrs, [:item_pv, :img_url, :sales_id, :item_name, :qty, :item_price, :remarks])
 
     # |> validate_required([:sales_id, :item_name, :qty, :item_price, :remarks])
   end

@@ -9,9 +9,6 @@ import {
 } from './member_app.js';
 
 
-
-
-
 export let phxApp_ = {
   Page: {
     createTable(id, dom) {
@@ -34,7 +31,35 @@ export let phxApp_ = {
 
 
   ],
-  formatDate(){
+  rowData(params) {
+
+
+    var dt = params.dataSource;
+    window.currentSelector = dt.tableSelector
+    var table = dt.table;
+    var r = table.row(params.row);
+    var rowData = table.data()[params.index]
+    return rowData
+  },
+  updateUser(j) {
+    memberApp_.updateUser(j)
+  },
+  login(dom) {
+    memberApp_.login(dom)
+  },
+  logout() {
+    memberApp_.logout()
+  },
+  user: null,
+  hasCartItems() {
+    console.log("checking...")
+    console.log(commerceApp_.hasCartItems())
+    return commerceApp_.hasCartItems() > 0
+  },
+  register(dom) {
+    memberApp_.register(dom)
+  },
+  formatDate() {
     ColumnFormater.formatDate()
   },
   ping() {
@@ -193,7 +218,7 @@ export let phxApp_ = {
       }
       return match_2[0]
     } else {
-           var nav = this.html("blog_nav.html")
+      var nav = this.html("blog_nav.html")
       var footer_modals = this.html("footer_modals.html")
       var html = this.html("landing.html")
       var initPage = `
@@ -202,8 +227,8 @@ export let phxApp_ = {
       </div>        ` + footer_modals + ``
 
 
-        $("#content").html(nav)
-        $("#content").append(initPage)
+      $("#content").html(nav)
+      $("#content").append(initPage)
       this.navigateCallback()
 
     }
@@ -273,7 +298,7 @@ export let phxApp_ = {
 
     $(this.selector).find(this.title).html(this.header)
     $(this.selector).find(this.body).html(this.content)
-    $(this.selector).toast('hide')
+
     $(this.selector).toast('show')
     this.drawFn();
     if (this.autoClose) {
@@ -391,6 +416,7 @@ export let phxApp_ = {
   validateForm(selector, successCallback) {
     var failed_inputs =
       $(selector).find("[name]").filter((i, v) => {
+          $(v).removeClass("is-invalid")
         console.log("checking vaidity")
         console.log(v)
         return v.checkValidity() == false
@@ -430,12 +456,13 @@ export let phxApp_ = {
         formData.append(k, appendMap[k])
       })
     }
-
+    var csrfToken = this.csrf_()
     $.ajax({
         url: "/api/webhook",
         dataType: "json",
         headers: {
-          "Authorization": "Basic " + window.userToken
+          "Authorization": "Basic " + window.userToken,
+          'x-csrf-token': csrfToken
         },
         method: "POST",
         enctype: "multipart/form-data",
@@ -459,9 +486,18 @@ export let phxApp_ = {
 
           }
         } else {
+
+          if (j.reason != null) {
+       phxApp_.notify("Not added! " + j.reason, {
+            type: "danger"
+          });
+          } else {
+
           phxApp_.notify("Not added!", {
             type: "danger"
           });
+          }
+
         }
 
       }).fail(() => {
@@ -488,13 +524,30 @@ export let phxApp_ = {
     })
     return res;
   },
+  token: null,
+  async csrf_(renew) {
+
+    if (this.token == null) {
+      // var token = await fetch('/api/get_csrf_token').then(response => response.json())
+      this.token = $("input[name='_csrf_token_ori']").val()
+    } else if (renew) {
+      // var token = await fetch('/api/get_csrf_token').then(response => response.json())
+      this.token = $("input[name='_csrf_token_ori']").val()
+    } else {
+      return this.token
+    }
+
+
+  },
   api(scope, params, failed_callback, successCallback) {
     var res = ""
+    var csrfToken = this.csrf_()
     $.ajax({
       async: false,
       method: "get",
       headers: {
-        "Authorization": "Basic " + window.userToken
+        "Authorization": "Basic " + window.userToken,
+        'X-CSRF-Token': csrfToken
       },
       url: "/api/webhook?scope=" + scope,
       data: params
@@ -521,14 +574,17 @@ export let phxApp_ = {
     });
     return res;
   },
-  post(scope, params, failed_callback, successCallback) {
 
+  post(scope, params, failed_callback, successCallback) {
     var res = ""
+    var csrfToken = this.csrf_(true)
     $.ajax({
       async: false,
       method: "post",
       headers: {
-        "Authorization": "Basic " + window.userToken
+        '_commerce_front_key': memberApp_.user.token,
+        "Authorization": "Basic " + window.userToken,
+        'X-CSRF-Token': csrfToken
       },
       url: "/api/webhook?scope=" + scope,
       data: params
@@ -561,11 +617,18 @@ export let phxApp_ = {
   toTop() {
     $("body")[0].scrollIntoView();
   },
+  async putToken() {
+    var csrfToken = await this.csrf_(true)
+    if ($("input#need-token")) {
+      $("input[name='_csrf_token']").val($("input[name='_csrf_token_ori']").val())
+    }
+  },
   async navigateCallback() {
 
 
     memberApp_.restoreUser();
     commerceApp_.restoreCart();
+    this.user = memberApp_.user
     try {
 
       commerceApp_.render();
@@ -575,6 +638,7 @@ export let phxApp_ = {
     this.evaluateLang();
     this.toTop();
     this.hide();
+    this.putToken();
 
 
 
@@ -718,6 +782,11 @@ export let phxApp_ = {
               }
 
 
+            } else if (name == "_csrf_token") {
+              var toke = $("input[name='_csrf_token_ori']").val()
+
+              $(v).val(toke);
+
             } else {
               try {
                 $(v).val(data[name]);
@@ -760,7 +829,7 @@ export let phxApp_ = {
       case "string":
         // code block
 
-        input2 = `<div class="`+alt_class+`">
+        input2 = `<div class="` + alt_class + `">
                       <div class="ps-1 py-2">` + label_title + `</div>
                       <div class="col-sm-12">
                         <div class="form-group bmd-form-group">
@@ -809,7 +878,7 @@ export let phxApp_ = {
             ']" type="hidden" class="form-control" value="0">';
         } else {
 
-          input2 = `<div class="`+alt_class+`">
+          input2 = `<div class="` + alt_class + `">
                       <div class="ps-1 py-2">` + label_title + `</div>
                       <div class="col-sm-12">
                         <div class="form-group bmd-form-group">
@@ -821,7 +890,7 @@ export let phxApp_ = {
         break;
       case "date":
 
-        input2 = `<div class="`+alt_class+`">
+        input2 = `<div class="` + alt_class + `">
                       <div class="ps-1 py-2">` + label_title + `</div>
                       <div class="col-sm-12">
                         <div class="form-group">
@@ -832,7 +901,7 @@ export let phxApp_ = {
         break;
       case "naive_datetime":
 
-        input2 = `<div class="`+alt_class+`">
+        input2 = `<div class="` + alt_class + `">
                       <div class="ps-1 py-2">` + label_title + `</div>
                       <div class="col-sm-12">
                         <div class="form-group bmd-form-group">
@@ -854,7 +923,7 @@ export let phxApp_ = {
             ']" type="hidden" class="form-control" value="0">';
         } else {
 
-          input2 = `<div class="`+alt_class+`">
+          input2 = `<div class="` + alt_class + `">
                       <div class="ps-1 py-2">` + label_title + `</div>
                       <div class="col-sm-12">
                         <div class="form-group bmd-form-group">
@@ -896,7 +965,7 @@ export let phxApp_ = {
 
 
 
-        input2 = `<div class="`+alt_class+`">
+        input2 = `<div class="` + alt_class + `">
                       <div class="ps-1 py-2">` + label_title + `</div>
                       <div class="col-sm-12">
                         <div class="form-group">
@@ -912,7 +981,7 @@ export let phxApp_ = {
       if (qv.binary) {
 
 
-        input2 = `<div class="`+alt_class+`">
+        input2 = `<div class="` + alt_class + `">
                       <div class="ps-1 py-2">` + label_title + `</div>
                       <div class="col-sm-12">
                         <div class="form-group bmd-form-group">
@@ -973,7 +1042,7 @@ export let phxApp_ = {
       if (qv.upload) {
 
 
-        input2 = `<div class="`+alt_class+`">
+        input2 = `<div class="` + alt_class + `">
                       <div class="pb-1 pt-1 ps-1 text-start">` + label_title + `</div>
                       <div class="col-sm-12">
                         
@@ -1027,7 +1096,7 @@ export let phxApp_ = {
 
           if (assoc_val.length == 2) {
 
-            input2 = `<div class="`+alt_class+`">
+            input2 = `<div class="` + alt_class + `">
                         <div class="pb-1 pt-1 ps-1 text-start">` + label_title + `</div>
                         <div class="row gx-0">
                           <div class="col-10">
@@ -1044,7 +1113,7 @@ export let phxApp_ = {
 
           if (assoc_val.length == 3) {
 
-            input2 = `<div class="`+alt_class+`">
+            input2 = `<div class="` + alt_class + `">
                         <div class="pb-1 pt-1 ps-1 text-start">` + label_title + `</div>
                         <div class="row">
                           <div class="col-10">
@@ -1062,7 +1131,7 @@ export let phxApp_ = {
         } else {
           if (assoc_val.length == 2) {
 
-            input2 = `<div class="`+alt_class+`">
+            input2 = `<div class="` + alt_class + `">
                               <div class="pb-1 pt-1 ps-1 text-start">` + label_title + `</div>
                               <div class="row">
                                 <div class="col-12">
@@ -1076,7 +1145,7 @@ export let phxApp_ = {
 
             if (qv.binary) {
 
-              input2 = `<div class="`+alt_class+`">
+              input2 = `<div class="` + alt_class + `">
                                         <div class="ps-1 py-2">` + label_title + `</div>
                                         <div class="col-sm-12">
                                           <div class="form-group bmd-form-group">
@@ -1091,7 +1160,7 @@ export let phxApp_ = {
 
             if (qv.editor) {
 
-              input2 = `<div class="`+alt_class+`">
+              input2 = `<div class="` + alt_class + `">
                                         <div class="ps-1 py-2">` + label_title + `</div>
                                         <div class="col-sm-12">
                                           <div class="form-group bmd-form-group">
@@ -1106,7 +1175,7 @@ export let phxApp_ = {
           }
           if (assoc_val.length == 3) {
 
-            input2 = `<div class="`+alt_class+`">
+            input2 = `<div class="` + alt_class + `">
                               <div class="pb-1 pt-1 ps-1 text-start">` + label_title + `</div>
                               <div class="row">
                                 <div class="col-12">
@@ -1255,7 +1324,7 @@ export let phxApp_ = {
   createForm(dtdata, table, customCols, postFn, onDrawFn) {
     $(".with_mod").each(function(i, xv) {
       // var xv = form ;
-      $(xv).html("");
+      $(xv).html(``);
 
       var mod = $(this).attr("module");
       var object = $(this).attr("id");
@@ -1276,9 +1345,9 @@ export let phxApp_ = {
 
           if (typeof customCols[0] === 'object' && customCols[0] !== null) {
             console.log("has multi list," + customCols.length)
-            // insert the tabs? 
+            // insert the tabs?
 
-            $(xv).html(`
+            $(xv).html(`<input type="hidden" name="_csrf_token"  value="">
                             <div class="row">
                               <div class="col-12 col-lg-4">
                                 <ul class="nav nav-pills flex-column form_nav">
@@ -1343,6 +1412,7 @@ export let phxApp_ = {
 
           } else {
             cols = customCols;
+            $(xv).append(`<input type="hidden" name="_csrf_token"  value="">`)
             phxApp_.appendInputs(xv, cols, j, object)
             console.log(cols.join("','"));
           }
@@ -1416,12 +1486,13 @@ export let phxApp_ = {
             })
 
           } else {
-
+            var csrfToken = phxApp_.csrf_(true)
             $.ajax({
                 url: "/api/" + object,
                 dataType: "json",
                 headers: {
-                  "Authorization": "Basic " + window.userToken
+                  "Authorization": "Basic " + window.userToken,
+                  'X-CSRF-Token': csrfToken
                 },
                 method: "POST",
                 enctype: "multipart/form-data",
@@ -1859,7 +1930,9 @@ export let phxApp_ = {
           params.fnParams,
           params.onClickFunction);
 
-        $(dataSource.tableSelector).closest(".table-responsive").find(".gd[aria-index='" + index + "']").removeClass("d-none")
+        // convert them into a 
+
+        // $(dataSource.tableSelector).closest(".table-responsive").find(".gd[aria-index='" + index + "']").removeClass("d-none")
         $(dataSource.tableSelector).closest(".table-responsive").find(".gd[aria-index='" + index + "']").append(buttonz);
 
       }
@@ -1988,7 +2061,22 @@ export let phxApp_ = {
       location = dataSource.data.host + "/api/"
     }
     var custPageLength = 10
-    var custDom = '<"row align-items-center"<"col-lg-4"l><"gap-2 col-lg-8 text-center module_buttons d-flex justify-content-lg-end justify-content-center  py-2 py-lg-0">><"row grid_view d-block d-lg-none"><"list_view d-lg-block d-none"t><"row transform-75 p-4"<"col-lg-6"i><"col-lg-6"p>>'
+    var custDom = `
+
+    <"row align-items-center"
+      <"col-lg-4"l>
+      <"gap-2 col-lg-8 text-center 
+        module_buttons 
+        d-flex justify-content-lg-end 
+        justify-content-center py-2 py-lg-0">
+    >
+    <"row grid_view d-block d-lg-none">
+    <"list_view d-lg-block d-none"t>
+    <"row transform-75 p-4"
+      <"col-lg-6"i><"col-lg-6"p>
+    >
+
+    `
     if (dataSource.data.dom != null) {
       custDom = dataSource.data.dom
     }

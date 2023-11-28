@@ -1,12 +1,23 @@
 import {
   ColumnFormater
 } from './column_formatter.js';
+
+import {
+  memberApp_
+} from './member_app.js';
+import {
+  phxApp_
+} from './phx_app.js';
+
 import {
   phoenixModel
 } from './phoenixModel.js';
 export let commerceApp_ = {
   cart_: [],
-
+  emptyCart_() {
+    this.cart_ = []
+    localStorage.setItem("cart", JSON.stringify(this.cart_))
+  },
   restoreCart() {
     if (localStorage.getItem("cart") != null) {
       this.cart_ = JSON.parse(localStorage.getItem("cart"));
@@ -14,12 +25,15 @@ export let commerceApp_ = {
 
 
   },
+  hasCartItems() {
+    return this.cart_.length
+  },
   addItem_(item) {
 
     var searchObject = item;
 
     var index = this.cart_.findIndex(item => item.id === searchObject.id);
-    console.log("index " + index)
+
     if (index >= 0) {
 
       var foundItem = this.cart_[index]
@@ -33,17 +47,49 @@ export let commerceApp_ = {
 
 
     localStorage.setItem("cart", JSON.stringify(this.cart_))
-    console.log(this.cart_)
+
+  },
+  addItemById_(id) {
+
+
+    var index = this.cart_.findIndex(item => item.id == parseInt(id));
+
+    if (index >= 0) {
+
+      var foundItem = this.cart_[index]
+      phxApp_.notify("item " + foundItem.name + " added !", {
+        delay: 2000,
+        type: "success",
+        placement: {
+          from: "top",
+          align: "center"
+        }
+      })
+      foundItem.qty += 1
+
+
+
+
+    } else {
+      // item.qty = 1
+      // this.cart_ = [item, ...this.cart_]
+
+    }
+
+
+
+    localStorage.setItem("cart", JSON.stringify(this.cart_))
+
   },
   minusItem_(id) {
 
 
     var index = this.cart_.findIndex(item => item.id == parseInt(id));
-    console.log("index " + index)
+
     if (index >= 0) {
 
       var foundItem = this.cart_[index]
-      phxApp.notify("item " + foundItem.name + " deducted !", {
+      phxApp_.notify("item " + foundItem.name + " deducted !", {
         delay: 2000,
         type: "success",
         placement: {
@@ -53,6 +99,11 @@ export let commerceApp_ = {
       })
       foundItem.qty -= 1
 
+      if (foundItem.qty == 0) {
+        this.removeItem_(id)
+      }
+
+
     } else {
       // item.qty = 1
       // this.cart_ = [item, ...this.cart_]
@@ -61,13 +112,13 @@ export let commerceApp_ = {
 
 
     localStorage.setItem("cart", JSON.stringify(this.cart_))
-    console.log(this.cart_)
+
   },
   removeItem_(id) {
     var index = this.cart_.findIndex(item => item.id == parseInt(id));
     var foundItem = this.cart_[index]
 
-    phxApp.notify("item " + foundItem.name + " removed !", {
+    phxApp_.notify("item " + foundItem.name + " removed !", {
       delay: 2000,
       type: "warning",
       placement: {
@@ -75,9 +126,13 @@ export let commerceApp_ = {
         align: "center"
       }
     })
+
     var removed = this.cart_.splice(index, 1)
     localStorage.setItem("cart", JSON.stringify(this.cart_))
-    console.log(this.cart_)
+
+  },
+  toastChanges() {
+    phxApp_.toast({ content: `<div class=""><ul class="">` + $(".ac").html() + `</ul></div>` })
   },
   total_() {
     var amount = this.cart_.map((v, i) => {
@@ -91,18 +146,151 @@ export let commerceApp_ = {
     // this find all all the related components on the page and transform them.
     // has to be done after rendering page, 
     // callback function to call this render
-    var list = ["cart", "cartItems", "userProfile", "wallet", "announcement", "products", "product", "rewardList"]
+    var list = ["userProfile", "wallet", "announcement", "products", "product",
+      "rewardList", "cart", "cartItems", "salesItems"
+    ]
 
     list.forEach((v, i) => {
-      console.log("rendering components")
-      console.log(v)
-      if ($(v).length > 0) {
 
-        this.components[v]()
+      if ($(v).length > 0) {
+        try {
+          this.components[v]()
+        } catch (e) {
+          console.log(error)
+        }
       }
     })
   },
   components: {
+    salesItems() {
+
+
+      var sale = phxApp_.api("get_sale", { id: pageParams.id })
+      window.sale = sale
+      var count = 0,
+        list = [],
+        total_pv = 0,
+        subtotal = 0.0;
+      total_pv = sale.sales_items.map((v, i) => {
+        return (v.qty * v.item_pv)
+      }).reduce((a, b) => {
+        return a + b
+      }, 0)
+      subtotal = sale.sales_items.map((v, i) => {
+        return (v.qty * v.item_price)
+      }).reduce((a, b) => {
+        return a + b
+      }, 0)
+      count = sale.sales_items.map((v, i) => {
+        return v.qty
+      }).reduce((a, b) => {
+        return a + b
+      }, 0)
+      eligible_rank = this.evalRank(subtotal)
+
+
+
+      sale.sales_items.forEach((v, i) => {
+        var img = '/images/placeholder.png';
+        if (v.img_url != null) {
+
+          try {
+            img = v.img_url
+          } catch (e) {
+            img = '/images/placeholder.png'
+          }
+        }
+        list.push(`
+
+            <div class="d-flex align-items-center justify-content-between gap-2">
+              <div class="d-flex align-items-center justify-content-between gap-2">
+                <div class="d-flex justify-content-center align-items-center " style="
+                                  cursor: pointer;   
+                                  position: relative; 
+                                  height: 60px;">
+                  <div class="rounded py-2" style="
+                                  height: 50px;
+                                  width: 72%;
+                                  filter: blur(4px);
+                                  position: absolute;
+                                  background-repeat: no-repeat;
+                                  background-position: center;
+                                  background-size: cover;
+                                  background-image: url('` + img + `');
+                                  bottom: 6px;
+                                  left: 16px;
+                                  ">
+                  </div>
+                  <div class="rounded py-2" style="
+                                  height: 50px;
+                                  width:  60px;
+                                  z-index: 1;
+                                  background-position: center;
+                                  background-repeat: no-repeat;
+                                  background-size: cover; 
+                                  background-image: url('` + img + `');
+                                  ">
+                  </div>
+                </div>
+                <span>` + v.item_name + ` <small>(x` + v.qty + `)</small></span>
+              </div>
+              <div class="d-flex flex-column flex-lg-row justify-content-between align-items-center">
+                <div class="d-flex flex-column align-items-end">
+                  <span class="font-sm ">RP <span class="format-float">` + (v.item_price * v.qty).toFixed(2) + `</span></span>
+                  <span class="font-sm text-info format-integer">` + (v.item_pv * v.qty) + ` PV</span>
+                </div>
+               
+              </div>
+            </div>
+
+          
+            `)
+
+
+      })
+      reg_dets = JSON.parse(sale.registration_details)
+      shipping = reg_dets.user.shipping
+
+      $("salesItems").html(`
+        <div class="d-flex align-items-center justify-content-between gap-2">
+          <h2>Sales Details</h2><small class="badge bg-primary">` + sale.status + `</small>
+        </div>
+                <div class="d-flex flex-column mb-4 ">
+                   <span class="text-secondary">Recipient:</span> 
+                   <span>` + reg_dets.user.fullname + `, ` + reg_dets.user.phone + `</span>
+                   <span>` + reg_dets.user.email + ` </span>
+                </div>
+
+
+                <div class="d-flex flex-column mb-4 ">
+                   <span class="text-secondary">Deliver To:</span> 
+                   <span>` + shipping.line1 + `, ` + shipping.line2 + `</span>
+                   <span>` + shipping.city + ` ` + shipping.postcode + `, ` + shipping.state + ` </span>
+                </div>
+
+                   <span class="text-secondary">Items:</span>
+                <div class="d-flex flex-column gap-2">` + list.join("") + `
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="fs-4">Subtotal</span>
+                    <span class=" me-4">RP <span class="format-float">` + subtotal + `</span></span>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="fs-5">Total PV</span>
+                    <span class="text-info me-4"><span class="format-integer">` + total_pv + ` PV</span></span>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="fw-bold text-secondary">Eligible Rank</span>
+                    <span class="text-info me-4"><span class="format-integer">` + eligible_rank + `</span></span>
+                  </div>
+                </div>
+
+        `)
+
+
+
+
+      ColumnFormater.formatDate();
+    },
     cartItems() {
       var count = 0,
         list = [],
@@ -123,6 +311,7 @@ export let commerceApp_ = {
       }).reduce((a, b) => {
         return a + b
       }, 0)
+      eligible_rank = this.evalRank(subtotal)
 
 
 
@@ -141,6 +330,8 @@ export let commerceApp_ = {
             <div class="d-flex align-items-center justify-content-between gap-2">
             <input type="hidden"  name="user[products][` + i + `][item_name]" value="` + v.name + `">
             <input type="hidden"  name="user[products][` + i + `][item_price]" value="` + v.retail_price + `">
+            <input type="hidden"  name="user[products][` + i + `][item_pv]" value="` + v.point_value + `">
+            <input type="hidden"  name="user[products][` + i + `][img_url]" value="` + v.img_url + `">
             <input type="hidden"  name="user[products][` + i + `][qty]" value="` + v.qty + `">
               <div class="d-flex align-items-center justify-content-between gap-2">
                 <div class="d-flex justify-content-center align-items-center " style="
@@ -175,10 +366,11 @@ export let commerceApp_ = {
               </div>
               <div class="d-flex flex-column flex-lg-row justify-content-between align-items-center">
                 <div class="d-flex flex-column align-items-end">
-                  <span class="font-sm ">$ <span class="format-float">` + (v.retail_price * v.qty).toFixed(2) + `</span></span>
+                  <span class="font-sm ">RP <span class="format-float">` + (v.retail_price * v.qty).toFixed(2) + `</span></span>
                   <span class="font-sm text-info format-integer">` + (v.point_value * v.qty) + ` PV</span>
                 </div>
                 <div class="text-center">
+                  <div class="btn btn-sm" add-product-id="` + v.id + `"><i class="text-info fa fa-plus"></i></div>
                   <div class="btn btn-sm" minus-product-id="` + v.id + `"><i class="text-danger fa fa-minus"></i></div>
                   <div class="btn btn-sm" delete-product-id="` + v.id + `"><i class="text-danger fa fa-times"></i></div>
                 </div>
@@ -195,16 +387,157 @@ export let commerceApp_ = {
                 <div class="d-flex flex-column gap-2">` + list.join("") + `
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="fs-4">Subtotal</span>
-                    <span class=" me-4">$ <span class="format-float">` + subtotal + `</span></span>
+                    <span class=" me-4">RP <span class="format-float">` + subtotal + `</span></span>
                   </div>
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="fs-5">Total PV</span>
                     <span class="text-info me-4"><span class="format-integer">` + total_pv + ` PV</span></span>
                   </div>
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="fw-bold text-secondary">Eligible Rank</span>
+                    <span class="text-info me-4"><span class="format-integer">` + eligible_rank + `</span></span>
+                  </div>
                 </div>
+
+ 
 
         `)
 
+      var user = memberApp_.user,
+        wallets = phxApp_.api("user_wallet", {
+          token: user.token
+        })
+
+
+      function appendWalletAttr() {
+        if (wallets.length == 0) {} else {
+          $("wallet").each((i, v) => {
+            var check = wallets.filter((wv, wi) => {
+              return wv.wallet_type == "direct_recruitment"
+            })
+            if (check.length > 0) {
+              var wallet = check[0]
+              $("#drp_payment").attr("max", wallet.total)
+              $("#drp_payment").attr("min", subtotal / 2)
+              $("#drp_payment").attr("value", subtotal / 2)
+            } else {}
+          })
+        }
+      }
+
+      $("input[name='user[payment][method]']").on("change", () => {
+        $("#coupon-detail").addClass("d-none")
+
+        $("input[name='user[payment][method]']").each((i, v) => {
+
+          if ($(v)[0].checked == true) {
+
+            if ($(v).val() == "register_point") {
+              $("#coupon-detail").removeClass("d-none")
+
+              drpChanged()
+            } else {
+
+              $("#drp_payment").removeAttr("max")
+              $("#drp_payment").removeAttr("min")
+              $("#drp_payment").removeAttr("value")
+              commerceApp_.components["updateCart"]()
+              commerceApp_.components["cartItems"]()
+            }
+
+          }
+        })
+
+
+      })
+
+
+      function drpChanged() {
+        appendWalletAttr()
+        var drp_amount = 0
+        drp_amount = $("#drp_payment").val()
+        $("cartItems").html(`
+
+                  <div class="d-flex flex-column gap-2">` + list.join("") + `
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="fs-4">Subtotal</span>
+                      <span class=" me-4">RP <span class="format-float">` + subtotal + `</span></span>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="fs-4">Discount</span>
+                      <span class=" me-4">- RP <span class="format-float">` + drp_amount + `</span></span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="fs-5">Total PV</span>
+                      <span class="text-info me-4"><span class="format-integer">` + (total_pv - drp_amount) + ` PV</span></span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="fw-bold text-secondary">Eligible Rank</span>
+                      <span class="text-info me-4"><span class="format-integer">` + eligible_rank + `</span></span>
+                    </div>
+                  </div>
+
+
+          `)
+        $("[add-product-id]").each((i, v) => {
+          var id = $(v).attr("add-product-id")
+
+          function addItem() {
+            commerceApp_.addItemById_(id)
+            commerceApp_.components["updateCart"]()
+            commerceApp_.components["cartItems"]()
+            commerceApp_.toastChanges()
+
+          }
+          $(v)[0].onclick = addItem
+        })
+        $("[minus-product-id]").each((i, v) => {
+          var id = $(v).attr("minus-product-id")
+
+          function minusItem() {
+            commerceApp_.minusItem_(id)
+            commerceApp_.components["updateCart"]()
+            commerceApp_.components["cartItems"]()
+            commerceApp_.toastChanges()
+
+          }
+          $(v)[0].onclick = minusItem
+        })
+
+        $("[delete-product-id]").each((i, v) => {
+          var id = $(v).attr("delete-product-id")
+
+          function deleteItem() {
+            commerceApp_.removeItem_(id)
+            commerceApp_.components["updateCart"]()
+            commerceApp_.components["cartItems"]()
+            commerceApp_.toastChanges()
+          }
+          $(v)[0].onclick = deleteItem
+        })
+      }
+
+      $("#drp_payment").on("change", () => {
+
+        $("#drp_payment").removeAttr("max")
+        $("#drp_payment").removeAttr("min")
+        $("#drp_payment").removeAttr("value")
+
+        drpChanged()
+      })
+      $("[add-product-id]").each((i, v) => {
+        var id = $(v).attr("add-product-id")
+
+        function addItem() {
+          commerceApp_.addItemById_(id)
+          commerceApp_.components["updateCart"]()
+          commerceApp_.components["cartItems"]()
+          commerceApp_.toastChanges()
+
+        }
+        $(v)[0].onclick = addItem
+      })
       $("[minus-product-id]").each((i, v) => {
         var id = $(v).attr("minus-product-id")
 
@@ -212,6 +545,8 @@ export let commerceApp_ = {
           commerceApp_.minusItem_(id)
           commerceApp_.components["updateCart"]()
           commerceApp_.components["cartItems"]()
+          commerceApp_.toastChanges()
+
         }
         $(v)[0].onclick = minusItem
       })
@@ -223,13 +558,48 @@ export let commerceApp_ = {
           commerceApp_.removeItem_(id)
           commerceApp_.components["updateCart"]()
           commerceApp_.components["cartItems"]()
+          commerceApp_.toastChanges()
         }
         $(v)[0].onclick = deleteItem
       })
 
+      $("input[name='user[payment][method]']").each((i, v) => {
+
+        if ($(v)[0].checked == true) {
+
+          if ($(v).val() == "register_point") {
+            $("#coupon-detail").removeClass("d-none")
+
+            drpChanged()
+          } else {
+            $("#drp_payment").removeAttr("max")
+            $("#drp_payment").removeAttr("min")
+            $("#drp_payment").removeAttr("value")
+          }
+
+        }
+      })
+
+
+
       ColumnFormater.formatDate();
     },
+    evalRank(subtotal) {
+      check = memberApp_.ranks.filter((v, i) => {
+        return v.retail_price <= subtotal
+      })[0]
+      var eligible_rank = "n/a"
 
+      if (check) {
+        eligible_rank = check.name
+        if ($("input[name='user[rank_id]']").length > 0) {
+
+          $("input[name='user[rank_id]']").val(check.id)
+        }
+      }
+
+      return eligible_rank
+    },
     updateCart() {
       var count = 0,
         list = [],
@@ -283,24 +653,72 @@ export let commerceApp_ = {
             `)
 
       }
-      console.log("updateing...")
 
+      var bg_ranks2 = [],
+        sort = [];
+      memberApp_.ranks.map((v, i) => {
+        sort.push(v)
+      })
+
+      sort.sort((a, b) => {
+        return a.retail_price - b.retail_price
+      })
+
+      sort.map((v, i) => {
+        bg_ranks2.push(`
+          <div class="col ">
+            <div class="d-flex flex-column">
+              <span>` + v.name + `</span>
+              <span class="format-float">` + v.retail_price + `</span>
+              
+            </div>
+          </div>`)
+      })
+
+
+
+      eligible_rank = this.evalRank(subtotal)
+      bg_ranks = [
+
+        `  <div class="progress-bar bg-danger" role="progressbar" style="width: 15%;" aria-valuenow="15" aria-valuemin="0" aria-valuemax="100"></div>`,
+        `  <div class="progress-bar bg-warning" role="progressbar" style="width: 30%;" aria-valuenow="30" aria-valuemin="0" aria-valuemax="100"></div>`,
+        `  <div class="progress-bar bg-info" role="progressbar" style="width: 20%;" aria-valuenow="20" aria-valuemin="0" aria-valuemax="100"></div>`
+
+      ]
+
+      perc = subtotal / memberApp_.ranks[0].retail_price * 100
 
       $(".ac").each((i, vv) => {
-        console.log(vv)
+
         var html = list.join("") + `
                 <li id="divider">
                   <hr class="dropdown-divider">
                 </li>
-               <li><a class="dropdown-item navi" href="/register">
-                  
-                  <div class="d-flex justify-content-between align-items-center">
-                    <span>Checkout</span>
-                    <span class="format-float">` + subtotal + `</span>
-                  </div>
-                </a></li>`
+               <li>                  <a class="dropdown-item navi" href="/register">
+                    <div class="d-flex flex-column">
+                      <div class="d-flex justify-content-between align-items-center">
+                        <span>Checkout</span>
+                        <span class="format-float">` + subtotal + `</span>
+                      </div>
+                   
 
-        console.log(html)
+                      <div class="d-flex justify-content-between align-items-center">
+                        <small>Eligible</small>
+                        <small class="text-info">` + eligible_rank + `</small>
+                      </div>
+
+                      <div class="progress my-2" style="height: 4px;">
+                        <div class="progress-bar bg-success" role="progressbar" style="width: ` + perc + `%;" aria-valuenow="` + perc + `" aria-valuemin="0" aria-valuemax="100"></div>
+                      </div>
+                      <div class="row text-sm">
+                        ` + bg_ranks2.join("") + `
+                      </div>
+
+                    
+                    </div>
+                  </a></li>`
+
+
         $(vv).html(html)
       })
 
@@ -312,6 +730,7 @@ export let commerceApp_ = {
         function minusItem() {
           commerceApp_.minusItem_(id)
           commerceApp_.components["updateCart"]()
+          commerceApp_.toastChanges()
         }
         $(v)[0].onclick = minusItem
       })
@@ -322,6 +741,7 @@ export let commerceApp_ = {
         function deleteItem() {
           commerceApp_.removeItem_(id)
           commerceApp_.components["updateCart"]()
+          commerceApp_.toastChanges()
         }
         $(v)[0].onclick = deleteItem
       })
@@ -380,6 +800,30 @@ export let commerceApp_ = {
             `)
 
       }
+      var bg_ranks2 = [],
+        sort = [];
+      memberApp_.ranks.map((v, i) => {
+        sort.push(v)
+      })
+
+      sort.sort((a, b) => {
+        return a.retail_price - b.retail_price
+      })
+
+      sort.map((v, i) => {
+        bg_ranks2.push(`
+          <div class="col ">
+            <div class="d-flex flex-column">
+              <span>` + v.name + `</span>
+              <span class="format-float">` + v.retail_price + `</span>
+              
+            </div>
+          </div>`)
+      })
+
+
+      eligible_rank = this.evalRank(subtotal)
+      perc = subtotal / memberApp_.ranks[0].retail_price * 100
 
       $("cart").each((i, v) => {
 
@@ -394,13 +838,32 @@ export let commerceApp_ = {
                 <li id="divider">
                   <hr class="dropdown-divider">
                 </li>
-                <li><a class="dropdown-item navi" href="/register">
-                  
-                  <div class="d-flex justify-content-between align-items-center">
-                    <span>Checkout</span>
-                    <span class="format-float">` + subtotal + `</span>
-                  </div>
-                </a></li>
+                <li>
+                  <a class="dropdown-item navi" href="/register">
+                    <div class="d-flex flex-column">
+                      <div class="d-flex justify-content-between align-items-center">
+                        <span>Checkout</span>
+                        <span class="format-float">` + subtotal + `</span>
+                      </div>
+                   
+
+                      <div class="d-flex justify-content-between align-items-center">
+                        <small>Eligible</small>
+                        <small class="text-info">` + eligible_rank + `</small>
+                      </div>
+
+                      <div class="progress my-2" style="height: 4px;">
+                        <div class="progress-bar bg-success" role="progressbar" style="width: ` + perc + `%;" aria-valuenow="` + perc + `" aria-valuemin="0" aria-valuemax="100"></div>
+                      </div>
+                      <div class="row text-sm">
+                        ` + bg_ranks2.join("") + `
+                      </div>
+
+                    
+                    </div>
+                  </a>
+                </li>
+
               </ul>
             </div>
         `)
@@ -444,14 +907,14 @@ export let commerceApp_ = {
         <div class="loading2 d-none" id="pcontent" />
         `)
 
-      phxApp.api("get_product", {
+      phxApp_.api("get_product", {
         id: pageParams.id
       }, null, (data) => {
         function addToCart_() {
           commerceApp_.addItem_(data)
           commerceApp_.components["updateCart"]()
 
-          phxApp.notify("Added " + data.name, {
+          phxApp_.notify("Added " + data.name, {
             delay: 2000,
             type: "success",
             placement: {
@@ -459,6 +922,7 @@ export let commerceApp_ = {
               align: "center"
             }
           })
+          phxApp_.toast({ content: `<div class=""><ul class="">` + $(".ac").html() + `</ul></div>` })
 
         }
 
@@ -557,7 +1021,7 @@ export let commerceApp_ = {
 
           },
           xcard: (params) => {
-            console.log(params)
+
             var data = params,
               img = '/images/placeholder.png';
             if (data.img_url != null) {
@@ -649,7 +1113,7 @@ export let commerceApp_ = {
         </div>
         `)
 
-      phxApp.api("announcements", {
+      phxApp_.api("announcements", {
 
       }, null, (list) => {
 
@@ -658,7 +1122,7 @@ export let commerceApp_ = {
         list.forEach((v, i) => {
 
           function showContent() {
-            phxApp.modal({
+            phxApp_.modal({
               selector: "#mySubModal",
               content: v.content,
               autoClose: false,
@@ -717,9 +1181,6 @@ export let commerceApp_ = {
     },
     rewardList() {
 
-
-
-
       $("rewardList").html(`
           <div class="text-center mt-4">
             <div class="spinner-border loading" role="status">
@@ -736,177 +1197,107 @@ export let commerceApp_ = {
         `)
 
 
-
-      var customCols = null,
-        random_id = "rewards"
-      rewardSource = new phoenixModel({
-        onDrawFn: () => {
-          $(".spinner-border.loading").parent().remove()
-          $(".loading").removeClass("d-none")
-
-          setTimeout(() => {
-            phxApp.formatDate()
+      phxApp_.api("get_reward_summary", { user_id: memberApp_.user.id }, null, (r) => {
 
 
-          }, 200)
+
+        $(".spinner-border.loading").parent().remove()
+        $(".loading").removeClass("d-none")
+        var rewards = ["sharing bonus", "team bonus", "matching bonus", "elite leader", "travel fund", "repurchase bonus"],
+          list = []
+        rewards.forEach((r2, ii) => {
 
 
-        },
-        xcard: (params) => {
-          console.log(params)
-          var data = params
+          r.forEach((v, i) => {
+            if (r2 == v.name) {
 
-          var font_class = "text-success", paid = `<span class="badge bg-warning">UNPAID</span>`
-          if (data.amount < 0) {
-            font_class = "text-danger"
-          }
+              list.push(`
 
-          if (data.is_paid) {
-            paid = `<span class="badge bg-success">PAID</span>`
-          }
+            <div class="my-2 d-flex align-items-center justify-content-between">
 
-          var card = `
-          <div class="row mt-2" >
-           <div class="col-8 text-secondary format_datetime text-sm">` + data.inserted_at + `</div>
-      
-           <div class="col-4 text-sm text-end">` + paid + `</div>
-          </div>
-          <div class="row " >
-           
-           <div class="col-12 text-sm">` + data.remarks + `</div>
-          </div>
-
-          <div class="row">
-           <div class="col-6 text-start text-sm">Bonus</div>
-           <div class="col-6 text-end text-sm">Amount</div>
-          </div>
-          <div class="row">
-           <div class="col-6 text-start">` + data.name + `</div>
-           <div class="col-6 text-end  format-float ` + font_class + `">` + data.amount + `</div>
-           
-          </div>
-
-          `
-          return card
-        },
-        data: {
-          grid_class: "col-12 ",
-          dom: `
-        <"row px-4"
-          <"col-lg-6 col-12"i>
-          <"col-12 col-lg-6">
-        >
-        <"row grid_view d-block d-lg-none">
-        <"list_view d-none d-lg-block"t>
-        <"row transform-75 px-4"
-            <"col-lg-6 col-12">
-            <"col-lg-6 col-12"p>
-          >
-      `,
+              <span class="fs-5">
+                ` + ColumnFormater.capitalize(v.name) + `
+              </span>
+              <span class="d-flex justify-content-between gap-2 align-items-center">
+                <span class="format-float">
+                  ` + v.sum + `
+                </span>
+                <a href="/reward_details/` + v.name + `" class="navi btn btn-info btn-sm">
+                <i class="fa fa-info"></i>
+                </a>
+              </span>
+            </div>
 
 
-          preloads: ["user"],
-          additional_join_statements: [{
+                `)
 
-            user: "user"
-
-          }],
-          additional_search_queries: [
-            "b.id=" + memberApp.user.id
-          ],
-        },
-        columns: [
-
-          {
-            label: 'id',
-            data: 'id',
-            className: "d-none"
-          },
+            }
+          })
+        })
 
 
-          {
-            label: 'Date',
-            data: 'inserted_at',
-            formatDateTime: true,
-            offset: 0
-          },
-          {
-            label: 'Paid?',
-            data: 'is_paid',
-            showBoolean: true
-          },
-          {
-            label: 'Bonus',
-            data: 'name'
-          },
-
-          {
-            label: 'Amount',
-            className: "text-end",
-            data: 'amount',
-            formatFloat: true
-          },
-          {
-            label: 'Calculation',
-            data: 'remarks'
-          }, {
-            label: 'Action',
-            data: 'id',
-            className: "d-none"
-          }
-
-        ],
-        moduleName: "Reward",
-        link: "Reward",
-        customCols: customCols,
-        buttons: [],
-        tableSelector: "#" + random_id
+        $("#tab1").html(`` + list.join("") + ``)
+        phxApp.formatDate()
       })
 
-      rewardSource.load(random_id, "#tab1")
+
     },
     wallet() {
-      if (memberApp.user != null) {
+      if (memberApp_.user != null) {
 
-        var user = memberApp.user,
-          wallets = phxApp.api("user_wallet", {
+        var user = memberApp_.user,
+          wallets = phxApp_.api("user_wallet", {
             token: user.token
           })
-        $("wallet").each((i, v) => {
-          var wallet = wallets.filter((wv, wi) => {
-            return wv.wallet_type == $(v).attr("aria-data")
-          })[0]
 
-          console.log(wallet)
-          var wallet_name = $(v).attr("aria-data").split("_").map((v, i) => {
-            return ColumnFormater.capitalize(v)
-          }).join(" ")
 
-          $(v).html(`
-            <a href="/wallets/` + wallet.id + `" class="navi" >
-            <div class="card mb-3 mb-lg-0">
-              <div class="card-body p-1 py-2 ">
-                <div class="d-flex gap-1 align-items-center">
-                  <div wallet-id="` + wallet.id + `" class="d-none d-lg-block mx-2 py-2 btn btn-outline-success rounded-xl">
-                    <i class=" fa fa-dollar-sign "></i>
-                  </div>
-                  <div class="ps-2 ps-lg-0">
-                    <span class="text-sm text-secondary text-truncate">` + wallet_name + `</span>
-                    <div class="d-flex align-items-center gap-2">
-                      <div class="fs-4 format-int" style="">` + wallet.total + `</div>
-                      <small>pts</small>
+        if (wallets.length == 0) {
+          $("wallet").parent().html(`<div class="p-4">Wallet info expired</div>`)
+        } else {
+
+          $("wallet").each((i, v) => {
+            var check = wallets.filter((wv, wi) => {
+              return wv.wallet_type == $(v).attr("aria-data")
+            })
+
+            if (check.length > 0) {
+
+              var wallet = check[0]
+
+
+              var wallet_name = $(v).attr("aria-data").split("_").map((v, i) => {
+                return ColumnFormater.capitalize(v)
+              }).join(" ")
+
+              $(v).html(`
+              <a href="/wallets/` + wallet.id + `" class="navi" >
+              <div class="card mb-3 mb-lg-0">
+                <div class="card-body p-1 py-2 ">
+                  <div class="d-flex gap-1 align-items-center">
+                    <div wallet-id="` + wallet.id + `" class="d-none d-lg-block mx-2 py-2 btn btn-outline-success rounded-xl">
+                      <i class=" fa fa-dollar-sign "></i>
+                    </div>
+                    <div class="ps-2 ps-lg-0">
+                      <span class="text-sm text-secondary text-truncate">` + wallet_name + `</span>
+                      <div class="d-flex align-items-center gap-2">
+                        <div class="fs-4 format-int" style="">` + wallet.total + `</div>
+                        <small>pts</small>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-            </a>
+              </a>
 
-        `)
+          `)
+            } else {
+
+            }
 
 
 
-        })
+          })
+        }
 
         ColumnFormater.formatDate()
       }
@@ -919,7 +1310,7 @@ export let commerceApp_ = {
     userProfile() {
 
 
-      var user = memberApp.user;
+      var user = memberApp_.user;
       var name = user != null ? "Welcome! " + `<a href="/profile" class="navi">` + user.fullname + `</a>` : `<a href="/login" class="navi">Login</a>`
       $("userProfile").html(`
             

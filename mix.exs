@@ -33,6 +33,10 @@ defmodule CommerceFront.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
+      {:bamboo, "~> 2.2.0"},
+      {:bamboo_phoenix, "~> 1.0"},
+      {:bamboo_smtp, "~> 4.2.2"},
+      {:blue_potion, "~> 0.1.2", override: true, git: "https://github.com/yithanglee/blue_potion"},
       {:cors_plug, "~> 1.0"},
       {:distillery, "~> 2.1"},
       {:mime, "~> 1.0"},
@@ -53,7 +57,7 @@ defmodule CommerceFront.MixProject do
       {:mogrify, "~> 0.9.1"},
       {:web_push_encryption, "~> 0.3"},
       {:timex, "~> 3.0"},
-      {:blue_potion, "~> 0.1.2", override: true, git: "https://github.com/yithanglee/blue_potion"}
+      {:quantum, "~> 2.0"}
     ]
   end
 

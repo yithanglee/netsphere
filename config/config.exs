@@ -47,6 +47,17 @@ config :blue_potion,
     domain_name: "localhost"
   }
 
+config :commerce_front, CommerceFront.Scheduler,
+  jobs: [
+    {"00 1 * * 1", {CommerceFront, :daily_task, [Date.utc_today() |> Date.add(-1)]}},
+    {"00 0 * * 2", {CommerceFront, :daily_task, [Date.utc_today() |> Date.add(-1)]}},
+    {"00 0 * * 3", {CommerceFront, :daily_task, [Date.utc_today() |> Date.add(-1)]}},
+    {"00 0 * * 4", {CommerceFront, :daily_task, [Date.utc_today() |> Date.add(-1)]}},
+    {"00 0 * * 5", {CommerceFront, :daily_task, [Date.utc_today() |> Date.add(-1)]}},
+    {"00 0 * * 6", {CommerceFront, :daily_task, [Date.utc_today() |> Date.add(-1)]}},
+    {"00 0 * * 0", {CommerceFront, :daily_task, [Date.utc_today() |> Date.add(-1)]}}
+  ]
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{Mix.env()}.exs"

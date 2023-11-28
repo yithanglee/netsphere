@@ -13,7 +13,8 @@ defmodule CommerceFront.Application do
       # Start the PubSub system
       {Phoenix.PubSub, name: CommerceFront.PubSub},
       # Start the Endpoint (http/https)
-      CommerceFrontWeb.Endpoint
+      CommerceFrontWeb.Endpoint,
+      CommerceFront.Scheduler
       # Start a worker by calling: CommerceFront.Worker.start_link(arg)
       # {CommerceFront.Worker, arg}
     ]

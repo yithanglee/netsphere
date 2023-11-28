@@ -8,42 +8,46 @@ defmodule CommerceFront do
   """
 
   @doc """
-
+  CommerceFront.daily_task(~D[2023-11-27])
   like everyday before 8am, you need to run this using yesterday's date...
 
   """
   def daily_task(date \\ Date.utc_today()) do
-    CommerceFront.Settings.carry_forward_entry(date)
+    IO.inspect("performing daily task...")
     {y, m, d} = date |> Date.to_erl()
-    CommerceFront.Settings.pay_unpaid_bonus(date, ["team_bonus", "sharing_bonus"])
-    CommerceFront.Calculation.matching_bonus(m, y)
-    CommerceFront.Calculation.elite_leader(m, y)
-    CommerceFront.Calculation.travel_fund(m, y)
+    end_of_month = Timex.end_of_month(date)
+    CommerceFront.Calculation.daily_team_bonus(date)
+    CommerceFront.Settings.carry_forward_entry(date)
+    # this will form the weak leg
+    CommerceFront.Settings.pay_unpaid_bonus(date, ["sharing bonus", "team bonus"])
+
+    if end_of_month == date do
+      CommerceFront.Calculation.matching_bonus(m, y)
+      CommerceFront.Calculation.elite_leader(m, y)
+      CommerceFront.Calculation.travel_fund(m, y)
+
+      CommerceFront.Settings.pay_unpaid_bonus(date, ["matching bonus", "elite leader"])
+      CommerceFront.Calculation.repurchase_bonus(m, y)
+
+      CommerceFront.Settings.pay_unpaid_bonus(date, ["repurchase bonus"])
+    end
   end
 
-  def daily_calculations do
-    {y, m, d} = Date.utc_today() |> Date.to_erl()
+  def daily_calculations(date \\ Date.utc_today()) do
+    {y, m, d} = date |> Date.to_erl()
+    CommerceFront.Calculation.daily_team_bonus(date)
     CommerceFront.Calculation.matching_bonus(m, y)
     CommerceFront.Calculation.elite_leader(m, y)
     CommerceFront.Calculation.travel_fund(m, y)
   end
 
   def carry_forward_task do
-    for date <- Date.range(~D[2023-11-11], ~D[2023-11-15]) do
+    for date <- Date.range(~D[2023-11-07], ~D[2023-11-27]) do
       CommerceFront.Settings.reconstruct_daily_group_sales_summary(date)
+
+      CommerceFront.Calculation.daily_team_bonus(date)
       CommerceFront.Settings.carry_forward_entry(date)
     end
-  end
-
-  def test_carry_forward() do
-    CommerceFront.Settings.reconstruct_daily_group_sales_summary(~D[2023-11-07])
-    CommerceFront.Settings.carry_forward_entry(~D[2023-11-07])
-    CommerceFront.Settings.reconstruct_daily_group_sales_summary(~D[2023-11-08])
-    CommerceFront.Settings.carry_forward_entry(~D[2023-11-08])
-    CommerceFront.Settings.reconstruct_daily_group_sales_summary(~D[2023-11-09])
-    CommerceFront.Settings.carry_forward_entry(~D[2023-11-09])
-    CommerceFront.Settings.reconstruct_daily_group_sales_summary(~D[2023-11-10])
-    CommerceFront.Settings.carry_forward_entry(~D[2023-11-10])
   end
 
   def test() do

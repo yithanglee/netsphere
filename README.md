@@ -129,11 +129,43 @@ F）流动配货商服务费3%
 
 E) 复消奖 50%（新业绩）
 自动从 B、C 和 D 奖金中扣除 10%，
-每月最多扣除 BP1000（这意味着奖金已达到 BP10000）。 1000 复消进入产品钱包用于产品交换。
+每月最多扣除 BP1000（这意味着奖金已达到 BP10000）。 
+1000 复消进入产品钱包用于产品交换。
 
 小区每月pv达到500PV
 有资格享受20层x 2.5%
 
+
+need a redemption area,
+the product retail_price is the same rate as product wallet point,
+say i have 100 product wallet point, 
+if the product A is $ 120, i need 100 product wallet point + 20 register point (auto deduct bonus if RP not enough)
+
+those product wallet if accumulated 6 months without any order, will auto purchase and send to customer...
+the 1st month product wallet will go out first,
+FIFO method...
+
 ——————
 ⚠️注意：
 BP提款手续费3%
+
+
+when register
+can choose register point 
+if not enough register topup with bonus point
+
+admin need to be able to register account without payment
+
+within 6 month when upgrade can pay partial/balance
+after that need full amount to upgrade
+
+
+
+23/11
+DRP sales level bonus 10 %
+placement tree upline 10 levels
+
+context = after register 2 user, you get DRP,
+when use DRP register , this will calculate only the DRP sales level bonus
+
++ let admin create free accounts.

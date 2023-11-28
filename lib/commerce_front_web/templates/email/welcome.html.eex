@@ -1,0 +1,16 @@
+<h3>Hi there
+  <%= @user.name %>
+</h3>
+<br>
+Welcome onboard!
+
+<br> <br> <br> <br>
+<div class="col-md-4 col-md-offset-1">
+  <img style="height: 56px;" class="footer-logo" src="" alt="">
+  <div class="footer-address">
+  
+  </div>
+  <div class="footer-description"> </div>
+  <div class="clear"></div>
+</div>
+

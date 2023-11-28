@@ -52,18 +52,32 @@ defmodule CommerceFrontWeb.ApiController do
     Settings.decode_token(token)
   end
 
+  def csrf(conn, params) do
+    json(conn, Phoenix.Controller.get_csrf_token())
+  end
+
   def get(conn, params) do
     token = params |> Map.get("token")
 
     %{id: id} =
-      if token != nil do
-        token |> decode_token
+      with true <- token != nil,
+           decoded <- token |> decode_token,
+           true <- decoded != nil do
+        decoded
       else
-        %{id: 0}
+        _ ->
+          %{id: 0}
       end
 
     res =
       case params["scope"] do
+        "get_reward_summary" ->
+          Settings.user_monthly_reward_summary(params["user_id"])
+
+        "get_sale" ->
+          Settings.get_sale!(params["id"])
+          |> BluePotion.sanitize_struct()
+
         "user_wallet" ->
           res =
             Settings.list_ewallets_by_user_id(id)
@@ -133,10 +147,10 @@ defmodule CommerceFrontWeb.ApiController do
   end
 
   def payment(conn, params) do
+    payment = Settings.get_payment_by_billplz_code(params["id"])
+
     res =
       with true <- params["paid"] == "true",
-           payment <-
-             Settings.get_payment_by_billplz_code(params["id"]),
            true <- payment != nil,
            true <- payment.sales != nil,
            sales <- payment.sales,
@@ -150,7 +164,18 @@ defmodule CommerceFrontWeb.ApiController do
         end
       else
         _ ->
-          %{status: "ok"}
+          with true <- payment.wallet_topup != nil do
+            case Settings.approve_topup(%{"id" => payment.wallet_topup.id}) do
+              {:ok, tp} ->
+                %{status: "ok", res: tp |> BluePotion.sanitize_struct()}
+
+              _ ->
+                %{status: "error"}
+            end
+          else
+            _ ->
+              %{status: "ok"}
+          end
       end
 
     sample = %{
@@ -175,6 +200,37 @@ defmodule CommerceFrontWeb.ApiController do
   def post(conn, params) do
     res =
       case params["scope"] do
+        "approve_topup" ->
+          case Settings.approve_topup(params) do
+            {:ok, multi_res} ->
+              %{status: "ok"}
+
+            {:error, "already approved"} ->
+              %{status: "error", reason: "already approved"}
+
+            _ ->
+              %{status: "error", reason: "unknown"}
+          end
+
+        "manual_approve_fpx" ->
+          with payment <-
+                 Settings.get_payment_by_billplz_code(params["id"]),
+               true <- payment != nil,
+               true <- payment.sales != nil,
+               sales <- payment.sales,
+               {:ok, register_params} <- sales.registration_details |> Jason.decode() do
+            case Settings.register(register_params["user"], sales) do
+              {:ok, multi_res} ->
+                %{status: "ok", res: multi_res |> BluePotion.sanitize_struct()}
+
+              _ ->
+                %{status: "error"}
+            end
+          else
+            _ ->
+              %{status: "ok"}
+          end
+
         "sign_in" ->
           # admin login
           token =
@@ -186,13 +242,25 @@ defmodule CommerceFrontWeb.ApiController do
 
           %{status: "ok", res: token}
 
+        "topup" ->
+          case Settings.create_topup_transaction(params) do
+            {:ok, multi_res} ->
+              %{status: "ok", res: multi_res.payment |> BluePotion.sanitize_struct()}
+
+            _ ->
+              %{status: "error"}
+          end
+
         "register" ->
           # get the billplz link first, then make payment
           # create the sales first
           # Settings.register(params["user"])
-          case Settings.create_sales_transaction(params) do
+          case Settings.create_sales_transaction(params) |> IO.inspect() do
             {:ok, multi_res} ->
               %{status: "ok", res: multi_res.payment |> BluePotion.sanitize_struct()}
+
+            {:error, :payment, "not sufficient", passed_cg} ->
+              %{status: "error", reason: "wallet balance not sufficient"}
 
             _ ->
               %{status: "error"}

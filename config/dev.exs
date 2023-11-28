@@ -64,3 +64,5 @@ config :commerce_front, :billplz,
   key: System.get_env("BILLPLZ_API_KEY"),
   endpoint: System.get_env("BILLPLZ_API_ENDPOINT"),
   callback: System.get_env("BILLPLZ_API_CALLBACK_URL")
+
+config :commerce_front, CommerceFront.Mailer, adapter: Bamboo.LocalAdapter

@@ -10,10 +10,71 @@ defmodule CommerceFront.Settings do
   alias Ecto.Multi
 
   import CommerceFront.Calculation,
-    only: [
-      sharing_bonus: 4,
-      team_bonus: 5
-    ]
+    only: [special_share_reward: 3, sharing_bonus: 4, team_bonus: 5]
+
+  alias CommerceFront.Settings.WalletTopup
+
+  def list_wallet_topups() do
+    Repo.all(WalletTopup)
+  end
+
+  def get_wallet_topup!(id) do
+    Repo.get!(WalletTopup, id)
+  end
+
+  def create_wallet_topup(params \\ %{}) do
+    Multi.new()
+    |> Multi.run(:wallet_topup, fn _repo, %{} ->
+      WalletTopup.changeset(%WalletTopup{}, params) |> Repo.insert() |> IO.inspect()
+    end)
+    |> Multi.run(:payment, fn _repo, %{wallet_topup: wallet_topup} ->
+      if wallet_topup.payment_method == "fpx" do
+        wallet_topup = wallet_topup |> Repo.preload(:user)
+        res = Billplz.create_collection("Topup Order: #{wallet_topup.id}")
+        collection_id = Map.get(res, "id")
+
+        bill_res =
+          Billplz.create_bill(collection_id, %{
+            description: "Topup Order: #{wallet_topup.id}",
+            email: wallet_topup.user.email,
+            name: wallet_topup.user.fullname,
+            amount: wallet_topup.amount * 5
+          })
+
+        create_payment(%{
+          payment_method: "fpx",
+          amount: wallet_topup.amount,
+          wallet_topup_id: wallet_topup.id,
+          billplz_code: Map.get(bill_res, "id"),
+          payment_url: Map.get(bill_res, "url")
+        })
+      else
+        create_payment(%{
+          payment_method: wallet_topup.payment_method,
+          amount: wallet_topup.amount,
+          wallet_topup_id: wallet_topup.id
+        })
+      end
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, multi_res} ->
+        {:ok, multi_res |> Map.get(:wallet_topup)}
+
+      _ ->
+        {:error, []}
+    end
+  end
+
+  def update_wallet_topup(model, params) do
+    params = params |> Map.put("is_approved", params["is_approved"] == "on")
+
+    WalletTopup.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_wallet_topup(%WalletTopup{} = model) do
+    Repo.delete(model)
+  end
 
   alias CommerceFront.Settings.Payment
 
@@ -22,7 +83,7 @@ defmodule CommerceFront.Settings do
   end
 
   def get_payment_by_billplz_code(code) do
-    Repo.get_by(Payment, billplz_code: code) |> Repo.preload(:sales)
+    Repo.get_by(Payment, billplz_code: code) |> Repo.preload([:sales, :wallet_topup])
   end
 
   def get_payment!(id) do
@@ -515,7 +576,7 @@ defmodule CommerceFront.Settings do
   end
 
   def get_sale!(id) do
-    Repo.get!(Sale, id)
+    Repo.get!(Sale, id) |> Repo.preload([:sales_person, :user, :sales_items])
   end
 
   def create_sale(params \\ %{}) do
@@ -969,12 +1030,6 @@ defmodule CommerceFront.Settings do
         map = %{
           left: left |> String.to_integer(),
           right: right |> String.to_integer(),
-          total_left: total_left || 0,
-          total_right: total_right || 0,
-          balance_left: balance_left || 0,
-          balance_right: balance_right || 0,
-          new_left: new_left || 0,
-          new_right: new_right || 0,
           name: username,
           children: zchildren,
           username: username,
@@ -986,6 +1041,23 @@ defmodule CommerceFront.Settings do
         if full do
           map
         else
+          map = %{
+            left: left |> String.to_integer(),
+            right: right |> String.to_integer(),
+            total_left: total_left || 0,
+            total_right: total_right || 0,
+            balance_left: balance_left || 0,
+            balance_right: balance_right || 0,
+            new_left: new_left || 0,
+            new_right: new_right || 0,
+            name: username,
+            children: zchildren,
+            username: username,
+            id: id |> String.to_integer(),
+            fullname: fullname,
+            position: position
+          }
+
           map
           |> Map.put(
             :value,
@@ -1032,8 +1104,8 @@ defmodule CommerceFront.Settings do
           name: username <> " #{id}",
           text: """
           <span class='my-2'>
-            <span class='p-1 my-2'>#{username}</span>
-            <span class='m-0 px-1 ' style="width: 50%;position: absolute;right: 0px;">id: #{id} | <span class="badge #{bg}"> #{rank_name}</span></span>
+            <span class='p-1 my-2 left-box'>#{username}</span>
+            <span class='m-0 px-1 ' style="width: 40%; position: absolute;right: 0px;">id: #{id} | <span class="badge #{bg}"> #{rank_name}</span></span>
           </span>
           """,
           children: zchildren,
@@ -1173,18 +1245,27 @@ defmodule CommerceFront.Settings do
           position: if(smap != nil, do: smap.position, else: "n/a"),
           left: if(smap != nil, do: smap.left, else: "n/a"),
           right: if(smap != nil, do: smap.right, else: "n/a"),
-          total_left: if(smap != nil, do: smap.total_left, else: "n/a"),
-          total_right: if(smap != nil, do: smap.total_right, else: "n/a"),
-          new_left: if(smap != nil, do: smap.new_left, else: "n/a"),
-          new_right: if(smap != nil, do: smap.new_right, else: "n/a"),
-          balance_left: if(smap != nil, do: smap.balance_left, else: "n/a"),
-          balance_right: if(smap != nil, do: smap.balance_right, else: "n/a"),
           children: children |> Enum.sort_by(& &1.position)
         }
 
         if full do
           inner_map
         else
+          inner_map = %{
+            id: map.parent_id,
+            name: map.parent_username,
+            position: if(smap != nil, do: smap.position, else: "n/a"),
+            left: if(smap != nil, do: smap.left, else: "n/a"),
+            right: if(smap != nil, do: smap.right, else: "n/a"),
+            total_left: if(smap != nil, do: smap.total_left, else: "n/a"),
+            total_right: if(smap != nil, do: smap.total_right, else: "n/a"),
+            new_left: if(smap != nil, do: smap.new_left, else: "n/a"),
+            new_right: if(smap != nil, do: smap.new_right, else: "n/a"),
+            balance_left: if(smap != nil, do: smap.balance_left, else: "n/a"),
+            balance_right: if(smap != nil, do: smap.balance_right, else: "n/a"),
+            children: children |> Enum.sort_by(& &1.position)
+          }
+
           inner_map
           |> Map.put(
             :value,
@@ -1228,8 +1309,8 @@ defmodule CommerceFront.Settings do
           icon: "fa fa-user text-success",
           text: """
           <span class='my-2'>
-            <span class='p-1 my-2'>#{username}</span>
-            <span class='m-0 px-1 ' style="width: 50%;position: absolute;right: 0px;">id: #{map.parent_id} | <span class="badge #{bg}"> #{map.rank_name}</span></span>
+            <span class='p-1 my-2 left-box'>#{username}</span>
+            <span class='m-0 px-1 ' style="width: 40%;position: absolute;right: 0px;">id: #{map.parent_id} | <span class="badge #{bg}"> #{map.rank_name}</span></span>
           </span>
           """,
           id: map.parent_id,
@@ -1474,18 +1555,20 @@ defmodule CommerceFront.Settings do
         )
 
       for sale <- sales do
-        {:ok, pgsd} =
-          contribute_group_sales(
-            sale.user.username,
-            sale.total_point_value,
-            sale,
-            nil,
-            nil,
-            date
-          )
-
-        team_bonus(sale.user.username, sale.total_point_value, sale, nil, pgsd)
+        if sale.user != nil do
+          {:ok, pgsd} =
+            contribute_group_sales(
+              sale.user.username,
+              sale.total_point_value,
+              sale,
+              nil,
+              nil,
+              date
+            )
+        end
       end
+
+      # team_bonus(sale.user.username, sale.total_point_value, sale, nil, pgsd)
 
       {:ok, nil}
     end)
@@ -1503,7 +1586,8 @@ defmodule CommerceFront.Settings do
         on: u.id == pgsd.user_id,
         where:
           pgsd.day == ^from_date.day and pgsd.month == ^from_date.month and
-            pgsd.year == ^from_date.year and not is_nil(u.username)
+            pgsd.year == ^from_date.year and not is_nil(u.username),
+        order_by: [asc: pgsd.id]
       )
 
     gs_summaries = Repo.all(query)
@@ -1516,18 +1600,15 @@ defmodule CommerceFront.Settings do
               |> Enum.reject(&(&1.balance_left == nil && &1.balance_right == nil)) do
           gs_summary = gs_summary |> Repo.preload(:user)
 
-          # Repo.delete_all(
-          #   from(pgsd in PlacementGroupSalesDetail, where: pgsd.gs_summary_id == ^gs_summary.id and pgsd.remarks: == ^"carry_forward")
-          # )
-
-          if gs_summary.user.username == "alsm3" do
-            # IEx.pry()
-          end
-
-          # possible that bal left and right are 0, even without pairing
-          gs_summary =
-            with true <- gs_summary.balance_left == 0 and gs_summary.balance_right == 0,
-                 true <- gs_summary.new_left == 0 || gs_summary.new_right == 0 do
+          # gs_summary =
+          if gs_summary.new_left == 0 && gs_summary.new_right == 0 &&
+               gs_summary.balance_left == 0 && gs_summary.balance_right == 0 do
+            gs_summary
+            |> Map.put(:balance_left, gs_summary.total_left)
+            |> Map.put(:balance_right, gs_summary.total_right)
+          else
+            # possible that bal left and right are 0, even without pairing
+            with true <- gs_summary.new_left == 0 || gs_summary.new_right == 0 do
               if gs_summary.new_left > gs_summary.new_right do
                 gs_summary |> Map.put(:balance_left, gs_summary.total_left)
               else
@@ -1537,6 +1618,7 @@ defmodule CommerceFront.Settings do
               _ ->
                 gs_summary
             end
+          end
 
           {:ok, left} =
             CommerceFront.Settings.PlacementGroupSalesDetail.changeset(
@@ -1624,8 +1706,6 @@ defmodule CommerceFront.Settings do
           )
           |> Repo.insert()
 
-          # IEx.pry()
-
           CommerceFront.Settings.GroupSalesSummary.changeset(
             gs,
             %{
@@ -1639,6 +1719,35 @@ defmodule CommerceFront.Settings do
         end
 
       {:ok, res}
+    end)
+    |> Repo.transaction()
+  end
+
+  def create_topup_transaction(params) do
+    IO.inspect(params)
+
+    Multi.new()
+    |> Multi.run(:topup, fn _repo, %{} ->
+      create_wallet_topup(params)
+    end)
+    |> Multi.run(:payment, fn _repo, %{topup: topup} ->
+      res = Billplz.create_collection("Topup Order: #{topup.id}")
+      collection_id = Map.get(res, "id")
+
+      bill_res =
+        Billplz.create_bill(collection_id, %{
+          description: "Topup Order: #{topup.id}",
+          email: params["user"]["email"],
+          name: params["user"]["fullname"],
+          amount: topup.amount * 5
+        })
+
+      create_payment(%{
+        amount: topup.amount,
+        wallet_topup_id: topup.id,
+        billplz_code: Map.get(bill_res, "id"),
+        payment_url: Map.get(bill_res, "url")
+      })
     end)
     |> Repo.transaction()
   end
@@ -1660,7 +1769,7 @@ defmodule CommerceFront.Settings do
         month: Date.utc_today().month,
         year: Date.utc_today().year,
         sale_date: Date.utc_today(),
-        status: :processing,
+        status: :pending_payment,
         subtotal: rank.retail_price,
         total_point_value: pv,
         registration_details: Jason.encode!(params),
@@ -1704,23 +1813,85 @@ defmodule CommerceFront.Settings do
       update_sale(sale, %{total_point_value: total_pv, subtotal: total_rp})
     end)
     |> Multi.run(:payment, fn _repo, %{sales2: sale} ->
-      res = Billplz.create_collection("Sales Order: #{sale.id}")
-      collection_id = Map.get(res, "id")
+      case params["user"]["payment"]["method"] do
+        "fpx" ->
+          res = Billplz.create_collection("Sales Order: #{sale.id}")
+          collection_id = Map.get(res, "id")
 
-      bill_res =
-        Billplz.create_bill(collection_id, %{
-          description: "Sales Order: #{sale.id}",
-          email: params["user"]["email"],
-          name: params["user"]["fullname"],
-          amount: sale.subtotal
-        })
+          bill_res =
+            Billplz.create_bill(collection_id, %{
+              description: "Sales Order: #{sale.id}",
+              email: params["user"]["email"],
+              name: params["user"]["fullname"],
+              amount: sale.subtotal * 5
+            })
 
-      create_payment(%{
-        amount: sale.subtotal,
-        sales_id: sale.id,
-        billplz_code: Map.get(bill_res, "id"),
-        payment_url: Map.get(bill_res, "url")
-      })
+          create_payment(%{
+            payment_method: "fpx",
+            amount: sale.subtotal,
+            sales_id: sale.id,
+            billplz_code: Map.get(bill_res, "id"),
+            payment_url: Map.get(bill_res, "url")
+          })
+
+        "register_point" ->
+          # check sales person... register point sufficient
+          wallets = CommerceFront.Settings.list_ewallets_by_user_id(sale.sales_person_id)
+          drp = wallets |> Enum.filter(&(&1.wallet_type == :direct_recruitment)) |> List.first()
+          rp = wallets |> Enum.filter(&(&1.wallet_type == :register)) |> List.first()
+
+          check_sufficient = fn subtotal ->
+            # here proceed to normal registration and deduct the ewallet 
+            form_drp = String.to_integer(params["user"]["payment"]["drp"])
+
+            with true <- :erlang.trunc(drp.total) >= form_drp,
+                 true <- (rp.total >= sale.subtotal - form_drp) |> IO.inspect() do
+              {:ok, sale} =
+                update_sale(sale, %{
+                  total_point_value: sale.total_point_value - form_drp
+                })
+
+              create_wallet_transaction(%{
+                user_id: sale.sales_person_id,
+                amount: form_drp * -1,
+                remarks: "Sale: #{sale.id}",
+                wallet_type: "direct_recruitment"
+              })
+
+              create_wallet_transaction(%{
+                user_id: sale.sales_person_id,
+                amount: (subtotal - form_drp) * -1,
+                remarks: "Sale: #{sale.id}",
+                wallet_type: "register"
+              })
+
+              create_payment(%{
+                payment_method: "register_point",
+                amount: sale.subtotal,
+                sales_id: sale.id,
+                webhook_details: "rp paid: #{subtotal - form_drp}|drp paid: #{form_drp}"
+              })
+
+              {:ok, sale}
+            else
+              _ ->
+                {:error, nil}
+            end
+          end
+
+          case check_sufficient.(sale.subtotal) do
+            # direct register liao... 
+            {:ok, sale} ->
+              register(params["user"], sale)
+              {:ok, %CommerceFront.Settings.Payment{payment_url: "/home"}}
+
+            _ ->
+              {:error, "not sufficient"}
+          end
+
+        _ ->
+          {:error, nil}
+      end
     end)
     |> Repo.transaction()
   end
@@ -1784,17 +1955,13 @@ defmodule CommerceFront.Settings do
 
         # # need to check if DRP was used
 
-        # create_sale(%{
-        #   month: Date.utc_today().month,
-        #   year: Date.utc_today().year,
-        #   sale_date: Date.utc_today(),
-        #   status: :processing,
-        #   subtotal: rank.retail_price,
-        #   total_point_value: pv,
-        #   user_id: user.id
-        # })
-
-        {:ok, sales}
+        update_sale(sales, %{
+          month: Date.utc_today().month,
+          year: Date.utc_today().year,
+          sale_date: Date.utc_today(),
+          status: :processing,
+          user_id: user.id
+        })
       end)
       |> Multi.run(:referral, fn _repo, %{user: user} ->
         parent_r = get_referral_by_username(params["sponsor"])
@@ -1823,9 +1990,14 @@ defmodule CommerceFront.Settings do
                                       %{pgsd: pgsd, user: user, sale: sale, referral: referral} ->
         sharing_bonus(user.username, sale.total_point_value, sale, referral)
       end)
-      |> Multi.run(:team_bonus, fn _repo,
-                                   %{pgsd: pgsd, user: user, sale: sale, placement: placement} ->
-        team_bonus(user.username, sale.total_point_value, sale, placement, pgsd)
+      |> Multi.run(:special_share_reward, fn _repo,
+                                             %{
+                                               pgsd: pgsd,
+                                               user: user,
+                                               sale: sale,
+                                               placement: placement
+                                             } ->
+        special_share_reward(user.id, sale.total_point_value, sale)
       end)
       |> Repo.transaction()
       |> IO.inspect()
@@ -2019,19 +2191,25 @@ defmodule CommerceFront.Settings do
   def pay_unpaid_bonus(date, bonus_list) do
     {y, m, d} = date |> Date.to_erl()
 
+    matrix = ["team bonus", "matching bonus", "elite leader"]
+
     month_rewards =
       Repo.all(
         from(r in Reward,
           where:
             r.month == ^m and
               r.year == ^y,
-          select: %{sum: sum(r.amount), user_id: r.user_id},
-          group_by: [r.user_id]
+          select: %{sum: sum(r.amount), bonus: r.name, user_id: r.user_id},
+          group_by: [r.user_id, r.name]
         )
       )
 
     check_this_month_reward = fn user_id, month_rewards ->
-      month_rewards |> Enum.filter(&(&1.user_id == user_id)) |> List.first() |> Map.get(:sum, 0)
+      month_rewards
+      |> Enum.filter(&(&1.user_id == user_id))
+      |> Enum.filter(&(&1.bonus in matrix))
+      |> Enum.map(& &1.sum)
+      |> Enum.sum()
     end
 
     for bonus <- bonus_list do
@@ -2048,14 +2226,17 @@ defmodule CommerceFront.Settings do
       pay_to_bonus_wallet = fn reward, multi ->
         multi
         |> Multi.run(String.to_atom("reward_#{reward.id}"), fn _repo, %{} ->
-          matrix = ["team bonus", "matching bonus", "elite leader"]
           total_this_month = check_this_month_reward.(reward.user_id, month_rewards)
 
           {amount, remarks} =
-            if total_this_month > 10000 do
+            if bonus not in matrix do
               {reward.amount, "month total: #{total_this_month}|pay: 100%"}
             else
-              {reward.amount * 0.9, "month total: #{total_this_month}|pay: 90%"}
+              if total_this_month > 10000 do
+                {reward.amount, "month total: #{total_this_month}|pay: 100%"}
+              else
+                {reward.amount * 0.9, "month total: #{total_this_month}|pay: 90%"}
+              end
             end
 
           params = %{
@@ -2067,7 +2248,7 @@ defmodule CommerceFront.Settings do
 
           case create_wallet_transaction(params) do
             {:ok, wt} ->
-              if total_this_month <= 10000 do
+              if total_this_month <= 10000 && bonus in matrix do
                 params2 = %{
                   user_id: reward.user_id,
                   amount: reward.amount * 0.1,
@@ -2114,5 +2295,49 @@ defmodule CommerceFront.Settings do
     Repo.all(from(u in PlacementGroupSalesDetail, order_by: [desc: u.id]))
     |> List.first()
     |> Repo.delete()
+  end
+
+  def user_monthly_reward_summary(user_id, date \\ Date.utc_today()) do
+    {y, m, d} = date |> Date.to_erl()
+
+    Repo.all(
+      from(r in Reward,
+        where: r.user_id == ^user_id,
+        where: r.month == ^m and r.year == ^y,
+        group_by: [r.name, r.month, r.year],
+        select: %{period: [r.month, r.year], name: r.name, sum: sum(r.amount)}
+      )
+    )
+  end
+
+  def approve_topup(params) do
+    topup = get_wallet_topup!(params["id"])
+
+    if topup.is_approved == false do
+      Multi.new()
+      |> Multi.run(:topup, fn _repo, %{} ->
+        update_wallet_topup(topup, %{"is_approved" => "on"})
+      end)
+      |> Multi.run(:wallet_transaction, fn _repo, %{topup: topup} ->
+        create_wallet_transaction(%{
+          user_id: topup.user_id,
+          amount: topup.amount,
+          remarks: "Topup: #{topup.id}",
+          wallet_type: "register"
+        })
+      end)
+      |> Repo.transaction()
+      |> IO.inspect()
+      |> case do
+        {:ok, multi_res} ->
+          # {:ok, multi_res |> Map.get(:ewallet)}
+          {:ok, multi_res}
+
+        _ ->
+          {:error, []}
+      end
+    else
+      {:error, "already approved"}
+    end
   end
 end
