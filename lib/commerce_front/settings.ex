@@ -38,7 +38,8 @@ defmodule CommerceFront.Settings do
             description: "Topup Order: #{wallet_topup.id}",
             email: wallet_topup.user.email,
             name: wallet_topup.user.fullname,
-            amount: wallet_topup.amount * 5
+            amount: wallet_topup.amount * 5,
+            phone: wallet_topup.user.phone
           })
 
         create_payment(%{
@@ -322,6 +323,14 @@ defmodule CommerceFront.Settings do
   @doc """
 
   this transaction need to have 
+
+  CommerceFront.Settings.create_wallet_transaction(  %{
+    user_id: 583,
+    amount: 100.00,
+    remarks: "something",
+    wallet_type: "product"
+  })
+
   %{
     user_id: 1,
     amount: 100.00,
@@ -576,7 +585,7 @@ defmodule CommerceFront.Settings do
   end
 
   def get_sale!(id) do
-    Repo.get!(Sale, id) |> Repo.preload([:sales_person, :user, :sales_items])
+    Repo.get!(Sale, id) |> Repo.preload([:payment, :sales_person, :user, :sales_items])
   end
 
   def create_sale(params \\ %{}) do
@@ -661,7 +670,7 @@ defmodule CommerceFront.Settings do
 
   def auth_user(params) do
     user =
-      Repo.all(from(u in User, where: u.username == ^params["username"]))
+      Repo.all(from(u in User, where: u.username == ^params["username"], preload: :rank))
       |> List.first()
 
     with true <- user != nil,
@@ -712,7 +721,7 @@ defmodule CommerceFront.Settings do
 
     case cg do
       {:ok, u} ->
-        u = u |> Map.put(:token, CommerceFront.Settings.member_token(u.id))
+        u = u |> Repo.preload(:rank) |> Map.put(:token, CommerceFront.Settings.member_token(u.id))
         {:ok, u}
 
       {:error, cg} ->
@@ -1758,10 +1767,21 @@ defmodule CommerceFront.Settings do
   def create_sales_transaction(params) do
     IO.inspect(params)
 
+    title =
+      cond do
+        params["user"] |> Map.get("redeem") != nil ->
+          "Redeem"
+
+        params["user"] |> Map.get("upgrade") != nil ->
+          "Upgrade"
+
+        true ->
+          "Sales"
+      end
+
     Multi.new()
     |> Multi.run(:sale, fn _repo, %{} ->
-      rank = get_rank!(params["user"]["rank_id"]) |> IO.inspect()
-      pv = rank.point_value
+      pv = 0
 
       # need to check if DRP was used
 
@@ -1770,7 +1790,7 @@ defmodule CommerceFront.Settings do
         year: Date.utc_today().year,
         sale_date: Date.utc_today(),
         status: :pending_payment,
-        subtotal: rank.retail_price,
+        subtotal: 0,
         total_point_value: pv,
         registration_details: Jason.encode!(params),
         sales_person_id: params["user"]["sales_person_id"]
@@ -1814,25 +1834,70 @@ defmodule CommerceFront.Settings do
     end)
     |> Multi.run(:payment, fn _repo, %{sales2: sale} ->
       case params["user"]["payment"]["method"] do
+        "product_point" ->
+          wallets = CommerceFront.Settings.list_ewallets_by_user_id(sale.sales_person_id)
+          pp = wallets |> Enum.filter(&(&1.wallet_type == :product)) |> List.first()
+
+          check_sufficient = fn subtotal ->
+            # deduct the ewallet 
+
+            with true <- (pp.total >= sale.subtotal) |> IO.inspect() do
+              {:ok, sale} = update_sale(sale, %{total_point_value: 0, status: :processing})
+
+              create_wallet_transaction(%{
+                user_id: sale.sales_person_id,
+                amount: sale.subtotal * -1,
+                remarks: "#{title}: #{sale.id}",
+                wallet_type: "product"
+              })
+
+              create_payment(%{
+                payment_method: "product_point",
+                amount: sale.subtotal,
+                sales_id: sale.id,
+                webhook_details: "pp paid: #{subtotal}"
+              })
+
+              {:ok, sale}
+            else
+              _ ->
+                {:error, nil}
+            end
+          end
+
+          case check_sufficient.(sale.subtotal) do
+            # direct register liao... 
+            {:ok, sale} ->
+              {:ok, %CommerceFront.Settings.Payment{payment_url: "/sales/#{sale.id}"}}
+
+            _ ->
+              {:error, "not sufficient"}
+          end
+
         "fpx" ->
-          res = Billplz.create_collection("Sales Order: #{sale.id}")
+          res = Billplz.create_collection("#{title} Order: #{sale.id}")
           collection_id = Map.get(res, "id")
 
           bill_res =
             Billplz.create_bill(collection_id, %{
-              description: "Sales Order: #{sale.id}",
+              description: "#{title} Order: #{sale.id}",
               email: params["user"]["email"],
-              name: params["user"]["fullname"],
-              amount: sale.subtotal * 5
+              name: params["user"]["shipping"]["fullname"],
+              amount: sale.subtotal * 5,
+              phone: params["user"]["shipping"]["phone"]
             })
 
-          create_payment(%{
-            payment_method: "fpx",
-            amount: sale.subtotal,
-            sales_id: sale.id,
-            billplz_code: Map.get(bill_res, "id"),
-            payment_url: Map.get(bill_res, "url")
-          })
+          if Map.get(bill_res, "url") != nil do
+            create_payment(%{
+              payment_method: "fpx",
+              amount: sale.subtotal,
+              sales_id: sale.id,
+              billplz_code: Map.get(bill_res, "id"),
+              payment_url: Map.get(bill_res, "url")
+            })
+          else
+            {:error, nil}
+          end
 
         "register_point" ->
           # check sales person... register point sufficient
@@ -1842,7 +1907,12 @@ defmodule CommerceFront.Settings do
 
           check_sufficient = fn subtotal ->
             # here proceed to normal registration and deduct the ewallet 
-            form_drp = String.to_integer(params["user"]["payment"]["drp"])
+            form_drp =
+              if params["user"]["payment"]["drp"] != nil do
+                String.to_integer(params["user"]["payment"]["drp"])
+              else
+                0
+              end
 
             with true <- :erlang.trunc(drp.total) >= form_drp,
                  true <- (rp.total >= sale.subtotal - form_drp) |> IO.inspect() do
@@ -1854,14 +1924,14 @@ defmodule CommerceFront.Settings do
               create_wallet_transaction(%{
                 user_id: sale.sales_person_id,
                 amount: form_drp * -1,
-                remarks: "Sale: #{sale.id}",
+                remarks: "#{title}: #{sale.id}",
                 wallet_type: "direct_recruitment"
               })
 
               create_wallet_transaction(%{
                 user_id: sale.sales_person_id,
                 amount: (subtotal - form_drp) * -1,
-                remarks: "Sale: #{sale.id}",
+                remarks: "#{title}: #{sale.id}",
                 wallet_type: "register"
               })
 
@@ -1882,8 +1952,8 @@ defmodule CommerceFront.Settings do
           case check_sufficient.(sale.subtotal) do
             # direct register liao... 
             {:ok, sale} ->
-              register(params["user"], sale)
-              {:ok, %CommerceFront.Settings.Payment{payment_url: "/home"}}
+              {:ok, user} = register(params["user"], sale)
+              {:ok, %CommerceFront.Settings.Payment{payment_url: "/home", user: user}}
 
             _ ->
               {:error, "not sufficient"}
@@ -1931,20 +2001,45 @@ defmodule CommerceFront.Settings do
     multi =
       Multi.new()
       |> Multi.run(:user, fn _repo, %{} ->
-        rank = get_rank!(params["rank_id"])
+        if params["upgrade"] != nil do
+          user =
+            CommerceFront.Settings.get_user!(params["sales_person_id"]) |> Repo.preload(:rank)
 
-        create_user(params |> Map.put("rank_name", rank.name))
+          user.rank.retail_price
+          total_pv = user.rank.retail_price + sales.subtotal
+          # determine wat rank he reached based on new pv... 
+          new_rank =
+            CommerceFront.Settings.list_ranks()
+            |> Enum.sort_by(& &1.retail_price)
+            |> Enum.filter(&(&1.retail_price <= total_pv))
+            |> List.last()
+
+          {:ok, user} =
+            CommerceFront.Settings.update_user(user, %{
+              rank_id: new_rank.id,
+              rank_name: new_rank.name
+            })
+
+          {:ok, user |> Map.put(:rank, new_rank)}
+        else
+          rank = get_rank!(params["rank_id"])
+
+          create_user(params |> Map.put("rank_name", rank.name))
+        end
       end)
       |> Multi.run(:ewallets, fn _repo, %{user: user} ->
-        wallets = ["bonus", "product", "register", "direct_recruitment"]
+        if params["upgrade"] != nil do
+        else
+          wallets = ["bonus", "product", "register", "direct_recruitment"]
 
-        for wallet_type <- wallets do
-          CommerceFront.Settings.create_wallet_transaction(%{
-            user_id: user.id,
-            amount: 0.00,
-            remarks: "initial",
-            wallet_type: wallet_type
-          })
+          for wallet_type <- wallets do
+            CommerceFront.Settings.create_wallet_transaction(%{
+              user_id: user.id,
+              amount: 0.00,
+              remarks: "initial",
+              wallet_type: wallet_type
+            })
+          end
         end
 
         {:ok, nil}
@@ -1964,24 +2059,32 @@ defmodule CommerceFront.Settings do
         })
       end)
       |> Multi.run(:referral, fn _repo, %{user: user} ->
-        parent_r = get_referral_by_username(params["sponsor"])
+        if params["upgrade"] != nil do
+          {:ok, get_referral_by_username(user.username)}
+        else
+          parent_r = get_referral_by_username(params["sponsor"])
 
-        create_referral(%{
-          parent_user_id: parent_r.user_id,
-          parent_referral_id: parent_r.id,
-          user_id: user.id
-        })
+          create_referral(%{
+            parent_user_id: parent_r.user_id,
+            parent_referral_id: parent_r.id,
+            user_id: user.id
+          })
+        end
       end)
       |> Multi.run(:placement, fn _repo, %{user: user} ->
-        # parent_p = get_placement_by_username(params["sponsor"])
-        {position, parent_p} = determine_position(params["sponsor"])
+        if params["upgrade"] != nil do
+          parent_p = get_placement_by_username(user.username)
+          {:ok, parent_p}
+        else
+          {position, parent_p} = determine_position(params["sponsor"])
 
-        create_placement(%{
-          parent_user_id: parent_p.user_id,
-          parent_placement_id: parent_p.id,
-          position: position,
-          user_id: user.id
-        })
+          create_placement(%{
+            parent_user_id: parent_p.user_id,
+            parent_placement_id: parent_p.id,
+            position: position,
+            user_id: user.id
+          })
+        end
       end)
       |> Multi.run(:pgsd, fn _repo, %{user: user, sale: sale, placement: placement} ->
         contribute_group_sales(user.username, sale.total_point_value, sale, placement)
@@ -1997,13 +2100,22 @@ defmodule CommerceFront.Settings do
                                                sale: sale,
                                                placement: placement
                                              } ->
-        special_share_reward(user.id, sale.total_point_value, sale)
+        if params["upgrade"] != nil do
+          {:ok, nil}
+        else
+          special_share_reward(user.id, sale.total_point_value, sale)
+        end
       end)
       |> Repo.transaction()
       |> IO.inspect()
       |> case do
         {:ok, multi_res} ->
-          placement_counter_reset()
+          if params["upgrade"] != nil do
+            {:ok, nil}
+          else
+            placement_counter_reset()
+          end
+
           {:ok, multi_res |> Map.get(:user)}
 
         _ ->

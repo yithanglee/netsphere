@@ -166,6 +166,15 @@ export let commerceApp_ = {
 
 
       var sale = phxApp_.api("get_sale", { id: pageParams.id })
+
+      if (sale.status == "pending_payment") {
+        var res = phxApp_.api("check_bill", { id: sale.payment.billplz_code })
+
+        if (res.paid == true) {
+          phxApp_.notify("Payment updated!")
+        }
+      }
+      $("title").html("Order ID: " + sale.id)
       window.sale = sale
       var count = 0,
         list = [],
@@ -186,6 +195,9 @@ export let commerceApp_ = {
       }).reduce((a, b) => {
         return a + b
       }, 0)
+
+
+
       eligible_rank = this.evalRank(subtotal)
 
 
@@ -248,8 +260,116 @@ export let commerceApp_ = {
 
 
       })
+
+
+      var payment_info = `
+
+               <div class="d-flex justify-content-between align-items-center">
+                  <span class="fs-4">Subtotal</span>
+                  <span class=" me-4">RP <span class="format-float">` + subtotal + `</span></span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="fs-5">Total PV</span>
+                  <span class="text-info me-4"><span class="format-integer">` + total_pv + ` PV</span></span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="fw-bold text-secondary">Eligible Rank</span>
+                  <span class="text-info me-4"><span class="format-integer">` + eligible_rank + `</span></span>
+                </div>
+
+      `
+
       reg_dets = JSON.parse(sale.registration_details)
       shipping = reg_dets.user.shipping
+      payment = sale.payment
+      var drp_details = {};
+      if (sale.payment.payment_url != null) {
+        payment_info = `
+
+               <div class="d-flex justify-content-between align-items-center">
+                  <span class="fs-4">Subtotal</span>
+                  <span class=" ">RP <span class="format-float">` + subtotal + `</span></span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="fs-5">Total PV</span>
+                  <span class="text-info "><span class="format-integer">` + total_pv + ` PV</span></span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="fw-bold text-secondary">Eligible Rank</span>
+                  <span class="text-info "><span class="format-integer">` + eligible_rank + `</span></span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="fw-bold text-secondary">Paid with</span>
+                  <span class="text-primary "><span class="">` + (payment.payment_method.split("_").map((v, i) => {
+          return ColumnFormater.capitalize(v)
+
+        }).join(" ")) + `</span></span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="fw-bold text-secondary">Payment Link</span>
+                  <span class="text-primary "><a target="_blank" href="` + payment.payment_url + `" class="">` + payment.payment_url + `</a></span>
+                </div>
+
+      `
+      }
+      if (sale.payment.webhook_details != null) {
+
+        sale.payment.webhook_details.split("|").map((v, i) => {
+
+          data = v.split(": ")
+          var key = data[0].replace(" ", "_")
+          console.log(key)
+          drp_details[key] = parseFloat(data[1])
+
+
+        })
+        drp_amount = 0
+        if (drp_details.drp_paid != null) {
+
+          drp_amount = drp_details.drp_paid
+        }
+        if (drp_details.pp_paid != null) {
+          total_pv = 0
+        }
+        payment_info = `
+
+               <div class="d-flex justify-content-between align-items-center">
+                  <span class="fs-5">Subtotal</span>
+                  <span class=" ">RP <span class="format-float">` + subtotal + `</span></span>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="fs-5">Discount (<small>DRP</small>)</span>
+                  <span class=" ">- RP <span class="format-float">` + drp_amount + `</span></span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="fs-5">Total PV</span>
+                  <span class="text-info "><span class="format-integer">` + (total_pv - drp_amount ) + ` PV</span></span>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="fs-4">Grand Total</span>
+                  <span class=" ">RP <span class="format-float">` + (subtotal - drp_amount - (drp_details.rp_paid||0)) + ` PV</span></span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="fw-bold text-secondary">Eligible Rank</span>
+                  <span class="text-info "><span class="format-integer">` + eligible_rank + `</span></span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="fw-bold text-secondary">Paid with</span>
+                  <span class="text-primary "><span class="">` + (payment.payment_method.split("_").map((v, i) => {
+          return ColumnFormater.capitalize(v)
+
+        }).join(" ")) + `</span></span>
+                        </div>
+
+              `
+
+
+      }
+
+
+
 
       $("salesItems").html(`
         <div class="d-flex align-items-center justify-content-between gap-2">
@@ -257,8 +377,8 @@ export let commerceApp_ = {
         </div>
                 <div class="d-flex flex-column mb-4 ">
                    <span class="text-secondary">Recipient:</span> 
-                   <span>` + reg_dets.user.fullname + `, ` + reg_dets.user.phone + `</span>
-                   <span>` + reg_dets.user.email + ` </span>
+                   <span>` + (reg_dets.user.fullname || phxApp_.user.fullname )+ `, ` + (reg_dets.user.phone || phxApp_.user.phone) + `</span>
+                   <span>` + (reg_dets.user.email || phxApp_.user.email )+ ` </span>
                 </div>
 
 
@@ -270,18 +390,7 @@ export let commerceApp_ = {
 
                    <span class="text-secondary">Items:</span>
                 <div class="d-flex flex-column gap-2">` + list.join("") + `
-                  <div class="d-flex justify-content-between align-items-center">
-                    <span class="fs-4">Subtotal</span>
-                    <span class=" me-4">RP <span class="format-float">` + subtotal + `</span></span>
-                  </div>
-                  <div class="d-flex justify-content-between align-items-center">
-                    <span class="fs-5">Total PV</span>
-                    <span class="text-info me-4"><span class="format-integer">` + total_pv + ` PV</span></span>
-                  </div>
-                  <div class="d-flex justify-content-between align-items-center">
-                    <span class="fw-bold text-secondary">Eligible Rank</span>
-                    <span class="text-info me-4"><span class="format-integer">` + eligible_rank + `</span></span>
-                  </div>
+                ` + payment_info + `
                 </div>
 
         `)
@@ -311,6 +420,12 @@ export let commerceApp_ = {
       }).reduce((a, b) => {
         return a + b
       }, 0)
+
+
+      if ($("cartItems").attr("upgrade") != null) {
+        subtotal = subtotal + memberApp_.user.rank.retail_price
+      }
+      console.log(subtotal)
       eligible_rank = this.evalRank(subtotal)
 
 
@@ -404,9 +519,21 @@ export let commerceApp_ = {
         `)
 
       var user = memberApp_.user,
+        wallets = []
+
+
+      if (user.wallets == null) {
+
         wallets = phxApp_.api("user_wallet", {
           token: user.token
         })
+        user.wallets = wallets
+      } else {
+        wallets = user.wallets
+      }
+
+
+
 
 
       function appendWalletAttr() {
@@ -424,7 +551,7 @@ export let commerceApp_ = {
           })
         }
       }
-
+      $("input[name='user[payment][method]']").unbind()
       $("input[name='user[payment][method]']").on("change", () => {
         $("#coupon-detail").addClass("d-none")
 
@@ -455,7 +582,10 @@ export let commerceApp_ = {
       function drpChanged() {
         appendWalletAttr()
         var drp_amount = 0
-        drp_amount = $("#drp_payment").val()
+        if ($("#drp_payment").length > 0) {
+
+          drp_amount = $("#drp_payment").val()
+        }
         $("cartItems").html(`
 
                   <div class="d-flex flex-column gap-2">` + list.join("") + `
@@ -518,14 +648,22 @@ export let commerceApp_ = {
         })
       }
 
-      $("#drp_payment").on("change", () => {
+
+      function drpChangeHandler(event) {
 
         $("#drp_payment").removeAttr("max")
         $("#drp_payment").removeAttr("min")
         $("#drp_payment").removeAttr("value")
 
         drpChanged()
-      })
+      }
+
+      drp_elem = document.getElementById("drp_payment")
+      if (drp_elem != null) {
+        drp_elem.removeEventListener("change", drpChangeHandler)
+        drp_elem.addEventListener("change", drpChangeHandler)
+      }
+
       $("[add-product-id]").each((i, v) => {
         var id = $(v).attr("add-product-id")
 
@@ -563,6 +701,7 @@ export let commerceApp_ = {
         $(v)[0].onclick = deleteItem
       })
 
+
       $("input[name='user[payment][method]']").each((i, v) => {
 
         if ($(v)[0].checked == true) {
@@ -585,9 +724,12 @@ export let commerceApp_ = {
       ColumnFormater.formatDate();
     },
     evalRank(subtotal) {
+
       check = memberApp_.ranks.filter((v, i) => {
         return v.retail_price <= subtotal
       })[0]
+
+
       var eligible_rank = "n/a"
 
       if (check) {
@@ -675,7 +817,9 @@ export let commerceApp_ = {
           </div>`)
       })
 
-
+      if ($("cartItems").attr("upgrade") != null) {
+        subtotal = subtotal + memberApp_.user.rank.retail_price
+      }
 
       eligible_rank = this.evalRank(subtotal)
       bg_ranks = [
@@ -821,14 +965,20 @@ export let commerceApp_ = {
           </div>`)
       })
 
-
+      if ($("cartItems").attr("upgrade") != null) {
+        subtotal = subtotal + memberApp_.user.rank.retail_price
+      }
       eligible_rank = this.evalRank(subtotal)
       perc = subtotal / memberApp_.ranks[0].retail_price * 100
 
       $("cart").each((i, v) => {
+        var needDropUp = `dropdown`
 
+        if ($(v).attr("dropup") != null) {
+          needDropUp = `dropup`
+        }
         $(v).html(`
-            <div class="dropdown  ">
+            <div class="` + needDropUp + `  ">
               <div class="mx-3 py-2 btn btn-outline-success rounded-xl position-relative"  data-bs-toggle="dropdown" aria-expanded="false">
                 <div style="top: 4px !important;" class="badge bg-warning position-absolute top-0 start-100 translate-middle bc">` + count + `</div>
                 <i class="fa fa-shopping-cart"></i>
@@ -910,6 +1060,8 @@ export let commerceApp_ = {
       phxApp_.api("get_product", {
         id: pageParams.id
       }, null, (data) => {
+        $("title").html(data.name)
+
         function addToCart_() {
           commerceApp_.addItem_(data)
           commerceApp_.components["updateCart"]()
@@ -1033,14 +1185,14 @@ export let commerceApp_ = {
               }
             }
             var card = `
-          <div onclick="phxApp.navigateTo('/products/` + data.id + `/` + data.name + `')">
-            <div  class="d-flex justify-content-center p-4 " 
+          <div  class="m-2 d-flex flex-column gap-2" onclick="phxApp.navigateTo('/products/` + data.id + `/` + data.name + `')">
+            <div  class="d-flex justify-content-center mb-4 py-4 background-p" 
                   style="
                     cursor: pointer;   
-                    position: relative; 
-                    height: 260px;">
-              <div class="rounded py-2" style="
-                    height: 220px;
+                    position: relative; "
+                   >
+              <div class="rounded py-2 background-p" style="
+                
                     width: 80%;
                     filter: blur(4px);
                     position: absolute;
@@ -1048,12 +1200,11 @@ export let commerceApp_ = {
                     background-position: center;
                     background-size: cover;
                     background-image: url('` + img + `');
-                    bottom: 10px;
-                    left: 20px;
+                    
                     ">
               </div>
-              <div class="rounded py-2" style="
-                    height: 220px;
+              <div class="rounded py-2 foreground-p" style="
+                   
                     width:  100%;
                     z-index: 1;
                     background-position: center;
@@ -1063,7 +1214,7 @@ export let commerceApp_ = {
                     ">
               </div>
             </div>
-            <div class="d-flex flex-column justify-content-center gap-2">
+            <div class="d-flex flex-column justify-content-center gap-2 mt-4">
               <div class="font-sm fw-bold text-center">` + data.name + `</div>
                <div class="d-flex flex-column justify-content-center ">
                   <div class="font-sm fw-light text-secondary text-center format-float">` + data.retail_price + `</div>
@@ -1076,8 +1227,21 @@ export let commerceApp_ = {
             return card
           },
           data: {
-            grid_class: "col-6 col-lg-3",
-            dom: '<"row px-4"<"col-lg-6 col-12"i><"col-12 col-lg-6">><"row grid_view "><"list_view d-none"t><"row transform-75 px-4"<"col-lg-6 col-12"><"col-lg-6 col-12"p>>'
+            grid_class: "col-4 col-lg-3",
+            dom: `
+
+                <"row px-4"
+                  <"col-lg-6 col-12"i>
+                  <"col-12 col-lg-6">
+                >
+                <"row grid_view ">
+                <"list_view d-none"t>
+                <"row transform-75 px-4"
+                  <"col-lg-6 col-12">
+                  <"col-lg-6 col-12"p>
+                >
+
+            `
           },
           columns: [
 
@@ -1190,8 +1354,8 @@ export let commerceApp_ = {
             
 
           <div class="row gx-0 d-none loading">
-            <div class="col-12 col-lg-10 offset-lg-1">
-              <div id="tab1"></div>
+            <div class="col-12">
+              <div id="tab1">No rewards</div>
             </div>
           </div>
         `)
@@ -1234,7 +1398,6 @@ export let commerceApp_ = {
             }
           })
         })
-
 
         $("#tab1").html(`` + list.join("") + ``)
         phxApp.formatDate()
@@ -1311,7 +1474,7 @@ export let commerceApp_ = {
 
 
       var user = memberApp_.user;
-      var name = user != null ? "Welcome! " + `<a href="/profile" class="navi">` + user.fullname + `</a>` : `<a href="/login" class="navi">Login</a>`
+      var name = user != null ? "Welcome! " + `<a href="/profile" class="navi">` + user.fullname + ` (` + user.rank.name + `)</a>` : `<a href="/login" class="navi">Login</a>`
       $("userProfile").html(`
             
               ` + name + `

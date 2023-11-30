@@ -36,6 +36,13 @@ For every 100PV shared, receive an additional #DRP 50
 #DRP only for registering new shared entries, PV not included.
 When choosing DRP at registration, you only need to pay the balance of RP 50%.
 
+
+i buy bronze package , 100 RP
+when choose pay with DRP,
+i can only use 50 RP?
+can use less?
+
+
 B）Team Bonus-weak team 10%(MPO40%)
 Bronze-daily max BP100
 Silver-daily max BP500

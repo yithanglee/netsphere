@@ -56,6 +56,8 @@ defmodule CommerceFrontWeb.ApiController do
     json(conn, Phoenix.Controller.get_csrf_token())
   end
 
+  require IEx
+
   def get(conn, params) do
     token = params |> Map.get("token")
 
@@ -88,6 +90,46 @@ defmodule CommerceFrontWeb.ApiController do
 
         "announcements" ->
           Settings.list_announcements() |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
+
+        "check_bill" ->
+          res =
+            Billplz.get_bill(params["id"])
+            |> IO.inspect()
+
+          payment =
+            Settings.get_payment_by_billplz_code(params["id"])
+            |> IO.inspect()
+
+          with true <- res["paid"] == true,
+               true <- payment != nil,
+               true <- payment.sales != nil,
+               sales <- payment.sales |> IO.inspect(),
+               {:ok, register_params} <-
+                 sales.registration_details |> Jason.decode() |> IO.inspect() do
+            case Settings.register(register_params["user"], sales) do
+              {:ok, multi_res} ->
+                %{status: "ok", res: multi_res |> BluePotion.sanitize_struct()}
+
+              _ ->
+                %{status: "error"}
+            end
+          else
+            _ ->
+              with true <- payment.wallet_topup != nil do
+                case Settings.approve_topup(%{"id" => payment.wallet_topup.id}) do
+                  {:ok, tp} ->
+                    %{status: "ok", res: tp |> BluePotion.sanitize_struct()}
+
+                  _ ->
+                    %{status: "error"}
+                end
+              else
+                _ ->
+                  %{status: "ok"}
+              end
+          end
+
+          res
 
         "node" ->
           if params["token"] != nil do
@@ -246,6 +288,36 @@ defmodule CommerceFrontWeb.ApiController do
           case Settings.create_topup_transaction(params) do
             {:ok, multi_res} ->
               %{status: "ok", res: multi_res.payment |> BluePotion.sanitize_struct()}
+
+            _ ->
+              %{status: "error"}
+          end
+
+        "redeem" ->
+          # get the billplz link first, then make payment
+          # create the sales first
+          # Settings.register(params["user"])
+          case Settings.create_sales_transaction(params) |> IO.inspect() do
+            {:ok, multi_res} ->
+              %{status: "ok", res: multi_res.payment |> BluePotion.sanitize_struct()}
+
+            {:error, :payment, "not sufficient", passed_cg} ->
+              %{status: "error", reason: "wallet balance not sufficient"}
+
+            _ ->
+              %{status: "error"}
+          end
+
+        "upgrade" ->
+          # get the billplz link first, then make payment
+          # create the sales first
+          # Settings.register(params["user"])
+          case Settings.create_sales_transaction(params) |> IO.inspect() do
+            {:ok, multi_res} ->
+              %{status: "ok", res: multi_res.payment |> BluePotion.sanitize_struct()}
+
+            {:error, :payment, "not sufficient", passed_cg} ->
+              %{status: "error", reason: "wallet balance not sufficient"}
 
             _ ->
               %{status: "error"}

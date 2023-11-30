@@ -8,6 +8,9 @@ defmodule CommerceFront do
   """
 
   @doc """
+
+    CommerceFront.Settings.pay_unpaid_bonus(~D[2023-11-07], ["sharing bonus", "team bonus"])
+
   CommerceFront.daily_task(~D[2023-11-27])
   like everyday before 8am, you need to run this using yesterday's date...
 

@@ -4,6 +4,28 @@ defmodule Billplz do
   @auth [hackney: [basic_auth: {@key, ""}]]
   @callback_url Application.get_env(:commerce_front, :billplz)[:callback]
   @redirect_url Application.get_env(:commerce_front, :url)
+
+  def get_bill(bill_id) do
+    url = @endpoint <> "v3/bills/#{bill_id}"
+
+    with {:ok,
+          %HTTPoison.Response{
+            body: body,
+            status_code: 200
+          }} <-
+           HTTPoison.get(
+             url,
+             [{"Content-Type", "application/json"}],
+             @auth
+           ),
+         {:ok, res} <- Jason.decode(body) do
+      res
+    else
+      _ ->
+        []
+    end
+  end
+
   @doc """
   Billplz.create_open_collection("wetml7wi")
   """
@@ -11,7 +33,8 @@ defmodule Billplz do
         description: description,
         email: email,
         name: name,
-        amount: amount
+        amount: amount,
+        phone: phone
       }) do
     url = @endpoint <> "v3/bills"
 
@@ -20,6 +43,7 @@ defmodule Billplz do
            Jason.encode!(%{
              collection_id: collection_id,
              email: email,
+             mobile: phone,
              name: name,
              amount: (amount * 100) |> :erlang.trunc(),
              callback_url: @callback_url,

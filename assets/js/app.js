@@ -11,6 +11,7 @@ import { memberApp_ } from './member_app.js';
 import { Socket } from "./phoenix.js"
 import { phoenixModel } from './phoenixModel.js';
 
+$("html").attr("data-bs-theme", "light")
 const useSw = false,
   isDev = window.location.hostname == "localhost";
 if ('serviceWorker' in navigator && useSw) {
@@ -26,7 +27,7 @@ if ('serviceWorker' in navigator && useSw) {
 window.phoenixModel = phoenixModel;
 window.phoenixModels = []
 window.phxApp = phxApp_
-if (!isDev) {
+if (isDev) {
 
   window.commerceApp = commerceApp_
   window.memberApp = memberApp_
@@ -37,11 +38,12 @@ window.addEventListener(
   "popstate",
   function(event) {
     try {
+
       // supposing rerun the navigate?
       if (history.valueOf().state != null) {
-
-        console.log(history.valueOf().state.fn)
         // var adder = new Function(history.valueOf().state.fn);
+
+        // console.log(history.valueOf().state.fn)
         window.back = true;
         window.parsePage = true;
 
@@ -61,14 +63,17 @@ window.addEventListener(
   },
   true
 );
+
 const route_list = [
   { html: "new_topup.html", title: "Register Point Topup ", route: "/topup_register_point" },
-  
+  { html: "upgrade.html", title: "Upgrade ", route: "/upgrade" },
+  { html: "redeem.html", title: "Redeem ", route: "/redeem" },
+
   { html: "reward_details.html", title: "Reward Details ", route: "/reward_details/:name" },
-  { html: "sales_detail.html", title: "Sales ", route: "/sales/:id" },
-  { html: "sales.html", title: "Sales ", route: "/sales" },
+  { html: "sales_detail.html", title: "Sales Details", route: "/sales/:id" },
+  { html: "sales.html", title: "Sales History", route: "/sales" },
   { html: "wallet_transaction.html", title: "Transactions ", route: "/wallets/:id" },
-  { html: "product.html", title: "Product ", route: "/products/:id/:name" },
+  { html: "product.html", title: "Product", route: "/products/:id/:name" },
   { html: "register.html", title: "Register", route: "/register" },
   { html: "logout.html", title: "Logout", route: "/logout" },
   { html: "login.html", title: "Login", route: "/login" },
@@ -157,19 +162,13 @@ if (isDev) {
 
 
 $(document).on("click", "a.navi", function(event) {
-  $("#content").html(`
-      <div class="text-center mt-4">
-            <div class="spinner-border loading2" role="status">
-              <span class="visually-hidden">Loading...</span>
-            </div>
-          </div>
-
-      `)
+  phxApp.show()
   event.preventDefault();
   setTimeout(() => {
     if ($(this).attr("href").includes("#")) {
 
     } else {
+
       phxApp_.navigateTo($(this).attr("href"))
     }
   }, 200)

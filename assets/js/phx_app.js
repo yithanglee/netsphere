@@ -56,6 +56,12 @@ export let phxApp_ = {
     console.log(commerceApp_.hasCartItems())
     return commerceApp_.hasCartItems() > 0
   },
+  redeem(dom) {
+    memberApp_.redeem(dom)
+  },
+  upgrade(dom) {
+    memberApp_.upgrade(dom)
+  },
   register(dom) {
     memberApp_.register(dom)
   },
@@ -101,7 +107,7 @@ export let phxApp_ = {
 
     return label
   },
-  navigateTo(route, additionalParamString) {
+  async navigateTo(route, additionalParamString) {
 
 
 
@@ -135,7 +141,17 @@ export let phxApp_ = {
         })
         return z[0] == current_pattern[0]
       })
+    // try {
+    //   var canvas = await html2canvas(document.querySelector("#content"));
+    //   $("#old_content").html(canvas)
+    // } catch (e) {
+    //   console.error(e)
+
+    // }
+    // $("#old_content").show()
+    // $("#content").hide()
     this.hide()
+
 
     if (match_2.length > 0) {
 
@@ -147,14 +163,7 @@ export let phxApp_ = {
           }
         })
       })
-      $("#content").html(`
-          <div class="text-center mt-4">
-            <div class="spinner-border loading2" role="status">
-              <span class="visually-hidden">Loading...</span>
-            </div>
-          </div>
 
-      `)
       console.log("params here")
       console.log(params)
       window.pageParams = params
@@ -183,11 +192,12 @@ export let phxApp_ = {
 
 
         if (Object.keys(params).includes("title")) {
-          $("title").html(this.evalTitle(params.title))
           history.pushState(stateObj, evalTitle(params.title), route);
+          $("title").html(this.evalTitle(params.title))
         } else {
-          $("title").html(this.evalTitle(match_2[0].title))
           history.pushState(stateObj, this.evalTitle(match_2[0].title), route);
+          $("title").html(this.evalTitle(match_2[0].title))
+
         }
       }
       var nav = this.html("blog_nav.html")
@@ -204,16 +214,20 @@ export let phxApp_ = {
 
         $("#content").html(initPage)
         this.navigateCallback()
-
       } else {
-
         if (keys.includes("customNav")) {
           var nav = this.html(match_2[0].customNav)
         }
 
 
+
+
+
         $("#content").html(nav)
         $("#content").append(initPage)
+        // $("#old_content").fadeOut(500)
+        // $("#content").fadeIn(500)
+
         this.navigateCallback()
       }
       return match_2[0]
@@ -416,12 +430,10 @@ export let phxApp_ = {
   validateForm(selector, successCallback) {
     var failed_inputs =
       $(selector).find("[name]").filter((i, v) => {
-          $(v).removeClass("is-invalid")
-        console.log("checking vaidity")
-        console.log(v)
+        $(v).removeClass("is-invalid")
         return v.checkValidity() == false
       })
-    console.log(failed_inputs);
+
     if (failed_inputs.length > 0) {
       var labels = []
       failed_inputs.map((v, i) => {
@@ -430,11 +442,7 @@ export let phxApp_ = {
         if (label == null) {
           label = $(i).attr("name")
         }
-
         labels.push(label)
-
-
-
       })
       phxApp_.notify("This input: " + labels.join(", ") + " is not valid!", {
         type: "danger"
@@ -488,14 +496,14 @@ export let phxApp_ = {
         } else {
 
           if (j.reason != null) {
-       phxApp_.notify("Not added! " + j.reason, {
-            type: "danger"
-          });
+            phxApp_.notify("Not added! " + j.reason, {
+              type: "danger"
+            });
           } else {
 
-          phxApp_.notify("Not added!", {
-            type: "danger"
-          });
+            phxApp_.notify("Not added!", {
+              type: "danger"
+            });
           }
 
         }
@@ -629,6 +637,10 @@ export let phxApp_ = {
     memberApp_.restoreUser();
     commerceApp_.restoreCart();
     this.user = memberApp_.user
+    if (this.user != null) {
+
+      this.user.wallets = null
+    }
     try {
 
       commerceApp_.render();
@@ -2018,7 +2030,7 @@ export let phxApp_ = {
     temparray.forEach((row, i) => {
 
       var parentDiv = document.createElement("div")
-      parentDiv.setAttribute("class", "row g-2 ")
+      parentDiv.setAttribute("class", "row gx-0 ")
 
       row.forEach((pv, pi) => {
         var data = pv

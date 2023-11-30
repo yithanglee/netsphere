@@ -8,6 +8,7 @@ defmodule CommerceFront.Settings.Payment do
     field(:billplz_code, :string)
     field(:payment_url, :string)
     # field(:sales_id, :integer)
+    has_one(:user, CommerceFront.Settings.User)
     belongs_to(:wallet_topup, CommerceFront.Settings.WalletTopup)
     belongs_to(:sales, CommerceFront.Settings.Sale)
     field(:webhook_details, :binary)

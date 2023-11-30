@@ -12,14 +12,14 @@ defmodule CommerceFrontWeb.Router do
                               # _ -> "default-src 'self' 'unsafe-eval'"
 
                               _ ->
-                                "default-src 'self' 'unsafe-inline' fonts.gstatic.com; img-src 'self' data: ; style-src 'self' 'unsafe-inline' fonts.googleapis.com fonts.gstatic.com;"
+                                "default-src 'self' 'unsafe-inline' fonts.gstatic.com; img-src 'self' blob data: ; style-src 'self' 'unsafe-inline' fonts.googleapis.com fonts.gstatic.com;"
                             end)
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
     plug :fetch_flash
     plug :protect_from_forgery
-    plug :put_secure_browser_headers, %{"content-security-policy" => @content_security_policy}
+    # plug :put_secure_browser_headers, %{"content-security-policy" => @content_security_policy}
   end
 
   pipeline :plain_api do
@@ -48,6 +48,7 @@ defmodule CommerceFrontWeb.Router do
 
     plug CORSPlug,
       origin: [
+        "2cb0-115-164-216-41.ngrok-free.app",
         "f770-115-164-46-61.ngrok-free.app",
         "https://fonts.gstatic.com",
         "https://svt.damienslab.com",

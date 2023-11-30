@@ -1,33 +1,13 @@
+
 <!--
-need a template to start... 
-each design uses a folder
-the priv static can only be access by the phoenix app
-
-
-
-// Example using TweenMax
-const page1 = document.getElementById('old_content');
-const page2 = document.getElementById('content');
-
-// Initial setup
-page1.style.display = 'block';
-
-// Transition from page 1 to page 2
-const tl = gsap.timeline();
-tl.to(page1, { duration: 1, opacity: 0 })
-  .to(page1, { display: 'none' })
-  .fromTo(page2, { opacity: 0 }, { duration: 1, opacity: 1, display: 'block' });
-
-
--->
-
-<div id="content">
-  <div class="text-center mt-4">
-    <div class="spinner-border " role="status">
-      <span class="visually-hidden">Loading...</span>
-    </div>
+  <div id="old_content" class="position-absolute w-100" style="min-height: 100vh;">
+    
   </div>
+-->
+<div id="content" style="">
+
 </div>
+
 <div class="py-4 text-white d-flex flex-column justify-content-center align-items-center bg-dark" style="">
   <div class="w-75 row gx-0">
     <div class="col-12 col-lg-4">
@@ -36,7 +16,7 @@ tl.to(page1, { duration: 1, opacity: 0 })
         <span class="ms-2 d-flex flex-column">
           <span class="my-2 fw-bold">HAHO LIFE SDN BHD</span>
           <span class="my-1"><i class="fa fa-building me-1"></i>J-2-10, Kuchai Business Park,<br> No.2, Jalan 1/127,<br>Off Jalan Kuchai Lama,<br>
-58200 Kuala Lumpur, Malaysia.</span>
+            58200 Kuala Lumpur, Malaysia.</span>
           <span><i class="fa fa-phone me-1"></i>Phone: 012 2664 254 (Admin)</span>
           <span><i class="fa fa-envelope me-1"></i>Email: haho_support@gmail.com</span>
         </span>
@@ -103,7 +83,7 @@ tl.to(page1, { duration: 1, opacity: 0 })
     </div>
   </div>
 </div>
-<div class="m-4 position-fixed bottom-0 start-0 " style="z-index: 100;">
+<div class="m-4 position-fixed bottom-0 start-0 " style="z-index: 100;margin-bottom: 8vh !important;">
   <div class="w-100 toast" role="alert" aria-live="assertive" aria-atomic="true" id="notification-1">
     <div class="toast-header">
       <strong class="me-auto">HAHO</strong>
