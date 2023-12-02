@@ -43,9 +43,9 @@ defmodule CommerceFront.Calculation do
     uplines = CommerceFront.Settings.check_uplines(username, :referal) |> Enum.with_index(1)
 
     matrix = [
-      %{rank: "青铜套餐", l1: 0.2, calculated: false},
-      %{rank: "银色套餐", l1: 0.2, l2: 0.1, calculated: false},
-      %{rank: "黄金套餐", l1: 0.2, l2: 0.1, l3: 0.1, calculated: false}
+      %{rank: "铜级套餐", l1: 0.2, calculated: false},
+      %{rank: "银级套餐", l1: 0.2, l2: 0.1, calculated: false},
+      %{rank: "金级套餐", l1: 0.2, l2: 0.1, l3: 0.1, calculated: false}
     ]
 
     run_calc = fn {upline, index}, {calc_index, eval_matrix, remainder_point_value} ->
@@ -265,9 +265,9 @@ defmodule CommerceFront.Calculation do
           rank = user |> Map.get(:rank)
 
           matrix = [
-            %{rank: "青铜套餐", cap: 100},
-            %{rank: "银色套餐", cap: 500},
-            %{rank: "黄金套餐", cap: 1500}
+            %{rank: "铜级套餐", cap: 100},
+            %{rank: "银级套餐", cap: 500},
+            %{rank: "金级套餐", cap: 1500}
           ]
 
           {{y, m, d}, _time} = NaiveDateTime.to_erl(sale.inserted_at)
@@ -477,9 +477,9 @@ defmodule CommerceFront.Calculation do
           rank = user |> Map.get(:rank)
 
           matrix = [
-            %{rank: "青铜套餐", cap: 100},
-            %{rank: "银色套餐", cap: 500},
-            %{rank: "黄金套餐", cap: 1500}
+            %{rank: "铜级套餐", cap: 100},
+            %{rank: "银级套餐", cap: 500},
+            %{rank: "金级套餐", cap: 1500}
           ]
 
           {y, m, d} = date |> Date.to_erl()
@@ -1146,8 +1146,6 @@ defmodule CommerceFront.Calculation do
               year: year
             }
 
-            # |> IO.inspect()
-
             CommerceFront.Settings.create_reward(p)
 
             initial_index + 1
@@ -1162,5 +1160,42 @@ defmodule CommerceFront.Calculation do
       {:ok, nil}
     end)
     |> Repo.transaction()
+  end
+
+  @doc """
+
+  if drp_amount  = 250 
+  250 * 0.01 = 2.5 
+  to 10 uplines, compress upline
+
+  """
+  def drp_sales_level_bonus(sales_id, drp_amount, child_user, date) do
+    {y, m, d} = date |> Date.to_erl()
+    uplines = CommerceFront.Settings.check_uplines(child_user.username, :referal)
+
+    calc_fn = fn upline, index ->
+      if index <= 10 do
+        amount = (drp_amount * 0.01) |> Float.round(2)
+
+        p = %{
+          sales_id: sales_id,
+          is_paid: false,
+          remarks: "#{drp_amount} * 0.01 = #{amount}|level: #{index}",
+          name: "drp sales level bonus",
+          amount: amount,
+          user_id: upline.parent_id,
+          day: d,
+          month: m,
+          year: y
+        }
+
+        CommerceFront.Settings.create_reward(p)
+        index + 1
+      else
+        index
+      end
+    end
+
+    Enum.reduce(uplines, 1, &calc_fn.(&1, &2))
   end
 end

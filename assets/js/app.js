@@ -12,8 +12,12 @@ import { Socket } from "./phoenix.js"
 import { phoenixModel } from './phoenixModel.js';
 
 $("html").attr("data-bs-theme", "light")
-const useSw = false,
+var useSw = true,
   isDev = window.location.hostname == "localhost";
+
+if (isDev) {
+  useSw = false
+}
 if ('serviceWorker' in navigator && useSw) {
   navigator.serviceWorker.register('/sw.js')
     .then(registration => {

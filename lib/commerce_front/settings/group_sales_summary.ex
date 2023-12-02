@@ -12,6 +12,9 @@ defmodule CommerceFront.Settings.GroupSalesSummary do
     field(:total_right, :integer, default: 0)
     field(:new_left, :integer, default: 0)
     field(:new_right, :integer, default: 0)
+
+    field(:sum_left, :integer, virtual: true)
+    field(:sum_right, :integer, virtual: true)
     # field(:user_id, :integer)
     belongs_to(:user, CommerceFront.Settings.User)
     field(:year, :integer)

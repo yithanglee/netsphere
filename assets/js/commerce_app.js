@@ -725,10 +725,20 @@ export let commerceApp_ = {
     },
     evalRank(subtotal) {
 
-      check = memberApp_.ranks.filter((v, i) => {
+
+       var sort = [];
+      memberApp_.ranks.map((v, i) => {
+        sort.push(v)
+      })
+
+      sort.sort((a, b) => {
+        return b.retail_price - a.retail_price
+      })
+
+
+      check = sort.filter((v, i) => {
         return v.retail_price <= subtotal
       })[0]
-
 
       var eligible_rank = "n/a"
 
@@ -830,7 +840,7 @@ export let commerceApp_ = {
 
       ]
 
-      perc = subtotal / memberApp_.ranks[0].retail_price * 100
+      perc = subtotal / memberApp_.ranks[2].retail_price * 100
 
       $(".ac").each((i, vv) => {
 
@@ -838,7 +848,9 @@ export let commerceApp_ = {
                 <li id="divider">
                   <hr class="dropdown-divider">
                 </li>
-               <li>                  <a class="dropdown-item navi" href="/register">
+               <li>                  
+
+               <a class="dropdown-item navi" href="/register">
                     <div class="d-flex flex-column">
                       <div class="d-flex justify-content-between align-items-center">
                         <span>Checkout</span>
@@ -860,7 +872,8 @@ export let commerceApp_ = {
 
                     
                     </div>
-                  </a></li>`
+                  </a>
+                </li>`
 
 
         $(vv).html(html)
@@ -1367,7 +1380,7 @@ export let commerceApp_ = {
 
         $(".spinner-border.loading").parent().remove()
         $(".loading").removeClass("d-none")
-        var rewards = ["sharing bonus", "team bonus", "matching bonus", "elite leader", "travel fund", "repurchase bonus"],
+        var rewards = ["sharing bonus", "team bonus", "matching bonus", "elite leader", "travel fund", "repurchase bonus", "drp sales level bonus"],
           list = []
         rewards.forEach((r2, ii) => {
 

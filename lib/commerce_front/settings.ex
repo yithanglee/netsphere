@@ -323,13 +323,8 @@ defmodule CommerceFront.Settings do
   @doc """
 
   this transaction need to have 
-
-  CommerceFront.Settings.create_wallet_transaction(  %{
-    user_id: 583,
-    amount: 100.00,
-    remarks: "something",
-    wallet_type: "product"
-  })
+  CommerceFront.Settings.create_wallet_transaction(  %{user_id: 609, amount: 1100.00, remarks: "something", wallet_type: "direct_recruitment" })
+  CommerceFront.Settings.create_wallet_transaction(  %{user_id: 609, amount: 1100.00, remarks: "something", wallet_type: "register" })
 
   %{
     user_id: 1,
@@ -416,12 +411,32 @@ defmodule CommerceFront.Settings do
       end
       |> Date.to_erl()
 
+    subquery2 =
+      from(gss in GroupSalesSummary,
+        where:
+          gss.month == ^m and
+            gss.year == ^y and gss.user_id == ^user_id,
+        select: %{
+          sum_left: sum(gss.new_left),
+          sum_right: sum(gss.new_right),
+          user_id: gss.user_id
+        },
+        order_by: [asc: gss.user_id],
+        group_by: [gss.user_id, gss.month, gss.year]
+      )
+
+    Repo.all(subquery2) |> IO.inspect()
+
     Repo.all(
       from(gss in GroupSalesSummary,
+        full_join: gs2 in subquery(subquery2),
+        on: gs2.user_id == gss.user_id,
         where:
           gss.user_id == ^user_id and
             gss.day == ^d and gss.month == ^m and
-            gss.year == ^y
+            gss.year == ^y,
+        select: gss,
+        select_merge: %{sum_left: gs2.sum_left, sum_right: gs2.sum_right}
       )
     )
     |> List.first()
@@ -792,7 +807,9 @@ defmodule CommerceFront.Settings do
               balance_left: 0,
               balance_right: 0,
               new_left: 0,
-              new_right: 0
+              new_right: 0,
+              sum_left: 0,
+              sum_right: 0
             }
           end
 
@@ -805,7 +822,9 @@ defmodule CommerceFront.Settings do
           balance_left: gs_summary.balance_left,
           balance_right: gs_summary.balance_right,
           new_left: gs_summary.new_left,
-          new_right: gs_summary.new_right
+          new_right: gs_summary.new_right,
+          sum_left: gs_summary.sum_left,
+          sum_right: gs_summary.sum_right
         })
       end
     end
@@ -1026,7 +1045,9 @@ defmodule CommerceFront.Settings do
           balance_left,
           balance_right,
           new_left,
-          new_right
+          new_right,
+          sum_left,
+          sum_right
         ] = list |> String.split("|")
 
         zchildren =
@@ -1057,9 +1078,12 @@ defmodule CommerceFront.Settings do
             total_right: total_right || 0,
             balance_left: balance_left || 0,
             balance_right: balance_right || 0,
+            sum_left: sum_left || 0,
+            sum_right: sum_right || 0,
             new_left: new_left || 0,
             new_right: new_right || 0,
             name: username,
+            fullname: fullname,
             children: zchildren,
             username: username,
             id: id |> String.to_integer(),
@@ -1073,12 +1097,15 @@ defmodule CommerceFront.Settings do
             %{
               level: count,
               username: username,
+              fullname: fullname,
               left: left |> String.to_integer(),
               right: right |> String.to_integer(),
               total_left: total_left || 0,
               total_right: total_right || 0,
               balance_left: balance_left || 0,
               balance_right: balance_right || 0,
+              sum_left: sum_left || 0,
+              sum_right: sum_right || 0,
               new_left: new_left || 0,
               new_right: new_right || 0,
               position: position
@@ -1098,10 +1125,10 @@ defmodule CommerceFront.Settings do
 
         bg =
           case rank_name do
-            "黄金套餐" ->
+            "金级套餐" ->
               "bg-warning"
 
-            "银色套餐" ->
+            "银级套餐" ->
               "bg-info"
 
             _ ->
@@ -1148,7 +1175,9 @@ defmodule CommerceFront.Settings do
           balance_left,
           balance_right,
           new_left,
-          new_right
+          new_right,
+          sum_left,
+          sum_right
         ] = list
 
         map = ori_data |> Enum.filter(&(&1.parent_username == username)) |> List.first()
@@ -1246,7 +1275,6 @@ defmodule CommerceFront.Settings do
           else
             smap
           end
-          |> IO.inspect()
 
         inner_map = %{
           id: map.parent_id,
@@ -1260,9 +1288,18 @@ defmodule CommerceFront.Settings do
         if full do
           inner_map
         else
+          rank_name =
+            if :fullname in Map.keys(smap) do
+              smap.fullname
+            else
+              # IEx.pry()
+              smap.user.rank_name
+            end
+
           inner_map = %{
             id: map.parent_id,
             name: map.parent_username,
+            fullname: if(smap != nil, do: rank_name, else: "n/a"),
             position: if(smap != nil, do: smap.position, else: "n/a"),
             left: if(smap != nil, do: smap.left, else: "n/a"),
             right: if(smap != nil, do: smap.right, else: "n/a"),
@@ -1272,6 +1309,8 @@ defmodule CommerceFront.Settings do
             new_right: if(smap != nil, do: smap.new_right, else: "n/a"),
             balance_left: if(smap != nil, do: smap.balance_left, else: "n/a"),
             balance_right: if(smap != nil, do: smap.balance_right, else: "n/a"),
+            sum_left: if(smap != nil, do: smap.sum_left, else: "n/a"),
+            sum_right: if(smap != nil, do: smap.sum_right, else: "n/a"),
             children: children |> Enum.sort_by(& &1.position)
           }
 
@@ -1281,6 +1320,7 @@ defmodule CommerceFront.Settings do
             %{
               level: count,
               username: map.parent_username,
+              fullname: if(smap != nil, do: rank_name, else: "n/a"),
               position: if(smap != nil, do: smap.position, else: "n/a"),
               left: if(smap != nil, do: smap.left, else: "n/a"),
               right: if(smap != nil, do: smap.right, else: "n/a"),
@@ -1288,6 +1328,8 @@ defmodule CommerceFront.Settings do
               total_right: if(smap != nil, do: smap.total_right, else: "n/a"),
               balance_left: if(smap != nil, do: smap.balance_left, else: "n/a"),
               balance_right: if(smap != nil, do: smap.balance_right, else: "n/a"),
+              sum_left: if(smap != nil, do: smap.sum_left, else: "n/a"),
+              sum_right: if(smap != nil, do: smap.sum_right, else: "n/a"),
               new_left: if(smap != nil, do: smap.new_left, else: "n/a"),
               new_right: if(smap != nil, do: smap.new_right, else: "n/a")
             }
@@ -1304,10 +1346,10 @@ defmodule CommerceFront.Settings do
 
         bg =
           case map.rank_name do
-            "黄金套餐" ->
+            "金级套餐" ->
               "bg-warning"
 
-            "银色套餐" ->
+            "银级套餐" ->
               "bg-info"
 
             _ ->
@@ -1337,16 +1379,11 @@ defmodule CommerceFront.Settings do
     items = Repo.all(from(p in Placement, order_by: [desc: p.id], preload: [:user]))
 
     for item <- items do
-      IO.inspect(item)
-      uplines = CommerceFront.Settings.check_uplines(item.user.username) |> IO.inspect()
+      uplines = CommerceFront.Settings.check_uplines(item.user.username)
 
       for upline <- uplines do
         p = CommerceFront.Settings.get_placement!(upline.pt_parent_id) |> Repo.preload(:user)
         c = CommerceFront.Settings.get_placement!(upline.pt_child_id) |> Repo.preload(:user)
-
-        if p.user.username == "damien" do
-          # IEx.pry()
-        end
 
         changes =
           if upline.pt_position == "left" do
@@ -1361,7 +1398,7 @@ defmodule CommerceFront.Settings do
             }
           end
 
-        CommerceFront.Settings.Placement.changeset(p, changes) |> Repo.update() |> IO.inspect()
+        CommerceFront.Settings.Placement.changeset(p, changes) |> Repo.update()
       end
     end
   end
@@ -1431,7 +1468,7 @@ defmodule CommerceFront.Settings do
       end)
     end
 
-    uplines = check_uplines(from_username) |> IO.inspect()
+    uplines = check_uplines(from_username)
 
     if prev_multi != nil do
       multi = prev_multi
@@ -1951,8 +1988,24 @@ defmodule CommerceFront.Settings do
 
           case check_sufficient.(sale.subtotal) do
             # direct register liao... 
+
             {:ok, sale} ->
+              form_drp =
+                if params["user"]["payment"]["drp"] != nil do
+                  String.to_integer(params["user"]["payment"]["drp"])
+                else
+                  0
+                end
+
               {:ok, user} = register(params["user"], sale)
+
+              CommerceFront.Calculation.drp_sales_level_bonus(
+                sale.id,
+                form_drp,
+                user,
+                Date.utc_today()
+              )
+
               {:ok, %CommerceFront.Settings.Payment{payment_url: "/home", user: user}}
 
             _ ->
@@ -2212,15 +2265,15 @@ defmodule CommerceFront.Settings do
     select_statement = fn query ->
       if tree == :placement do
         query
-        |> select([m, pt, m2, gss], %{
+        |> select([m, pt, m2, gss, gss2], %{
           children:
             fragment(
-              "ARRAY_AGG( CONCAT(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) )",
+              "ARRAY_AGG( CONCAT(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) )",
               m.username,
               "|",
               m.id,
               "|",
-              m.fullname,
+              m.rank_name,
               "|",
               pt.position,
               "|",
@@ -2238,7 +2291,11 @@ defmodule CommerceFront.Settings do
               "|",
               gss.new_left,
               "|",
-              gss.new_right
+              gss.new_right,
+              "|",
+              gss2.sum_left,
+              "|",
+              gss2.sum_right
             ),
           parent: m2.fullname,
           parent_username: m2.username,
@@ -2284,12 +2341,24 @@ defmodule CommerceFront.Settings do
     |> join(:left, [m], pt in "placement_tree", on: m.id == pt.user_id)
     |> join(:left, [m, pt], m2 in User, on: m2.id == pt.parent_user_id)
     |> join(:full, [m, pt, m2], gss in subquery(gs_subquery()), on: gss.user_id == pt.user_id)
-    |> where([m, pt, m2], m.id > ^parent_user_id)
-    |> where([m, pt, m2, gss], not is_nil(m2.id))
-    |> group_by([m, pt, m2, gss], [m2.id])
+    |> join(:full, [m, pt, m2, gss], gss2 in subquery(gs_subquery2()),
+      on: gss2.user_id == pt.user_id
+    )
+    |> where([m, pt, m2, gss, gss2], m.id > ^parent_user_id)
+    |> where([m, pt, m2, gss, gss2], not is_nil(m2.id))
+    |> group_by([m, pt, m2, gss, gss2], [m2.id])
     |> select_statement.()
     |> Repo.all()
-    |> IO.inspect()
+  end
+
+  def gs_subquery2() do
+    from(gss in GroupSalesSummary,
+      where:
+        gss.month == ^Date.utc_today().month and
+          gss.year == ^Date.utc_today().year,
+      select: %{sum_left: sum(gss.new_left), sum_right: sum(gss.new_right), user_id: gss.user_id},
+      group_by: [gss.user_id, gss.month, gss.year]
+    )
   end
 
   def gs_subquery() do
@@ -2450,6 +2519,14 @@ defmodule CommerceFront.Settings do
       end
     else
       {:error, "already approved"}
+    end
+  end
+
+  def rename_ranks() do
+    users = Repo.all(from(u in User, preload: [:rank]))
+
+    for user <- users do
+      update_user(user, %{rank_name: user.rank.name})
     end
   end
 end

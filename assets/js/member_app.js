@@ -32,7 +32,7 @@ export let memberApp_ = {
 
           console.log("e user")
           console.log(e.user)
-   
+
           commerceApp_.emptyCart_()
 
           phxApp_.navigateTo(e.payment_url)
@@ -79,7 +79,14 @@ export let memberApp_ = {
         console.log(e)
         if (e != null) {
           commerceApp_.emptyCart_()
-          window.location = e.payment_url
+          if (e.billplz_code != null) {
+
+            window.location = e.payment_url
+          } else {
+
+            phxApp_.navigateTo(e.payment_url)
+          }
+
         } else {
           commerceApp_.emptyCart_()
           phxApp_.navigateTo("/register")

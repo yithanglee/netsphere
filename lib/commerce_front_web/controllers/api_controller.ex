@@ -100,7 +100,7 @@ defmodule CommerceFrontWeb.ApiController do
             Settings.get_payment_by_billplz_code(params["id"])
             |> IO.inspect()
 
-          with true <- res["paid"] == true,
+          with true <- Map.get(res, "paid", false) == true,
                true <- payment != nil,
                true <- payment.sales != nil,
                sales <- payment.sales |> IO.inspect(),
@@ -115,7 +115,8 @@ defmodule CommerceFrontWeb.ApiController do
             end
           else
             _ ->
-              with true <- payment.wallet_topup != nil do
+              with true <- payment != nil,
+                   true <- payment.wallet_topup != nil do
                 case Settings.approve_topup(%{"id" => payment.wallet_topup.id}) do
                   {:ok, tp} ->
                     %{status: "ok", res: tp |> BluePotion.sanitize_struct()}
@@ -125,7 +126,7 @@ defmodule CommerceFrontWeb.ApiController do
                 end
               else
                 _ ->
-                  %{status: "ok"}
+                  %{status: "error"}
               end
           end
 

@@ -1,4 +1,5 @@
 defmodule Billplz do
+  require Logger
   @key Application.get_env(:commerce_front, :billplz)[:key]
   @endpoint Application.get_env(:commerce_front, :billplz)[:endpoint]
   @auth [hackney: [basic_auth: {@key, ""}]]
@@ -7,6 +8,8 @@ defmodule Billplz do
 
   def get_bill(bill_id) do
     url = @endpoint <> "v3/bills/#{bill_id}"
+
+    Logger.info("[billplz] - get bill...")
 
     with {:ok,
           %HTTPoison.Response{
@@ -17,12 +20,13 @@ defmodule Billplz do
              url,
              [{"Content-Type", "application/json"}],
              @auth
-           ),
-         {:ok, res} <- Jason.decode(body) do
+           )
+           |> IO.inspect(),
+         {:ok, res} <- Jason.decode(body) |> IO.inspect() do
       res
     else
       _ ->
-        []
+        %{}
     end
   end
 
