@@ -469,7 +469,7 @@ export let phxApp_ = {
         url: "/api/webhook",
         dataType: "json",
         headers: {
-          "Authorization": "Basic " + window.userToken,
+          "Authorization": "Basic " + (phxApp_.user != null ? phxApp_.user.token : null),
           'x-csrf-token': csrfToken
         },
         method: "POST",
@@ -554,7 +554,7 @@ export let phxApp_ = {
       async: false,
       method: "get",
       headers: {
-        "Authorization": "Basic " + window.userToken,
+     "Authorization": "Basic " + (phxApp_.user != null ? phxApp_.user.token : null),
         'X-CSRF-Token': csrfToken
       },
       url: "/api/webhook?scope=" + scope,
@@ -591,7 +591,7 @@ export let phxApp_ = {
       method: "post",
       headers: {
         '_commerce_front_key': memberApp_.user.token,
-        "Authorization": "Basic " + window.userToken,
+       "Authorization": "Basic " + (phxApp_.user != null ? phxApp_.user.token : null),
         'X-CSRF-Token': csrfToken
       },
       url: "/api/webhook?scope=" + scope,
@@ -1503,7 +1503,7 @@ export let phxApp_ = {
                 url: "/api/" + object,
                 dataType: "json",
                 headers: {
-                  "Authorization": "Basic " + window.userToken,
+             "Authorization": "Basic " + (phxApp_.user != null ? phxApp_.user.token : null),
                   'X-CSRF-Token': csrfToken
                 },
                 method: "POST",
@@ -1657,7 +1657,7 @@ export let phxApp_ = {
         dataType: "json",
         method: "POST",
         headers: {
-          "Authorization": "Basic " + window.userToken
+   "Authorization": "Basic " + (phxApp_.user != null ? phxApp_.user.token : null),
         },
         enctype: "multipart/form-data",
         processData: false, // tell jQuery not to process the data
@@ -1997,7 +1997,7 @@ export let phxApp_ = {
     });
   },
   populateTableData(dataSourcee, length, onCompleteFn) {
-    getTableData(dataSourcee, length, onCompleteFn)
+    this.getTableData(dataSourcee, length, onCompleteFn)
   },
   populateGridView(dataSource) {
     console.log(dataSource)
@@ -2143,6 +2143,7 @@ export let phxApp_ = {
       columns: dataSource.columns,
       lengthMenu: [8, 10, 12, 25, 50, 100],
       rowCallback: function(row, dtdata, index) {
+        console.log("dt rowcallback index " + index)
         var added = $(dataSource.allData).filter(function(i, v) {
           return v.id == dtdata.id;
         });
@@ -2152,7 +2153,7 @@ export let phxApp_ = {
         $(row).addClass("d-none")
         $(row).attr("aria-index", index);
         lastCol = $(row).find("td").length - 1;
-
+        row.dataset.dtdata = JSON.stringify(dtdata)
         ColumnFormater.datetime(row, dtdata, dataSource)
         ColumnFormater.img(row, dtdata, dataSource)
         ColumnFormater.bool(row, dtdata, dataSource)

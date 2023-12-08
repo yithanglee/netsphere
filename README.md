@@ -176,3 +176,48 @@ context = after register 2 user, you get DRP,
 when use DRP register , this will calculate only the DRP sales level bonus
 
 + let admin create free accounts.
+
+----
+
+ - the drp sales level need push 1 level up [done]
+ - check the daily team balance [done]
+
+----
+  + stockist 3 % [done]
+
+  + shopper, if havent reach bronze, still can have account, just a shopper, still need placement for parking,
+  but no commission
+  but can upgrade to bronze and become placement [done]
+
+  + bonus point can covert to register point only [done]
+  
+ 
+
+
+*OUTSTANDING*
+
+ - pay into travel fund wallet, need to check company company total PV * 0.05
+  -- company 100k PV, = 5000 PV
+  -- check how many ppl collected the travel fund shares, if everyone has 500 share 
+  -- 5000 / 500 = 10 travel fund point , 
+  -- pay into TF wallet, use the total share x this 10 travel fund point; [done]
+  + DRP option [done]
+  + RP can transfer to upline  [done]
+  + redeem point need at least 500 RP, else charge 2 RP as shipping fee [done]
+  
+
+
+  + admin pay button
+  + sales performance summary by country 
+
+
+
+  + DO and customer order PDF 
+
+  
+
+
+
+  + admin storekeeper , need to view sales by country
+  + admin storekeeper need to print by date, country,
+  + inventory with stock keeping transaction for store keeper 

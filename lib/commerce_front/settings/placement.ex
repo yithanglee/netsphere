@@ -3,7 +3,8 @@ defmodule CommerceFront.Settings.Placement do
   import Ecto.Changeset
 
   schema "placements" do
-    field(:parent_user_id, :integer)
+    belongs_to(:parent, CommerceFront.Settings.User, foreign_key: :parent_user_id)
+    # field(:parent_user_id, :integer)
     field(:parent_placement_id, :integer)
     field(:position, :string)
 

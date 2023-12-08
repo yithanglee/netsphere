@@ -20,16 +20,27 @@ defmodule CommerceFront do
     {y, m, d} = date |> Date.to_erl()
     end_of_month = Timex.end_of_month(date)
     CommerceFront.Calculation.daily_team_bonus(date)
+    # can only run once
     CommerceFront.Settings.carry_forward_entry(date)
     # this will form the weak leg
-    CommerceFront.Settings.pay_unpaid_bonus(date, ["sharing bonus", "team bonus"])
+    CommerceFront.Settings.pay_unpaid_bonus(date, [
+      "sharing bonus",
+      "team bonus",
+      "stockist register bonus",
+      "drp sales level bonus"
+    ])
 
     if end_of_month == date do
       CommerceFront.Calculation.matching_bonus(m, y)
       CommerceFront.Calculation.elite_leader(m, y)
       CommerceFront.Calculation.travel_fund(m, y)
 
-      CommerceFront.Settings.pay_unpaid_bonus(date, ["matching bonus", "elite leader"])
+      CommerceFront.Settings.pay_unpaid_bonus(date, [
+        "matching bonus",
+        "elite leader",
+        "travel fund"
+      ])
+
       CommerceFront.Calculation.repurchase_bonus(m, y)
 
       CommerceFront.Settings.pay_unpaid_bonus(date, ["repurchase bonus"])
@@ -45,7 +56,7 @@ defmodule CommerceFront do
   end
 
   def carry_forward_task do
-    for date <- Date.range(~D[2023-11-07], ~D[2023-11-27]) do
+    for date <- Date.range(~D[2023-11-07], ~D[2023-12-04]) do
       CommerceFront.Settings.reconstruct_daily_group_sales_summary(date)
 
       CommerceFront.Calculation.daily_team_bonus(date)

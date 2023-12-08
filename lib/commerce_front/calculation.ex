@@ -8,6 +8,22 @@ defmodule CommerceFront.Calculation do
   alias CommerceFront.Settings
   alias CommerceFront.Settings.{User, Reward}
 
+  def stockist_register_bonus(sales_person, username, pv, sale) do
+    bonus = (pv * 0.03) |> Float.round(2)
+
+    CommerceFront.Settings.create_reward(%{
+      sales_id: sale.id,
+      is_paid: false,
+      remarks: "sales-#{sale.id}|#{pv} * 0.03 = #{bonus}|register: #{username}",
+      name: "stockist register bonus",
+      amount: bonus,
+      user_id: sales_person.id,
+      day: Date.utc_today().day,
+      month: Date.utc_today().month,
+      year: Date.utc_today().year
+    })
+  end
+
   @doc """
   A.2）Special Sharing Reward
   For every 100PV shared, receive an additional #DRP 50
@@ -92,7 +108,7 @@ defmodule CommerceFront.Calculation do
           sales_id: sale.id,
           is_paid: false,
           remarks:
-            "sales-#{sale.id}|#{remainder_point_value} * #{perc} = #{bonus}|lvl:#{index}/#{rank.name}",
+            "sales-#{sale.id}|#{remainder_point_value} * #{perc} = #{bonus}|lvl:#{calc_index}/#{rank.name}|skipped to: lv#{index}",
           name: "sharing bonus",
           amount: bonus,
           user_id: user.id,
@@ -372,20 +388,12 @@ defmodule CommerceFront.Calculation do
           if constant > 1 do
             # this means, the left is more than right
 
-            if summary.total_left - summary.total_right < 0 do
-              IEx.pry()
-            end
-
             {summary.total_right,
              %{
                balance_left: summary.total_left - summary.total_right,
                balance_right: summary.total_right - summary.total_right
              }}
           else
-            if summary.total_right - summary.total_left < 0 do
-              IEx.pry()
-            end
-
             {summary.total_left,
              %{
                balance_left: summary.total_left - summary.total_left,
@@ -393,6 +401,10 @@ defmodule CommerceFront.Calculation do
              }}
           end
           |> IO.inspect()
+
+        # if date == ~D[2023-11-26] && summary.user.username == "damien" do
+        #   IEx.pry()
+        # end
 
         multi_query
         |> Multi.run(String.to_atom("pgsd_left_#{summary.user_id}"), fn _repo, %{} ->
@@ -564,10 +576,6 @@ defmodule CommerceFront.Calculation do
               prev_summary
             end
 
-          if map.user.username == "damien" && date == ~D[2023-11-08] do
-            # IEx.pry()
-          end
-
           CommerceFront.Settings.create_reward(%{
             sales_id: 0,
             is_paid: false,
@@ -590,6 +598,55 @@ defmodule CommerceFront.Calculation do
     end
 
     Enum.reduce(summaries, multi, &calc_for_parent.(&1, &2))
+    |> Multi.run(:reserve_wallet, fn _repo, %{} ->
+      [%{date: _date, sum: today_sales_amount, total_pv: total_pv}] =
+        case CommerceFront.Settings.today_sales(date) do
+          [%{date: _date, sum: today_sales_amount, total_pv: total_pv}] ->
+            [%{date: _date, sum: today_sales_amount, total_pv: total_pv}]
+
+          _ ->
+            [%{date: nil, sum: 0, total_pv: 0}]
+        end
+
+      [%{name: _name, sum: team_bonus_amount}] =
+        case CommerceFront.Settings.today_bonus("team bonus", date) do
+          [%{name: _name, sum: team_bonus_amount}] ->
+            [%{name: _name, sum: team_bonus_amount}]
+
+          _ ->
+            [%{name: nil, sum: 0}]
+        end
+
+      allocated = total_pv * 0.4
+
+      remainder = allocated - team_bonus_amount
+
+      allocated =
+        if allocated == 0 do
+          "0.00"
+        else
+          allocated |> :erlang.float_to_binary(decimals: 2)
+        end
+
+      team_bonus_amount =
+        if team_bonus_amount == 0 do
+          "0.00"
+        else
+          team_bonus_amount |> :erlang.float_to_binary(decimals: 2)
+        end
+
+      res =
+        CommerceFront.Settings.create_wallet_transaction(%{
+          user_id: CommerceFront.Settings.finance_user().id,
+          amount: remainder,
+          remarks:
+            "reserve for future team bonus payments #{date}|allocated_pv: #{allocated}|to_pay: #{team_bonus_amount}",
+          wallet_type: "reserve"
+        })
+
+      # total sales 40% of pv is reserved to pay, anything remain after calculating the team bonus is added to reserve wallet
+      {:ok, res}
+    end)
     |> Repo.transaction()
   end
 
@@ -909,6 +966,7 @@ defmodule CommerceFront.Calculation do
 
   def travel_fund(month, year) do
     date = Date.from_erl!({year, month, 1})
+    end_date = date |> Timex.end_of_month()
 
     subquery2 = """
     select
@@ -964,38 +1022,75 @@ defmodule CommerceFront.Calculation do
               weak_leg.left
             end
 
-          calc_fn = fn n ->
+          calc_fn = fn {n, rewardList} ->
             map = Enum.filter(matrix, &(&1.amount <= n)) |> List.last()
 
             if n != nil && map != nil do
               balance = n - map.amount
 
-              CommerceFront.Settings.create_reward(%{
-                sales_id: 0,
-                is_paid: false,
-                remarks:
-                  "#{weak_leg.username} leg: #{weak_leg.left}|#{weak_leg.right}|deduct from: #{n} - #{map.amount}",
-                name: "travel fund",
-                amount: map.point,
-                user_id: weak_leg.user_id,
-                day: Timex.end_of_month(date).day,
-                month: month,
-                year: year
-              })
+              {:ok, reward} =
+                CommerceFront.Settings.create_reward(%{
+                  sales_id: 0,
+                  is_paid: false,
+                  remarks:
+                    "#{weak_leg.username} leg: #{weak_leg.left}|#{weak_leg.right}|deduct from: #{n} - #{map.amount}",
+                  name: "travel fund",
+                  amount: map.point,
+                  user_id: weak_leg.user_id,
+                  day: Timex.end_of_month(date).day,
+                  month: month,
+                  year: year
+                })
 
-              balance
+              {balance, List.insert_at(rewardList, 0, reward)}
             else
               0
             end
           end
 
-          Stream.unfold(weak_amount, fn
+          Stream.unfold({weak_amount, []}, fn
             0 -> nil
             n -> {n, calc_fn.(n)}
           end)
           |> Enum.to_list()
           |> List.last()
         end
+
+      {:ok, travel_qualifier}
+    end)
+    |> Multi.run(:update_shares, fn _repo, %{calculation: calculation} ->
+      month_pv =
+        CommerceFront.Settings.this_month_sales(end_date)
+        |> Enum.map(& &1.total_pv)
+        |> Enum.sum()
+
+      allocated = month_pv * 0.05
+
+      all_member_travel_fund =
+        CommerceFront.Settings.today_bonus("travel fund", end_date)
+        |> List.first()
+        |> Map.get(:sum)
+
+      per_share_value = (allocated / all_member_travel_fund) |> Float.round(2)
+
+      rewards =
+        calculation
+        |> Enum.filter(&(&1 |> elem(0) > 0))
+        |> Enum.map(&(&1 |> elem(1)))
+        |> List.flatten()
+
+      for reward <- rewards do
+        amount = per_share_value * reward.amount
+
+        params = %{
+          amount: amount,
+          remarks:
+            reward.remarks <>
+              "|no shares: #{reward.amount}|month allocated: #{allocated}|per share: #{per_share_value}"
+        }
+
+        CommerceFront.Settings.update_reward(reward, params)
+      end
 
       {:ok, nil}
     end)
@@ -1096,20 +1191,6 @@ defmodule CommerceFront.Calculation do
         uplines = CommerceFront.Settings.check_uplines(username, :referal) |> Enum.with_index(1)
         IO.inspect("checking upline for #{username}")
 
-        for {upline, index} <- uplines do
-          IO.inspect(upline)
-
-          sample = %{
-            child: "summer",
-            child_id: 584,
-            # this is the upline
-            parent: "damien",
-            parent_id: 583,
-            pt_child_id: 547,
-            pt_parent_id: 546
-          }
-        end
-
         calc_fn = fn {upline, index}, initial_index ->
           weak_leg =
             Enum.filter(
@@ -1132,7 +1213,7 @@ defmodule CommerceFront.Calculation do
             "index: #{initial_index} , parent #{upline.parent} weak amount = #{weak_amount}"
           )
 
-          if initial_index < 20 && weak_amount >= 500 do
+          if initial_index < 22 && weak_amount >= 500 do
             p = %{
               sales_id: 0,
               is_paid: false,
@@ -1168,34 +1249,83 @@ defmodule CommerceFront.Calculation do
   250 * 0.01 = 2.5 
   to 10 uplines, compress upline
 
+  6/12/23
+  ---
+  bromze g1 2%
+
+
+
   """
   def drp_sales_level_bonus(sales_id, drp_amount, child_user, date) do
     {y, m, d} = date |> Date.to_erl()
     uplines = CommerceFront.Settings.check_uplines(child_user.username, :referal)
 
     calc_fn = fn upline, index ->
-      if index <= 10 do
-        amount = (drp_amount * 0.01) |> Float.round(2)
+      if index <= 5 && index > 0 do
+        matrix = [
+          %{rank: "铜级套餐", l1: 0.02, calculated: false},
+          %{rank: "银级套餐", l1: 0.02, l2: 0.02, l3: 0.02, calculated: false},
+          %{rank: "金级套餐", l1: 0.02, l2: 0.02, l3: 0.02, l4: 0.02, l5: 0.02, calculated: false}
+        ]
 
-        p = %{
-          sales_id: sales_id,
-          is_paid: false,
-          remarks: "#{drp_amount} * 0.01 = #{amount}|level: #{index}",
-          name: "drp sales level bonus",
-          amount: amount,
-          user_id: upline.parent_id,
-          day: d,
-          month: m,
-          year: y
-        }
+        cur_level =
+          matrix |> Enum.filter(&(&1.rank == upline.rank)) |> List.first() |> IO.inspect()
 
-        CommerceFront.Settings.create_reward(p)
-        index + 1
+        perc =
+          if cur_level != nil do
+            case index do
+              1 ->
+                cur_level |> Map.get(:l1, 0.0)
+
+              2 ->
+                cur_level |> Map.get(:l2, 0.0)
+
+              3 ->
+                cur_level |> Map.get(:l3, 0.0)
+
+              4 ->
+                cur_level |> Map.get(:l4, 0.0)
+
+              5 ->
+                cur_level |> Map.get(:l5, 0.0)
+
+              _ ->
+                0.0
+            end
+          else
+            0
+          end
+
+        amount = (drp_amount * perc) |> Float.round(2)
+
+        if amount > 0 do
+          p = %{
+            sales_id: sales_id,
+            is_paid: false,
+            remarks:
+              "#{drp_amount} * #{perc} = #{amount}|level: #{index}| #{upline.parent} rank: #{upline.rank}",
+            name: "drp sales level bonus",
+            amount: amount,
+            user_id: upline.parent_id,
+            day: d,
+            month: m,
+            year: y
+          }
+
+          CommerceFront.Settings.create_reward(p)
+          index + 1
+        else
+          index
+        end
       else
-        index
+        if index == 0 do
+          index + 1
+        else
+          index
+        end
       end
     end
 
-    Enum.reduce(uplines, 1, &calc_fn.(&1, &2))
+    Enum.reduce(uplines, 0, &calc_fn.(&1, &2))
   end
 end

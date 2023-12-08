@@ -197,7 +197,7 @@ export let commerceApp_ = {
       }, 0)
 
 
-
+      shipping_fee = sale.shipping_fee || 0
       eligible_rank = this.evalRank(subtotal)
 
 
@@ -249,7 +249,7 @@ export let commerceApp_ = {
               <div class="d-flex flex-column flex-lg-row justify-content-between align-items-center">
                 <div class="d-flex flex-column align-items-end">
                   <span class="font-sm ">RP <span class="format-float">` + (v.item_price * v.qty).toFixed(2) + `</span></span>
-                  <span class="font-sm text-info format-integer">` + (v.item_pv * v.qty) + ` PV</span>
+                  <span class="font-sm text-info "><span class="format-integer">` + (v.item_pv * v.qty) + `</span> PV</span>
                 </div>
                
               </div>
@@ -268,6 +268,10 @@ export let commerceApp_ = {
                   <span class="fs-4">Subtotal</span>
                   <span class=" me-4">RP <span class="format-float">` + subtotal + `</span></span>
                 </div>
+               <div class="d-flex justify-content-between align-items-center">
+                  <span class="fs-4">Shipping</span>
+                  <span class=" me-4">RP <span class="format-float">` + shipping_fee + `</span></span>
+                </div>
                 <div class="d-flex justify-content-between align-items-center">
                   <span class="fs-5">Total PV</span>
                   <span class="text-info me-4"><span class="format-integer">` + total_pv + ` PV</span></span>
@@ -282,6 +286,7 @@ export let commerceApp_ = {
       reg_dets = JSON.parse(sale.registration_details)
       shipping = reg_dets.user.shipping
       payment = sale.payment
+
       var drp_details = {};
       if (sale.payment.payment_url != null) {
         payment_info = `
@@ -289,6 +294,10 @@ export let commerceApp_ = {
                <div class="d-flex justify-content-between align-items-center">
                   <span class="fs-4">Subtotal</span>
                   <span class=" ">RP <span class="format-float">` + subtotal + `</span></span>
+                </div>
+               <div class="d-flex justify-content-between align-items-center">
+                  <span class="fs-4">Shipping</span>
+                  <span class=" me-4">RP <span class="format-float">` + shipping_fee + `</span></span>
                 </div>
                 <div class="d-flex justify-content-between align-items-center">
                   <span class="fs-5">Total PV</span>
@@ -337,20 +346,30 @@ export let commerceApp_ = {
                   <span class="fs-5">Subtotal</span>
                   <span class=" ">RP <span class="format-float">` + subtotal + `</span></span>
                 </div>
+               <div class="d-flex justify-content-between align-items-center">
+                  <span class="fs-5">Shipping</span>
+                  <span class=" ">RP <span class="format-float">` + shipping_fee + `</span></span>
+                </div>
 
                 <div class="d-flex justify-content-between align-items-center">
                   <span class="fs-5">Discount (<small>DRP</small>)</span>
                   <span class=" ">- RP <span class="format-float">` + drp_amount + `</span></span>
                 </div>
-                <div class="d-flex justify-content-between align-items-center">
-                  <span class="fs-5">Total PV</span>
-                  <span class="text-info "><span class="format-integer">` + (total_pv - drp_amount ) + ` PV</span></span>
+
+               <div class="d-flex justify-content-between align-items-center">
+                  <span class="fs-5">Grand Total </span>
+                  <span class=" ">RP <span class="format-float">` + (subtotal + shipping_fee) + `</span></span>
                 </div>
 
                 <div class="d-flex justify-content-between align-items-center">
-                  <span class="fs-4">Grand Total</span>
-                  <span class=" ">RP <span class="format-float">` + (subtotal - drp_amount - (drp_details.rp_paid||0)) + ` PV</span></span>
+                  <span class="fs-5">Total PV</span>
+                  <span class="text-info "><span class="format-integer">` + (total_pv - drp_amount) + ` PV</span></span>
                 </div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="fs-4">Grand Total  After Payment</span>
+                  <span class=" ">RP <span class="format-float">` + (subtotal + shipping_fee - drp_amount - (drp_details.rp_paid || 0)) + ` PV</span></span>
+                </div>
+
                 <div class="d-flex justify-content-between align-items-center">
                   <span class="fw-bold text-secondary">Eligible Rank</span>
                   <span class="text-info "><span class="format-integer">` + eligible_rank + `</span></span>
@@ -377,8 +396,8 @@ export let commerceApp_ = {
         </div>
                 <div class="d-flex flex-column mb-4 ">
                    <span class="text-secondary">Recipient:</span> 
-                   <span>` + (reg_dets.user.fullname || phxApp_.user.fullname )+ `, ` + (reg_dets.user.phone || phxApp_.user.phone) + `</span>
-                   <span>` + (reg_dets.user.email || phxApp_.user.email )+ ` </span>
+                   <span>` + (reg_dets.user.fullname || phxApp_.user.fullname) + `, ` + (reg_dets.user.phone || phxApp_.user.phone) + `</span>
+                   <span>` + (reg_dets.user.email || phxApp_.user.email) + ` </span>
                 </div>
 
 
@@ -401,7 +420,7 @@ export let commerceApp_ = {
       ColumnFormater.formatDate();
     },
     cartItems() {
-      var count = 0,
+      var count = 0, shipping_fee = 2,
         list = [],
         total_pv = 0,
         subtotal = 0.0;
@@ -428,7 +447,9 @@ export let commerceApp_ = {
       console.log(subtotal)
       eligible_rank = this.evalRank(subtotal)
 
-
+      if (subtotal >= 500) {
+        shipping_fee = 0
+      }
 
       commerceApp_.cart_.forEach((v, i) => {
         var img = '/images/placeholder.png';
@@ -482,7 +503,7 @@ export let commerceApp_ = {
               <div class="d-flex flex-column flex-lg-row justify-content-between align-items-center">
                 <div class="d-flex flex-column align-items-end">
                   <span class="font-sm ">RP <span class="format-float">` + (v.retail_price * v.qty).toFixed(2) + `</span></span>
-                  <span class="font-sm text-info format-integer">` + (v.point_value * v.qty) + ` PV</span>
+                  <span class="font-sm text-info "><span class="format-integer">` + (v.point_value * v.qty) + `</span> PV</span>
                 </div>
                 <div class="text-center">
                   <div class="btn btn-sm" add-product-id="` + v.id + `"><i class="text-info fa fa-plus"></i></div>
@@ -499,11 +520,20 @@ export let commerceApp_ = {
       })
       $("cartItems").html(`
 
-                <div class="d-flex flex-column gap-2">` + list.join("") + `
-                  <div class="d-flex justify-content-between align-items-center">
-                    <span class="fs-4">Subtotal</span>
-                    <span class=" me-4">RP <span class="format-float">` + subtotal + `</span></span>
-                  </div>
+                  <div class="d-flex flex-column gap-1">` + list.join("") + `
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="fw-bold">Subtotal</span>
+                      <span class=" me-4">RP <span class="format-float">` + subtotal + `</span></span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="fw-bold">Shipping</span>
+                      <span class=" me-4">RP <span class="format-float">` + shipping_fee + `</span></span>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="fs-4">Grand Total</span>
+                      <span class=" me-4">RP <span class="format-float fs-4">` + (subtotal + shipping_fee ) + `</span></span>
+                    </div>
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="fs-5">Total PV</span>
                     <span class="text-info me-4"><span class="format-integer">` + total_pv + ` PV</span></span>
@@ -581,23 +611,31 @@ export let commerceApp_ = {
 
       function drpChanged() {
         appendWalletAttr()
-        var drp_amount = 0
+        var drp_amount = 0, shipping_fee = 2;
         if ($("#drp_payment").length > 0) {
 
           drp_amount = $("#drp_payment").val()
         }
         $("cartItems").html(`
 
-                  <div class="d-flex flex-column gap-2">` + list.join("") + `
+                  <div class="d-flex flex-column gap-1">` + list.join("") + `
                     <div class="d-flex justify-content-between align-items-center">
-                      <span class="fs-4">Subtotal</span>
+                      <span class="fw-bold">Subtotal</span>
                       <span class=" me-4">RP <span class="format-float">` + subtotal + `</span></span>
                     </div>
-
                     <div class="d-flex justify-content-between align-items-center">
-                      <span class="fs-4">Discount</span>
+                      <span class="fw-bold">Shipping</span>
+                      <span class=" me-4">RP <span class="format-float">` + shipping_fee + `</span></span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="fw-bold">Discount</span>
                       <span class=" me-4">- RP <span class="format-float">` + drp_amount + `</span></span>
                     </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="fs-4">Grand Total</span>
+                      <span class=" me-4">RP <span class="format-float fs-4">` + (subtotal + shipping_fee - drp_amount) + `</span></span>
+                    </div>
+
                     <div class="d-flex justify-content-between align-items-center">
                       <span class="fs-5">Total PV</span>
                       <span class="text-info me-4"><span class="format-integer">` + (total_pv - drp_amount) + ` PV</span></span>
@@ -726,7 +764,7 @@ export let commerceApp_ = {
     evalRank(subtotal) {
 
 
-       var sort = [];
+      var sort = [];
       memberApp_.ranks.map((v, i) => {
         sort.push(v)
       })
@@ -1358,7 +1396,9 @@ export let commerceApp_ = {
     },
     rewardList() {
 
-      $("rewardList").html(`
+      $("rewardList").each((rii, v) => {
+
+        $(v).html(`
           <div class="text-center mt-4">
             <div class="spinner-border loading" role="status">
               <span class="visually-hidden">Loading...</span>
@@ -1368,27 +1408,28 @@ export let commerceApp_ = {
 
           <div class="row gx-0 d-none loading">
             <div class="col-12">
-              <div id="tab1">No rewards</div>
+              <div id="tab` + rii + `">No rewards</div>
             </div>
           </div>
         `)
 
+        var isPrev = $(v).attr("prev") != null
 
-      phxApp_.api("get_reward_summary", { user_id: memberApp_.user.id }, null, (r) => {
+        console.log(isPrev)
+
+        phxApp_.api("get_reward_summary", { user_id: memberApp_.user.id, is_prev: isPrev }, null, (r) => {
+
+          $(".spinner-border.loading").parent().remove()
+          $(".loading").removeClass("d-none")
+          var rewards = ["sharing bonus", "team bonus", "matching bonus", "elite leader", "travel fund", "repurchase bonus", "drp sales level bonus", "stockist register bonus"],
+            list = []
+          rewards.forEach((r2, ii) => {
 
 
+            r.forEach((v, i) => {
+              if (r2 == v.name) {
 
-        $(".spinner-border.loading").parent().remove()
-        $(".loading").removeClass("d-none")
-        var rewards = ["sharing bonus", "team bonus", "matching bonus", "elite leader", "travel fund", "repurchase bonus", "drp sales level bonus"],
-          list = []
-        rewards.forEach((r2, ii) => {
-
-
-          r.forEach((v, i) => {
-            if (r2 == v.name) {
-
-              list.push(`
+                list.push(`
 
             <div class="my-2 d-flex align-items-center justify-content-between">
 
@@ -1408,13 +1449,15 @@ export let commerceApp_ = {
 
                 `)
 
-            }
+              }
+            })
           })
-        })
 
-        $("#tab1").html(`` + list.join("") + ``)
-        phxApp.formatDate()
+          $("#tab" + rii).html(`` + list.join("") + ``)
+          phxApp.formatDate()
+        })
       })
+
 
 
     },
@@ -1487,12 +1530,24 @@ export let commerceApp_ = {
 
 
       var user = memberApp_.user;
-      var name = user != null ? "Welcome! " + `<a href="/profile" class="navi">` + user.fullname + ` (` + user.rank.name + `)</a>` : `<a href="/login" class="navi">Login</a>`
-      $("userProfile").html(`
+
+      if (user) {
+
+        var rank_name = user.rank != null ? user.rank.name : user.rank_name;
+        var name = user != null ? "Welcome! " + `<a href="/profile" class="navi">` + user.fullname + ` (` + rank_name + `)</a>` : `<a href="/login" class="navi">Login</a>`
+        $("userProfile").html(`
             
               ` + name + `
            
         `)
+      } else {
+        $("userProfile").html(`
+            
+            <a href="/login" class="navi">Login</a>
+           
+        `)
+
+      }
     },
 
 

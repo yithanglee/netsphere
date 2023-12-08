@@ -50,7 +50,7 @@ export let ColumnFormater = {
 
 
 
-        $("td:eq(" + index + ")", row).html(v.xdata.formatFn(dtdata));
+        $("td:eq(" + index + ")", row).html(v.xdata.formatFn(dtdata, parseInt(row.getAttribute("aria-index"))));
 
 
 

@@ -73,8 +73,18 @@ defmodule CommerceFrontWeb.ApiController do
 
     res =
       case params["scope"] do
+        "unpaid_reward_summary" ->
+          Settings.group_unpay_rewards()
+
+        "get_cookie_user" ->
+          Settings.get_cookie_user_by_cookie(params["cookie"]) |> BluePotion.sanitize_struct()
+
+        "delete_request" ->
+          {:ok, ww} = Settings.delete_wallet_withdrawal_by_id(params["id"])
+          ww |> BluePotion.sanitize_struct()
+
         "get_reward_summary" ->
-          Settings.user_monthly_reward_summary(params["user_id"])
+          Settings.user_monthly_reward_summary(params["user_id"], params["is_prev"])
 
         "get_sale" ->
           Settings.get_sale!(params["id"])
@@ -243,6 +253,48 @@ defmodule CommerceFrontWeb.ApiController do
   def post(conn, params) do
     res =
       case params["scope"] do
+        "pay_reward" ->
+          Settings.pay_unpaid_bonus(
+            Date.from_erl!({params["year"], params["month"], params["day"]}),
+            [params["name"]]
+          )
+
+          %{status: "ok"}
+
+        "transfer_wallet" ->
+          sample = %{
+            "_csrf_token" => "Cw1XLQAKA3NeCHYCARBvKGo3WTkmGBN5ic4u_mF9mcEvRO8YSG0kkK_7",
+            "convert" => %{"user_id" => "583"},
+            "scope" => "transfer_wallet",
+            "transfer" => %{"amount" => "100.00", "username" => "summer"}
+          }
+
+          Settings.transfer_wallet(
+            params["transfer"]["user_id"],
+            params["transfer"]["username"],
+            Float.parse(params["transfer"]["amount"]) |> elem(0)
+          )
+
+        "convert_wallet" ->
+          Settings.convert_wallet(
+            params["convert"]["user_id"],
+            Float.parse(params["convert"]["amount"]) |> elem(0)
+          )
+
+        "approve_withdrawal_batch" ->
+          params["id"]
+          |> Settings.approve_withdrawal_batch()
+          |> case do
+            {:ok, _res} ->
+              %{status: "ok"}
+
+            {:error, "already paid"} ->
+              %{status: "error", reason: "already paid"}
+
+            _ ->
+              %{status: "error"}
+          end
+
         "approve_topup" ->
           case Settings.approve_topup(params) do
             {:ok, multi_res} ->
@@ -276,14 +328,29 @@ defmodule CommerceFrontWeb.ApiController do
 
         "sign_in" ->
           # admin login
-          token =
-            Phoenix.Token.sign(
-              CommerceFrontWeb.Endpoint,
-              "admin_signature",
-              params["username"]
-            )
+          res = Settings.check_staff_password(params)
 
-          %{status: "ok", res: token}
+          case res do
+            {true, user} ->
+              token =
+                Phoenix.Token.sign(
+                  CommerceFrontWeb.Endpoint,
+                  "admin_signature",
+                  params["username"]
+                )
+
+              Settings.create_session_user(%{"cookie" => token, "user_id" => user.id})
+
+              %{
+                status: "ok",
+                res: token,
+                role_app_routes:
+                  user.role.app_routes |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
+              }
+
+            {false, _res} ->
+              %{status: "error", reason: "Invalid credentials"}
+          end
 
         "topup" ->
           case Settings.create_topup_transaction(params) do
@@ -651,6 +718,74 @@ defmodule CommerceFrontWeb.ApiController do
     additional_join_statements = Map.get(params, "additional_join_statements") |> IO.inspect()
     params = Map.delete(params, "model") |> Map.delete("preloads") |> Map.delete("host")
 
+    search_queries =
+      for key <- params["columns"] |> Map.keys() do
+        val = params["columns"][key]["search"]["value"]
+
+        if val != "" do
+          {String.to_atom(params["columns"][key]["data"]), val}
+        end
+      end
+      |> Enum.reject(fn x -> x == nil end)
+      |> Enum.reject(fn x -> elem(x, 1) == nil end)
+
+    additional_search_params =
+      params
+      |> Map.drop([
+        "_",
+        "rowFn",
+        "pageLength",
+        "additional_join_statements",
+        "additional_search_queries",
+        "columns",
+        "draw",
+        "foo",
+        "length",
+        "order",
+        "search",
+        "start"
+      ])
+
+    asp = additional_search_params |> Map.keys()
+
+    search_queries2 =
+      for asp_child <- asp do
+        {String.to_atom(asp_child), additional_search_params |> Map.get(asp_child)}
+      end
+
+    addon_search =
+      if search_queries2 != [] do
+        for {key, val} = sq2 <- search_queries2 do
+          cond do
+            Integer.parse(val) != :error ->
+              {int, _suffix} = Integer.parse(val)
+
+              """
+                a.#{Atom.to_string(key)}==#{int} 
+              """
+
+            Atom.to_string(key) |> String.contains?("_id") ->
+              """
+                a.#{Atom.to_string(key)}==#{val} 
+              """
+
+            val == "true" || val == "false" ->
+              """
+                a.#{Atom.to_string(key)}==#{val} 
+              """
+
+            true ->
+              """
+                a.#{Atom.to_string(key)}=="#{val}"
+              """
+          end
+        end
+        |> Enum.join(" and ")
+      else
+        ""
+      end
+      |> IO.inspect()
+
     params =
       decode_token.(params)
       |> IO.inspect()
@@ -664,7 +799,6 @@ defmodule CommerceFrontWeb.ApiController do
         for join <- joins do
           key = Map.keys(join) |> List.first()
           value = join |> Map.get(key)
-          # module = Module.concat(["Church", "Settings", key])
 
           config = Application.get_env(:blue_potion, :contexts)
 
@@ -690,7 +824,13 @@ defmodule CommerceFrontWeb.ApiController do
 
     additional_search_queries =
       if additional_search_queries == nil do
-        ""
+        if addon_search != "" do
+          """
+          |> where([a,b,c,d], #{addon_search})
+          """
+        else
+          ""
+        end
       else
         columns = additional_search_queries |> String.split(",")
 
@@ -735,8 +875,15 @@ defmodule CommerceFrontWeb.ApiController do
 
             true ->
               ss = params["search"]["value"]
-              items = String.split(item, "|") |> IO.inspect()
-              # ["a.name", "b.username", "a.is_paid"]
+              items = String.split(item, "|")
+              ori_addon_search = addon_search
+
+              addon_search =
+                if addon_search != "" do
+                  " and #{addon_search}"
+                else
+                  ""
+                end
 
               subquery =
                 for i <- items do
@@ -765,12 +912,12 @@ defmodule CommerceFrontWeb.ApiController do
                           case Integer.parse(ss) do
                             {ss, _val} ->
                               """
-                              #{prefix}.#{i} == ^#{ss}
+                              #{prefix}.#{i} == ^#{ss} #{addon_search}
                               """
 
                             _ ->
                               """
-                              ilike(a.#{i}, ^"%#{ss}%")
+                              ilike(a.#{i}, ^"%#{ss}%")  #{addon_search}
                               """
                           end
                         else
@@ -781,12 +928,12 @@ defmodule CommerceFrontWeb.ApiController do
                             case Integer.parse(ss) do
                               {ss, _val} ->
                                 """
-                                #{prefix}.#{i} == ^#{ss}
+                                #{prefix}.#{i} == ^#{ss}  #{addon_search}
                                 """
 
                               _ ->
                                 """
-                                ilike(a.#{i}, ^"%#{ss}%")
+                                ilike(a.#{i}, ^"%#{ss}%")  #{addon_search}
                                 """
                             end
                           else
@@ -805,7 +952,7 @@ defmodule CommerceFrontWeb.ApiController do
 
                         if i == "date" do
                           """
-                          #{prefix}.#{i} == ^"#{ss}"
+                          #{prefix}.#{i} == ^"#{ss}"  #{addon_search}
                           """
                         else
                           tuple
@@ -821,15 +968,16 @@ defmodule CommerceFrontWeb.ApiController do
 
                         if ss == "true" || ss == "false" do
                           """
-                          a.#{i} == ^#{ss}
+                          a.#{i} == ^#{ss}  #{addon_search}
                           """
                         else
                           if ss == nil do
                             """
+                            #{ori_addon_search}
                             """
                           else
                             """
-                            ilike(#{prefix}.#{i}, ^"%#{ss}%")
+                            ilike(#{prefix}.#{i}, ^"%#{ss}%")  #{addon_search}
                             """
                           end
                         end
@@ -859,28 +1007,28 @@ defmodule CommerceFrontWeb.ApiController do
                     unless i |> String.contains?("_id") do
                       if ss == "true" || ss == "false" do
                         """
-                        a.#{i} == ^#{ss}
+                        a.#{i} == ^#{ss}  #{addon_search}
                         """
                       else
                         """
-                        ilike(a.#{i}, ^"%#{ss}%")
+                        ilike(a.#{i}, ^"%#{ss}%")  #{addon_search}
                         """
                       end
                     else
                       case Integer.parse(ss) do
                         {ss, _val} ->
                           """
-                          a.#{i} == ^#{ss}
+                          a.#{i} == ^#{ss}  #{addon_search}
                           """
 
                         _ ->
                           if ss == "true" || ss == "false" do
                             """
-                            a.#{i} == ^#{ss}
+                            a.#{i} == ^#{ss}  #{addon_search}
                             """
                           else
                             """
-                            ilike(a.#{i}, ^"%#{ss}%")
+                            ilike(a.#{i}, ^"%#{ss}%")  #{addon_search}
                             """
                           end
                       end
@@ -894,12 +1042,20 @@ defmodule CommerceFrontWeb.ApiController do
 
               with true <- subquery != "",
                    true <- ss != nil do
+                # consider append existing search queries..
+
                 """
-                |> or_where([a,b,c,d], #{subquery})
+                |> or_where([a,b,c,d], #{subquery} )
                 """
               else
                 _ ->
-                  nil
+                  if subquery != "" do
+                    """
+                    |> or_where([a,b,c,d], #{subquery} )
+                    """
+                  else
+                    nil
+                  end
               end
           end
         end

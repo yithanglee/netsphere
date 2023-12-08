@@ -26,6 +26,9 @@ defmodule CommerceFront.Settings.Sale do
     field(:sale_date, :date)
     field(:status, StatusEnum, default: :pending_confirmation)
     field(:subtotal, :float)
+
+    field(:shipping_fee, :float, default: 0.0)
+    field(:grand_total, :float, default: 0.0)
     field(:total_point_value, :integer)
     field(:registration_details, :binary)
     # field(:payment_id, :integer)
@@ -47,6 +50,8 @@ defmodule CommerceFront.Settings.Sale do
   def changeset(sale, attrs) do
     sale
     |> cast(attrs, [
+      :shipping_fee,
+      :grand_total,
       :sales_person_id,
       :registration_details,
       # :payment_id,

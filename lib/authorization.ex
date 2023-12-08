@@ -52,24 +52,44 @@ defmodule CommerceFront.ApiAuthorization do
   end
 
   def call(conn, opts) do
-    if conn.method == "POST" do
+    IO.inspect("call api auth")
+    IO.inspect(conn.method)
+
+    if conn.method == "POST" || conn.method == "OPTIONS" do
       cond do
-        conn.params["scope"] in ["update_customer", "food_payment", "customer_topup"] ->
+        conn.params["scope"] in [
+          "login",
+          "sign_in",
+          "update_customer",
+          "food_payment",
+          "customer_topup"
+        ] ->
           conn
 
         Plug.Conn.get_req_header(conn, "phx-request") != [] ->
-          conn
-
-        Plug.Conn.get_req_header(conn, "referer") |> List.first() != nil ->
           conn
 
         true ->
           with auth_token <- Plug.Conn.get_req_header(conn, "authorization") |> List.first(),
                true <- auth_token != nil,
                token <- auth_token |> String.split("Basic ") |> List.last(),
-               t <- CommerceFront.Settings.decode_token(token),
-               true <- t != nil do
-            conn
+               t <- CommerceFront.Settings.decode_token(token) |> IO.inspect(),
+               admin_t <-
+                 CommerceFront.Settings.decode_admin_token(token)
+                 |> IO.inspect() do
+            if t != nil do
+              conn
+            else
+              if admin_t != nil do
+                conn
+              else
+                IO.inspect("not auth")
+
+                conn
+                |> resp(500, Jason.encode!(%{message: "Not authorized."}))
+                |> halt
+              end
+            end
           else
             _ ->
               IO.inspect("not auth")

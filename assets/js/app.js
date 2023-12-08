@@ -11,7 +11,7 @@ import { memberApp_ } from './member_app.js';
 import { Socket } from "./phoenix.js"
 import { phoenixModel } from './phoenixModel.js';
 
-$("html").attr("data-bs-theme", "light")
+$("html").attr("data-bs-theme", "dark")
 var useSw = true,
   isDev = window.location.hostname == "localhost";
 
@@ -69,10 +69,13 @@ window.addEventListener(
 );
 
 const route_list = [
+  { html: "register_wallet.html", title: "Register Wallet ", route: "/register_wallet" },
+  
+  { html: "bonus_wallet.html", title: "Bonus Wallet ", route: "/bonus_wallet" },
   { html: "new_topup.html", title: "Register Point Topup ", route: "/topup_register_point" },
   { html: "upgrade.html", title: "Upgrade ", route: "/upgrade" },
   { html: "redeem.html", title: "Redeem ", route: "/redeem" },
-
+  { html: "withdrawal.html", title: "Withdrawal ", route: "/withdrawals" },
   { html: "reward_details.html", title: "Reward Details ", route: "/reward_details/:name" },
   { html: "sales_detail.html", title: "Sales Details", route: "/sales/:id" },
   { html: "sales.html", title: "Sales History", route: "/sales" },

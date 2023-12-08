@@ -17,6 +17,15 @@ defmodule CommerceFront.Settings.User do
     field(:rank_name, :string)
     field(:username, :string)
     belongs_to(:rank, CommerceFront.Settings.Rank)
+    field(:u2, :string, virtual: true)
+    field(:u3, :string, virtual: true)
+    # field(:placement, :string, virtual: true)
+
+    field(:is_stockist, :boolean, default: false)
+    has_one(:placement, CommerceFront.Settings.Placement)
+    field(:stockist_user_id, :integer)
+
+    has_many(:stockist_users, CommerceFront.Settings.User, foreign_key: :stockist_user_id)
     timestamps()
   end
 
@@ -24,6 +33,8 @@ defmodule CommerceFront.Settings.User do
   def changeset(user, attrs) do
     user
     |> cast(attrs, [
+      :is_stockist,
+      :stockist_user_id,
       :rank_id,
       :email,
       :username,

@@ -69,12 +69,13 @@ defmodule CommerceFrontWeb.Router do
     options("/:model", ApiController, :datatable)
     get("/:model", ApiController, :datatable)
     post("/:model", ApiController, :form_submission)
+    options("/:model/:id", ApiController, :delete_data)
     delete("/:model/:id", ApiController, :delete_data)
   end
 
   scope "/api", CommerceFrontWeb do
     pipe_through :plain_api
-    get "/get_csrf_token", ApiController, :csrf
+
     post "/payment/billplz", ApiController, :payment
   end
 

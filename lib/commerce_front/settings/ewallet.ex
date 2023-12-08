@@ -11,6 +11,7 @@ defmodule CommerceFront.Settings.Ewallet do
      register
      direct_recruitment
      reserve
+     travel
     )
   )
 
