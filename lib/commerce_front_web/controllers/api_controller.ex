@@ -73,6 +73,9 @@ defmodule CommerceFrontWeb.ApiController do
 
     res =
       case params["scope"] do
+        "get_accumulated_sales" ->
+          params["username"] |> Settings.accumulated_sales(params["show_rank"])
+
         "unpaid_reward_summary" ->
           Settings.group_unpay_rewards()
 
@@ -88,6 +91,11 @@ defmodule CommerceFrontWeb.ApiController do
 
         "get_sale" ->
           Settings.get_sale!(params["id"])
+          |> BluePotion.sanitize_struct()
+
+        "get_sales_items" ->
+          Settings.get_sale!(params["id"])
+          |> Map.get(:sales_items)
           |> BluePotion.sanitize_struct()
 
         "user_wallet" ->
@@ -253,6 +261,25 @@ defmodule CommerceFrontWeb.ApiController do
   def post(conn, params) do
     res =
       case params["scope"] do
+        "mark_do" ->
+          sale = Settings.get_sale!(params["id"]) |> IO.inspect()
+
+          cond do
+            sale.status == :processing && params["status"] == "pending_delivery" ->
+              Settings.update_sale(sale, %{status: params["status"]})
+              %{status: "ok"}
+
+            sale.status == :pending_delivery && params["status"] == "sent" ->
+              Settings.update_sale(sale, %{status: params["status"]})
+              %{status: "ok"}
+
+            true ->
+              nil
+              %{status: "error", reason: "already updated to #{params["status"]}"}
+          end
+
+        # params["status"]
+
         "pay_reward" ->
           Settings.pay_unpaid_bonus(
             Date.from_erl!({params["year"], params["month"], params["day"]}),
@@ -365,6 +392,7 @@ defmodule CommerceFrontWeb.ApiController do
           # get the billplz link first, then make payment
           # create the sales first
           # Settings.register(params["user"])
+
           case Settings.create_sales_transaction(params) |> IO.inspect() do
             {:ok, multi_res} ->
               %{status: "ok", res: multi_res.payment |> BluePotion.sanitize_struct()}
@@ -380,15 +408,29 @@ defmodule CommerceFrontWeb.ApiController do
           # get the billplz link first, then make payment
           # create the sales first
           # Settings.register(params["user"])
-          case Settings.create_sales_transaction(params) |> IO.inspect() do
-            {:ok, multi_res} ->
-              %{status: "ok", res: multi_res.payment |> BluePotion.sanitize_struct()}
 
-            {:error, :payment, "not sufficient", passed_cg} ->
-              %{status: "error", reason: "wallet balance not sufficient"}
+          sales_person = Settings.get_user!(params["user"]["sales_person_id"])
 
+          with true <-
+                 params["user"]["upgrade"] == "" ||
+                   params["user"]["upgrade"] == sales_person.username,
+               true <- params["user"]["payment"]["method"] == "register_point" do
+            %{status: "error", reason: "Cannot use DRP on self."}
+          else
             _ ->
-              %{status: "error"}
+              case Settings.create_sales_transaction(params) |> IO.inspect() do
+                {:ok, multi_res} ->
+                  %{
+                    status: "ok",
+                    res: multi_res.payment |> Map.delete(:user) |> BluePotion.sanitize_struct()
+                  }
+
+                {:error, :payment, "not sufficient", passed_cg} ->
+                  %{status: "error", reason: "wallet balance not sufficient"}
+
+                _ ->
+                  %{status: "error"}
+              end
           end
 
         "register" ->
@@ -924,8 +966,9 @@ defmodule CommerceFrontWeb.ApiController do
                           with true <- i |> String.contains?("id"),
                                false <- i |> String.contains?("uuid"),
                                false <- i |> String.contains?("paid"),
-                               false <- i |> String.contains?("is_") do
-                            case Integer.parse(ss) do
+                               false <- i |> String.contains?("is_"),
+                               true <- ss != nil do
+                            case Integer.parse(ss) |> IO.inspect() do
                               {ss, _val} ->
                                 """
                                 #{prefix}.#{i} == ^#{ss}  #{addon_search}
@@ -1049,12 +1092,15 @@ defmodule CommerceFrontWeb.ApiController do
                 """
               else
                 _ ->
-                  if subquery != "" do
+                  with true <- subquery != "",
+                       true <- subquery != "\n",
+                       false <- subquery |> String.contains?("and \n") do
                     """
                     |> or_where([a,b,c,d], #{subquery} )
                     """
                   else
-                    nil
+                    _ ->
+                      nil
                   end
               end
           end

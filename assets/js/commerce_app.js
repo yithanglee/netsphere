@@ -147,7 +147,7 @@ export let commerceApp_ = {
     // has to be done after rendering page, 
     // callback function to call this render
     var list = ["userProfile", "wallet", "announcement", "products", "product",
-      "rewardList", "cart", "cartItems", "salesItems"
+      "rewardList", "cart", "cartItems", "salesItems", "upgradeTarget"
     ]
 
     list.forEach((v, i) => {
@@ -162,6 +162,55 @@ export let commerceApp_ = {
     })
   },
   components: {
+    upgradeTarget() {
+
+      window.upgradeTarget
+      if (window.upgradeTarget == null) {
+        window.upgradeTarget = memberApp_.user.username
+      } else {
+        $("input[name='user[upgrade]']").val(window.upgradeTarget)
+      }
+      $("upgradeTarget").html(`<span>for: <span id="upgradeTarget">` + window.upgradeTarget + `</span> <a class="ms-4" href="javascript:void(0);" aria-upgrade=true> <i class="fa fa-edit"></i> Change</a> </span>`)
+
+      $("[aria-upgrade]").click(() => {
+        phxApp_.modal({ selector: "#mySubModal", autoClose: false, content: `
+          <div>
+            <div class="form-group">
+              <label>Username</label>
+              <input class="my-2 form-control" type="text" name='upgrade[username]'></input>
+                <div class="form-text text-muted pv-info"></div>
+
+              <button class="mt-4 btn btn-outline-primary checkUser">Check</button>
+              <button class="mt-4 btn btn-primary selectUser">Select this user</button>
+            </div>
+          </div>
+          `, header: 'Change Upgrade User', })
+        $(".checkUser").click(() => {
+
+
+          phxApp_.notify("User verified!")
+          var res = phxApp_.api("get_accumulated_sales", { show_rank: true, username: $("[name='upgrade[username]']").val() })
+          $(".pv-info").html(`Accumulated sales PV: ` + res[0] + ` | Rank: ` + res[1])
+ 
+
+        })
+        $(".selectUser").click(() => {
+          $("input[name='user[upgrade]']").val($("[name='upgrade[username]']").val())
+          phxApp_.notify("User selected!")
+
+          $("#mySubModal").modal('hide')
+          window.upgradeTarget = $("[name='upgrade[username]']").val()
+          $("#upgradeTarget").html($("[name='upgrade[username]']").val())
+
+          commerceApp_.components["cartItems"]()
+
+
+        })
+      })
+
+    },
+
+
     salesItems() {
 
 
@@ -352,7 +401,7 @@ export let commerceApp_ = {
                 </div>
 
                 <div class="d-flex justify-content-between align-items-center">
-                  <span class="fs-5">Discount (<small>DRP</small>)</span>
+                  <span class="fs-5">DRP</span>
                   <span class=" ">- RP <span class="format-float">` + drp_amount + `</span></span>
                 </div>
 
@@ -420,7 +469,8 @@ export let commerceApp_ = {
       ColumnFormater.formatDate();
     },
     cartItems() {
-      var count = 0, shipping_fee = 2,
+      var count = 0,
+        shipping_fee = 2,
         list = [],
         total_pv = 0,
         subtotal = 0.0;
@@ -442,12 +492,24 @@ export let commerceApp_ = {
 
 
       if ($("cartItems").attr("upgrade") != null) {
-        subtotal = subtotal + memberApp_.user.rank.retail_price
-      }
-      console.log(subtotal)
-      eligible_rank = this.evalRank(subtotal)
+        if (window.upgradeTarget != null) {
+          accumulated_sales = phxApp_.api("get_accumulated_sales", { username: window.upgradeTarget })
+          subtotal = subtotal
+          console.log(subtotal)
+          eligible_rank = this.evalRank(subtotal + accumulated_sales)
+        } else {
+          subtotal = subtotal
+          console.log(subtotal)
+          eligible_rank = this.evalRank(subtotal + memberApp_.user.rank.retail_price)
+        }
 
-      if (subtotal >= 500) {
+
+        $(".only-downline").click(() => {
+          phxApp_.notify("Only available for direct recruited downline.")
+        })
+      }
+
+      if (subtotal >= 100) {
         shipping_fee = 0
       }
 
@@ -532,7 +594,7 @@ export let commerceApp_ = {
 
                     <div class="d-flex justify-content-between align-items-center">
                       <span class="fs-4">Grand Total</span>
-                      <span class=" me-4">RP <span class="format-float fs-4">` + (subtotal + shipping_fee ) + `</span></span>
+                      <span class=" me-4">RP <span class="format-float fs-4">` + (subtotal + shipping_fee) + `</span></span>
                     </div>
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="fs-5">Total PV</span>
@@ -611,10 +673,14 @@ export let commerceApp_ = {
 
       function drpChanged() {
         appendWalletAttr()
-        var drp_amount = 0, shipping_fee = 2;
+        var drp_amount = 0,
+          shipping_fee = 2;
         if ($("#drp_payment").length > 0) {
 
           drp_amount = $("#drp_payment").val()
+        }
+        if (subtotal >= 100) {
+          shipping_fee = 0
         }
         $("cartItems").html(`
 
@@ -628,7 +694,7 @@ export let commerceApp_ = {
                       <span class=" me-4">RP <span class="format-float">` + shipping_fee + `</span></span>
                     </div>
                     <div class="d-flex justify-content-between align-items-center">
-                      <span class="fw-bold">Discount</span>
+                      <span class="fw-bold">DRP</span>
                       <span class=" me-4">- RP <span class="format-float">` + drp_amount + `</span></span>
                     </div>
                     <div class="d-flex justify-content-between align-items-center">
@@ -867,6 +933,7 @@ export let commerceApp_ = {
 
       if ($("cartItems").attr("upgrade") != null) {
         subtotal = subtotal + memberApp_.user.rank.retail_price
+
       }
 
       eligible_rank = this.evalRank(subtotal)

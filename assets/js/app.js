@@ -11,7 +11,7 @@ import { memberApp_ } from './member_app.js';
 import { Socket } from "./phoenix.js"
 import { phoenixModel } from './phoenixModel.js';
 
-$("html").attr("data-bs-theme", "dark")
+$("html").attr("data-bs-theme", "light")
 var useSw = true,
   isDev = window.location.hostname == "localhost";
 

@@ -96,6 +96,8 @@ defmodule CommerceFrontWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :index
+    get "/pdf_preview", PageController, :pdf_preview
+    get "/pdf", PageController, :pdf
     get "/log2in", PageController, :login
     post "/auth", PageController, :authenticate
     get "/thank_you", PageController, :thank_you

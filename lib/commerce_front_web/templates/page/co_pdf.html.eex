@@ -1,0 +1,180 @@
+<style type="text/css">
+.text-sm {
+  font-size: 0.8rem;
+}
+
+.text-lg {
+  font-size: 24px;
+}
+
+.text-xl {
+  font-size: 32px;
+}
+
+.collapsed {
+  height: 0px !important;
+}
+
+.w-120 {
+  width: 120px;
+}
+
+.w-80 {
+  width: 80px;
+}
+
+.w-72 {
+  width: 72px;
+}
+
+.w-64 {
+  width: 64px;
+}
+
+.w-16 {
+  width: 64px;
+}
+
+.table th,
+.table td {
+  padding: 4px 16px;
+  vertical-align: middle;
+  border-top: 0px;
+}
+
+
+table td, table th {
+  border-width: 1px  !important;
+  border-style: solid  !important;
+  border-color: white !important;
+}
+</style>
+<div class="container" style="left: 0px; position: absolute;">
+  <title>HAHO ·
+    <%= @title %>
+  </title>
+  <%  
+  currency = "MYR"
+  conversion_rate =
+  case currency do
+    "MYR" ->
+      5
+      _ ->
+      1
+  end 
+  user_deet =  @sale.registration_details |> Jason.decode! |> Map.get("user") |> IO.inspect
+
+  payment = user_deet  |> Map.get("payment")
+
+  drp_amount = case Map.get(payment, "drp", "0") |> Float.parse do
+    {amount, _suffix} ->
+    amount 
+    _ ->
+    0.00 
+  end
+  rp_amount = @sale.grand_total - drp_amount 
+  shipping_fee = @sale.shipping_fee
+    chunk_no = 10
+    chunked_orders = @order_lines |> Enum.chunk_every(chunk_no) |> Enum.with_index() %>
+  <%= for {items, pagination_append} <- chunked_orders do %>
+  <%= if Enum.count(chunked_orders) == 1 do %>
+  <div class="justify-center ">
+    <% else  %>
+    <div class="justify-center " style="page-break-after: always;">
+      <% end %>
+      <%= render("header.html", title: @title, conn: @conn, sales: @sale, payment: user_deet  |> Map.get("payment"), shipping: user_deet |> Map.get("shipping")) %>
+      <center class="" style="">
+        <table class=" " style="width: 85%;">
+          <thead>
+            <tr>
+              <th class="text-start">No</th>
+              <th class="text-start">Name</th>
+              <th class="text-end">Price (RP)</th>
+              <th class="text-end">Qty</th>
+              <th class="text-end">Subtotal (RP)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <%= for {item, idx} <- Enum.with_index(items, 1 + (pagination_append * chunk_no)) do %>
+            <tr style="border-top: 1px solid grey;">
+              <td class="text-start">
+                <div class="">
+                  <%= idx %>
+                </div>
+              </td>
+              <td class="text-start ">
+                <img class="me-4" src="<%= item.img_url %>" height="40px;">
+                <%= item.item_name %>
+              </td>
+              <td class="text-end">
+                <%= item.item_price |> :erlang.float_to_binary(decimals: 2) %>
+              </td>
+              <td class="text-end">
+                <%= item.qty %>
+              </td>
+              <td class="text-end">
+                <%= item.item_price * item.qty |> :erlang.float_to_binary(decimals: 2) %>
+              </td>
+            </tr>
+            <% end %>
+            <tr>
+              <td colspan="4" class="text-end">
+                Subtotal Total
+              </td>
+              <td class="text-end">
+                <%= @sale.subtotal |> :erlang.float_to_binary(decimals: 2) %>
+              </td>
+            </tr>
+            <tr>
+              <td colspan="4" class="text-end">
+                Shipping
+              </td>
+              <td class="text-end">
+                <%= @sale.shipping_fee |> :erlang.float_to_binary(decimals: 2) %>
+              </td>
+            </tr>
+
+
+            <tr class="fw-bold">
+              <td colspan="4" class="text-end">
+                DRP
+              </td>
+              <td class="text-end">
+                <%=  drp_amount |> :erlang.float_to_binary(decimals: 2) %>
+              </td>
+            </tr>
+
+            <tr class="fw-bold">
+              <td colspan="4" class="text-end">
+                RP
+              </td>
+              <td class="text-end">
+                <%=  rp_amount  |> :erlang.float_to_binary(decimals: 2) %>
+              </td>
+            </tr>
+
+
+            <tr class="fw-bold">
+              <td colspan="4" class="text-end">
+                Grand Total
+              </td>
+              <td class="text-end">
+                <%= @sale.grand_total |> :erlang.float_to_binary(decimals: 2) %>
+              </td>
+            </tr>
+
+
+            <tr class="fw-bold">
+              <td colspan="4" class="text-end">
+                Grand Total In Local Currency (<%= currency %>)
+              </td>
+              <td class="text-end">
+                <%= @sale.grand_total * conversion_rate |> :erlang.float_to_binary(decimals: 2) %>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </center>
+    </div>
+    <% end %>
+  </div>

@@ -55,8 +55,8 @@ defmodule CommerceFront do
     CommerceFront.Calculation.travel_fund(m, y)
   end
 
-  def carry_forward_task do
-    for date <- Date.range(~D[2023-11-07], ~D[2023-12-04]) do
+  def carry_forward_task(sdate \\ ~D[2023-11-07], edate \\ Date.utc_today() |> Date.add(-1)) do
+    for date <- Date.range(sdate, edate) do
       CommerceFront.Settings.reconstruct_daily_group_sales_summary(date)
 
       CommerceFront.Calculation.daily_team_bonus(date)

@@ -45,6 +45,12 @@ export let memberApp_ = {
   },
   upgrade(dom) {
     $(dom).closest("form")
+    if ($("form#register")) {
+      if (this.user != null) {
+        $("input[name='user[sales_person_id]']").val(this.user.id)
+
+      }
+    }
     phxApp_.validateForm("form", () => {
       console.info("validating form...")
       phxApp_.form($(dom).closest("form"), "upgrade", (e) => {
@@ -56,9 +62,10 @@ export let memberApp_ = {
             commerceApp_.emptyCart_()
             window.location = e.payment_url
           } else {
-            console.log("e user")
-            console.log(e.user)
-            memberApp_.updateUser(e.user)
+            // console.log("e user")
+            // console.log(e.user)
+            // memberApp_.updateUser(e.user)
+            phxApp_.notify("Please relogin to update rank.")
             commerceApp_.emptyCart_()
             commerceApp_.components["userProfile"]()
             phxApp_.navigateTo(e.payment_url)
@@ -71,7 +78,13 @@ export let memberApp_ = {
     })
   },
   register(dom) {
-    $(dom).closest("form")
+    if ($("form#register")) {
+      if (this.user != null) {
+        $("input[name='user[sales_person_id]']").val(this.user.id)
+
+      }
+    }
+
     phxApp_.validateForm("form", () => {
       console.log("validating form...")
       phxApp_.form($(dom).closest("form"), "register", (e) => {

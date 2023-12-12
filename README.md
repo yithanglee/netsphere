@@ -191,11 +191,6 @@ when use DRP register , this will calculate only the DRP sales level bonus
 
   + bonus point can covert to register point only [done]
   
- 
-
-
-*OUTSTANDING*
-
  - pay into travel fund wallet, need to check company company total PV * 0.05
   -- company 100k PV, = 5000 PV
   -- check how many ppl collected the travel fund shares, if everyone has 500 share 
@@ -204,20 +199,45 @@ when use DRP register , this will calculate only the DRP sales level bonus
   + DRP option [done]
   + RP can transfer to upline  [done]
   + redeem point need at least 500 RP, else charge 2 RP as shipping fee [done]
-  
+    + admin pay button [done]
+ + DO and customer order PDF  [done]
+  + sales performance summary by country  [done]
++ the invoice display subtotal rename the discount to only DRP [done]
+
+*OUTSTANDING*
 
 
-  + admin pay button
-  + sales performance summary by country 
++ accumulate order to upgrade 180 days [in progress]
++ when upgrade can use DRP as well [in progress]
+
+!! need to ensure the balance of the reward allocations 
+
++ admin to modify ranking...
++ admin give free DRP 
 
 
 
-  + DO and customer order PDF 
 
-  
++ for sabah sarwk < 200RP + 4RP shippping 
+< 400RP + 8RP   
+every  200 RP charge - 4RP 
+
++ Travel fund need to cap per month 60 share
++ then recalculate the share per unit value
+
++ royalty bonus  
+  - only pay to  RP wallet
+  - monthly calculation
+  - referal group sales to calculate 
+  - put the royalty percentage in the user list
+  - royalty_users 
+    
 
 
+----
 
   + admin storekeeper , need to view sales by country
   + admin storekeeper need to print by date, country,
   + inventory with stock keeping transaction for store keeper 
+
+

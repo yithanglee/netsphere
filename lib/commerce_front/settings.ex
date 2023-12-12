@@ -2248,7 +2248,7 @@ defmodule CommerceFront.Settings do
             end
           end
 
-          case check_sufficient.(sale.subtotal) do
+          case check_sufficient.(sale.grand_total) do
             # direct register liao... 
             {:ok, sale} ->
               {:ok, %CommerceFront.Settings.Payment{payment_url: "/sales/#{sale.id}"}}
@@ -2453,8 +2453,10 @@ defmodule CommerceFront.Settings do
       end)
       |> Multi.run(:user, fn _repo, %{sales_person: sales_person} ->
         if params["upgrade"] != nil do
-          sales_person.rank.retail_price
-          total_pv = sales_person.rank.retail_price + sales.subtotal
+          upgrade_target_user = get_user_by_username(params["upgrade"]) |> Repo.preload(:rank)
+
+          # upgrade_target_user.rank.retail_price
+          total_pv = CommerceFront.Settings.accumulated_sales(params["upgrade"]) + sales.subtotal
           # determine wat rank he reached based on new pv... 
           new_rank =
             CommerceFront.Settings.list_ranks()
@@ -2467,9 +2469,10 @@ defmodule CommerceFront.Settings do
             rank_name: new_rank.name
           }
 
-          {:ok, sales_person} = CommerceFront.Settings.update_user(sales_person, prm)
+          {:ok, upgrade_target_user} =
+            CommerceFront.Settings.update_user(upgrade_target_user, prm)
 
-          {:ok, sales_person |> Map.put(:rank, new_rank)}
+          {:ok, upgrade_target_user |> Map.put(:rank, new_rank)}
         else
           rank = get_rank!(params["rank_id"])
 
@@ -2525,8 +2528,8 @@ defmodule CommerceFront.Settings do
       end)
       |> Multi.run(:placement, fn _repo, %{user: user} ->
         if params["upgrade"] != nil do
-          parent_p = get_placement_by_username(user.username)
-          IEx.pry()
+          parent_p = get_placement_by_username(params["upgrade"])
+
           {:ok, parent_p}
         else
           {position, parent_p} = determine_position(params["sponsor"])
@@ -2585,10 +2588,17 @@ defmodule CommerceFront.Settings do
           end
         end
       end)
-      |> Multi.run(:stockist, fn _repo, %{user: user, sale: sale, placement: placement} ->
+      |> Multi.run(:stockist, fn _repo,
+                                 %{
+                                   user: user,
+                                   sale: sale,
+                                   placement: placement,
+                                   sales_person: sales_person
+                                 } ->
         with true <- sale != nil,
              true <- sale.subtotal >= 2000,
-             true <- sale.total_point_value >= 1000 do
+             true <- sale.total_point_value >= 1000,
+             true <- user.is_stockist == false do
           # IEx.pry()
           CommerceFront.Settings.convert_to_stockist(user |> Map.put(:placement, placement))
         else
@@ -3102,6 +3112,7 @@ defmodule CommerceFront.Settings do
       unit_2 =
         register(
           %{
+            "sales_person_id" => user.id,
             "stockist_user_id" => user.id,
             "rank_id" => user.rank_id,
             "sponsor" => user.username,
@@ -3117,6 +3128,7 @@ defmodule CommerceFront.Settings do
       unit_3 =
         register(
           %{
+            "sales_person_id" => user.id,
             "stockist_user_id" => user.id,
             "rank_id" => user.rank_id,
             "sponsor" => user.username,
@@ -3129,7 +3141,7 @@ defmodule CommerceFront.Settings do
           %CommerceFront.Settings.Sale{}
         )
 
-      updated_parent = user |> Repo.preload([:placement, stockist_users: [placement: [:parent]]])
+      updated_parent = user |> Repo.preload(stockist_users: [placement: [:parent]])
 
       [%{placement: u2_placement} = u2, %{placement: u3_placement} = u3] =
         updated_parent.stockist_users
@@ -3226,7 +3238,7 @@ defmodule CommerceFront.Settings do
       # placement_counter_reset()
 
       Elixir.Task.start_link(CommerceFront.Settings, :placement_counter_reset, [])
-      {:ok, [unit_2, unit_3, updated_parent]}
+      {:ok, nil}
     end)
     |> Repo.transaction()
   end
@@ -3441,5 +3453,98 @@ defmodule CommerceFront.Settings do
       |> order_by([r], [r.year, r.month, r.day])
 
     Repo.all(query)
+  end
+
+  def yearly_sales_performance(type \\ "MY") do
+    query3 = """
+    select
+      to_char( l.inserted_at , 'YYYY') as year,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '01') AS jan,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '02') AS feb,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '03') AS mar,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '04') AS apr,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '05') AS may,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '06') AS jun,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '07') AS jul,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '08') AS aug,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '09') AS sep,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '10') AS oct,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '11') AS nov,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '12') AS dec
+    from
+      sales l
+      group by to_char( l.inserted_at , 'YYYY') order by to_char( l.inserted_at , 'YYYY') desc ;
+    """
+
+    params = []
+
+    query =
+      case type do
+        _ ->
+          query3
+      end
+
+    {:ok, %Postgrex.Result{columns: columns, rows: rows} = res} = Repo.query(query, params)
+
+    for row <- rows do
+      Enum.zip(columns |> Enum.map(&(&1 |> String.to_atom())), row) |> Enum.into(%{})
+    end
+  end
+
+  def accumulated_sales(username, show_rank \\ nil) do
+    {y, m, d} = Date.utc_today() |> Date.to_erl()
+    edate = NaiveDateTime.from_erl!({{y, m, d}, {0, 0, 0}})
+    sdate = edate |> Timex.shift(months: -6)
+
+    user = get_user_by_username(username) |> Repo.preload(:rank)
+
+    sdate = user.inserted_at
+    edate = sdate |> Timex.shift(months: 6)
+
+    if user != nil do
+      Date.compare(~D[2024-01-01], ~D[2024-04-01]) == :lt
+
+      res =
+        if Date.compare(edate, Date.utc_today()) == :lt do
+          Repo.all(
+            from(s in Sale,
+              left_join: u in User,
+              on: s.sales_person_id == u.id,
+              where: u.username == ^username,
+              where: s.status != ^:pending_payment,
+              where: s.inserted_at > ^sdate and s.inserted_at < ^edate,
+              group_by: [s.sales_person_id],
+              select: sum(s.subtotal)
+            )
+          )
+          |> List.first()
+        else
+          Repo.all(
+            from(s in Sale,
+              left_join: u in User,
+              on: s.sales_person_id == u.id,
+              where: u.username == ^username,
+              where: s.status != ^:pending_payment,
+              where: s.inserted_at > ^sdate and s.inserted_at < ^edate,
+              or_where: s.user_id == ^user.id,
+              group_by: [s.sales_person_id],
+              select: sum(s.subtotal)
+            )
+          )
+          |> List.first()
+        end
+
+      if show_rank do
+        [res, user.rank.name]
+      else
+        res
+      end
+    else
+      if show_rank do
+        [0, "n/a"]
+      else
+        0
+      end
+    end
   end
 end
