@@ -181,17 +181,30 @@ export let commerceApp_ = {
                 <div class="form-text text-muted pv-info"></div>
 
               <button class="mt-4 btn btn-outline-primary checkUser">Check</button>
-              <button class="mt-4 btn btn-primary selectUser">Select this user</button>
+              <button class="mt-4 btn btn-primary disabled selectUser">Select this user</button>
             </div>
           </div>
           `, header: 'Change Upgrade User', })
         $(".checkUser").click(() => {
 
 
-          phxApp_.notify("User verified!")
-          var res = phxApp_.api("get_accumulated_sales", { show_rank: true, username: $("[name='upgrade[username]']").val() })
-          $(".pv-info").html(`Accumulated sales PV: ` + res[0] + ` | Rank: ` + res[1])
- 
+          phxApp_.api("get_accumulated_sales", {
+              parent_id: memberApp_.user.id,
+              show_rank: true,
+              username: $("[name='upgrade[username]']").val(),
+
+            }, () => {
+              window.upgradeTarget = memberApp_.user.username
+              $("input[name='user[upgrade]']").val(window.upgradeTarget)
+              $(".selectUser").addClass("disabled")
+
+            },
+            (res) => {
+              phxApp_.notify("User verified!")
+              $(".selectUser").removeClass("disabled")
+              $(".pv-info").html(`Accumulated sales PV: ` + res[0] + ` | Rank: ` + res[1])
+            })
+
 
         })
         $(".selectUser").click(() => {
@@ -845,6 +858,7 @@ export let commerceApp_ = {
       })[0]
 
       var eligible_rank = "n/a"
+      console.log(eligible_rank)
 
       if (check) {
         eligible_rank = check.name
@@ -931,12 +945,31 @@ export let commerceApp_ = {
           </div>`)
       })
 
-      if ($("cartItems").attr("upgrade") != null) {
-        subtotal = subtotal + memberApp_.user.rank.retail_price
+      // if ($("cartItems").attr("upgrade") != null) {
+      //   subtotal = subtotal + memberApp_.user.rank.retail_price
 
+      // }
+      // eligible_rank = this.evalRank(subtotal)
+
+
+      if ($("cartItems").attr("upgrade") != null) {
+        if (window.upgradeTarget != null) {
+          accumulated_sales = phxApp_.api("get_accumulated_sales", { username: window.upgradeTarget })
+          subtotal = subtotal
+          console.log(subtotal)
+          eligible_rank = this.evalRank(subtotal + accumulated_sales)
+        } else {
+          subtotal = subtotal
+          console.log(subtotal)
+          eligible_rank = this.evalRank(subtotal + memberApp_.user.rank.retail_price)
+        }
+
+
+        $(".only-downline").click(() => {
+          phxApp_.notify("Only available for direct recruited downline.")
+        })
       }
 
-      eligible_rank = this.evalRank(subtotal)
       bg_ranks = [
 
         `  <div class="progress-bar bg-danger" role="progressbar" style="width: 15%;" aria-valuenow="15" aria-valuemin="0" aria-valuemax="100"></div>`,

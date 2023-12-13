@@ -74,7 +74,19 @@ defmodule CommerceFrontWeb.ApiController do
     res =
       case params["scope"] do
         "get_accumulated_sales" ->
-          params["username"] |> Settings.accumulated_sales(params["show_rank"])
+          user = Settings.get_user_by_username(params["username"])
+
+          if params["parent_id"] != nil do
+            check = Settings.verify_parent(String.to_integer(params["parent_id"]), user)
+
+            if check do
+              Settings.accumulated_sales_by_user(user, params["show_rank"])
+            else
+              %{status: "error", reason: "not your downline"}
+            end
+          else
+            Settings.accumulated_sales(params["username"])
+          end
 
         "unpaid_reward_summary" ->
           Settings.group_unpay_rewards()
@@ -201,10 +213,18 @@ defmodule CommerceFrontWeb.ApiController do
       conn
     end
 
-    conn
-    |> append_cache_request.()
-    |> put_resp_content_type("application/json")
-    |> send_resp(200, Jason.encode!(res))
+    with true <- is_map(res),
+         true <- Map.get(res, :status) == "error" do
+      conn
+      |> put_resp_content_type("application/json")
+      |> send_resp(500, Jason.encode!(res))
+    else
+      _ ->
+        conn
+        |> append_cache_request.()
+        |> put_resp_content_type("application/json")
+        |> send_resp(200, Jason.encode!(res))
+    end
   end
 
   def payment(conn, params) do

@@ -45,6 +45,20 @@ defmodule CommerceFront.Calculation do
     end
   end
 
+  def unpaid_node() do
+    unpaid_user = CommerceFront.Settings.unpaid_user()
+
+    unpaid_node = %{
+      child: "",
+      child_id: 0,
+      parent: unpaid_user.username,
+      parent_id: unpaid_user.id,
+      pt_child_id: 0,
+      pt_parent_id: 0,
+      rank: "金级套餐"
+    }
+  end
+
   @doc """
 
 
@@ -56,7 +70,16 @@ defmodule CommerceFront.Calculation do
 
   """
   def sharing_bonus(username, total_point_value, sale, referral) do
-    uplines = CommerceFront.Settings.check_uplines(username, :referal) |> Enum.with_index(1)
+    unpaid_node = unpaid_node()
+
+    uplines =
+      CommerceFront.Settings.check_uplines(username, :referal)
+      |> Enum.reverse()
+      |> List.insert_at(0, unpaid_node)
+      |> List.insert_at(0, unpaid_node)
+      |> List.insert_at(0, unpaid_node)
+      |> Enum.reverse()
+      |> Enum.with_index(1)
 
     matrix = [
       %{rank: "铜级套餐", l1: 0.2, calculated: false},
@@ -712,10 +735,18 @@ defmodule CommerceFront.Calculation do
     {:ok, %Postgrex.Result{columns: columns, rows: rows} = res} =
       Ecto.Adapters.SQL.query(Repo, subquery2, [month, year])
 
+    unpaid_node = unpaid_node()
+
     users_weak_leg =
       for row <- rows do
         Enum.zip(columns |> Enum.map(&(&1 |> String.to_atom())), row) |> Enum.into(%{})
       end
+      |> List.insert_at(0, %{
+        left: 1501,
+        right: 1500,
+        user_id: unpaid_node.parent_id,
+        username: unpaid_node.parent
+      })
 
     Repo.delete_all(
       from(r in Reward,
@@ -728,66 +759,75 @@ defmodule CommerceFront.Calculation do
     Multi.new()
     |> Multi.run(:calculation, fn _repo, %{} ->
       for user <- users do
-        uplines = Settings.check_uplines(user.username, :referal)
+        uplines =
+          Settings.check_uplines(user.username, :referal)
+          |> Enum.reverse()
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> Enum.reverse()
+
         # check user has team bonus
 
         check = team_bonuses |> Enum.filter(&(&1.user_id == user.id)) |> List.first()
 
         calc = fn upline, index ->
-          nil
-
           weak_leg =
             users_weak_leg |> Enum.filter(&(&1.user_id == upline.parent_id)) |> List.first()
 
-          weak_amount =
-            if weak_leg.left > weak_leg.right do
-              weak_leg.right
+          if weak_leg != nil do
+            weak_amount =
+              if weak_leg.left > weak_leg.right do
+                weak_leg.right
+              else
+                weak_leg.left
+              end
+
+            matrix = [
+              %{amount: 500, l1: 0.1},
+              %{amount: 1000, l1: 0.1, l2: 0.1},
+              %{amount: 1500, l1: 0.1, l2: 0.1, l3: 0.1}
+            ]
+
+            map = Enum.filter(matrix, &(&1.amount <= weak_amount)) |> List.last()
+
+            if map != nil do
+              if index < 4 do
+                constant =
+                  case index do
+                    1 ->
+                      map |> Map.get(:l1, 0)
+
+                    2 ->
+                      map |> Map.get(:l2, 0)
+
+                    3 ->
+                      map |> Map.get(:l3, 0)
+
+                    _ ->
+                      0
+                  end
+
+                bonus = check.sum * constant
+
+                CommerceFront.Settings.create_reward(%{
+                  sales_id: 0,
+                  is_paid: false,
+                  remarks:
+                    "#{check.sum |> :erlang.float_to_binary(decimals: 2)} * #{constant} = #{bonus}||lvl:#{index}||#{user.username} team bonus at #{month}-#{year}: #{check.sum |> :erlang.float_to_binary(decimals: 2)}||#{weak_leg.username} leg: #{weak_leg.left} vs #{weak_leg.right}",
+                  name: "matching bonus",
+                  amount: bonus |> Float.round(2),
+                  user_id: upline.parent_id,
+                  day: Timex.end_of_month(date).day,
+                  month: month,
+                  year: year
+                })
+              end
+
+              index + 1
             else
-              weak_leg.left
+              index
             end
-
-          matrix = [
-            %{amount: 500, l1: 0.1},
-            %{amount: 1000, l1: 0.1, l2: 0.1},
-            %{amount: 1500, l1: 0.1, l2: 0.1, l3: 0.1}
-          ]
-
-          map = Enum.filter(matrix, &(&1.amount <= weak_amount)) |> List.last()
-
-          if map != nil do
-            if index < 4 do
-              constant =
-                case index do
-                  1 ->
-                    map |> Map.get(:l1, 0)
-
-                  2 ->
-                    map |> Map.get(:l2, 0)
-
-                  3 ->
-                    map |> Map.get(:l3, 0)
-
-                  _ ->
-                    0
-                end
-
-              bonus = check.sum * constant
-
-              CommerceFront.Settings.create_reward(%{
-                sales_id: 0,
-                is_paid: false,
-                remarks:
-                  "#{check.sum} * #{constant} = #{bonus}||lvl:#{index}||#{user.username} team bonus at #{month}-#{year}: #{check.sum}||#{weak_leg.username} leg: #{weak_leg.left} vs #{weak_leg.right}",
-                name: "matching bonus",
-                amount: bonus,
-                user_id: upline.parent_id,
-                day: Timex.end_of_month(date).day,
-                month: month,
-                year: year
-              })
-            end
-
-            index + 1
           else
             index
           end
@@ -867,10 +907,18 @@ defmodule CommerceFront.Calculation do
     {:ok, %Postgrex.Result{columns: columns, rows: rows} = res} =
       Ecto.Adapters.SQL.query(Repo, subquery2, [month, year])
 
+    unpaid_node = unpaid_node()
+
     users_weak_leg =
       for row <- rows do
         Enum.zip(columns |> Enum.map(&(&1 |> String.to_atom())), row) |> Enum.into(%{})
       end
+      |> List.insert_at(0, %{
+        left: 50001,
+        right: 50000,
+        user_id: unpaid_node.parent_id,
+        username: unpaid_node.parent
+      })
 
     Repo.delete_all(
       from(r in Reward,
@@ -903,7 +951,7 @@ defmodule CommerceFront.Calculation do
                 weak_leg.left
               end
 
-            if weak_amount > amount do
+            if weak_amount >= amount do
               weak_leg
             else
               nil
@@ -928,9 +976,9 @@ defmodule CommerceFront.Calculation do
               sales_id: 0,
               is_paid: false,
               remarks:
-                "#{total_sales_pv} * 0.01/ #{count} = #{one_star_amount}|weak_leg: #{weak_amount}|pool qualifiers: #{count}|#{star_name}",
+                "#{total_sales_pv} * 0.01/ #{count} = #{one_star_amount |> :erlang.float_to_binary(decimals: 2)}|weak_leg: #{weak_amount}|pool qualifiers: #{count}|#{star_name}",
               name: "elite leader",
-              amount: one_star_amount,
+              amount: one_star_amount |> Float.round(2),
               user_id: weak_leg.user_id,
               day: Timex.end_of_month(date).day,
               month: month,
@@ -1138,10 +1186,18 @@ defmodule CommerceFront.Calculation do
     {:ok, %Postgrex.Result{columns: columns, rows: rows} = res} =
       Ecto.Adapters.SQL.query(Repo, subquery2, [month, year])
 
+    unpaid_node = unpaid_node()
+
     users_weak_leg =
       for row <- rows do
         Enum.zip(columns |> Enum.map(&(&1 |> String.to_atom())), row) |> Enum.into(%{})
       end
+      |> List.insert_at(0, %{
+        left: 501,
+        right: 500,
+        user_id: unpaid_node.parent_id,
+        username: unpaid_node.parent
+      })
 
     Repo.delete_all(
       from(r in Reward,
@@ -1179,16 +1235,36 @@ defmodule CommerceFront.Calculation do
 
     Multi.new()
     |> Multi.run(:calculation, fn _repo, %{} ->
-      sample = [
-        %{sum: 60.5, user_id: 583, username: :at},
-        %{sum: 69.5, user_id: 584},
-        %{sum: 65.0, user_id: 585},
-        %{sum: 10.0, user_id: 586}
-      ]
-
       for %{sum: sum, user_id: user_id, username: username} = user_product_wallet <-
             users_monthly_product_wallet_entries do
-        uplines = CommerceFront.Settings.check_uplines(username, :referal) |> Enum.with_index(1)
+        uplines =
+          CommerceFront.Settings.check_uplines(username, :referal)
+          |> Enum.reverse()
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> Enum.reverse()
+          |> Enum.with_index(1)
+
         IO.inspect("checking upline for #{username}")
 
         calc_fn = fn {upline, index}, initial_index ->
@@ -1200,36 +1276,40 @@ defmodule CommerceFront.Calculation do
             )
             |> List.first()
 
-          # assuming this weak amount is 7600, 
-          # after 
-          weak_amount =
-            if weak_leg.left > weak_leg.right do
-              weak_leg.right
+          if weak_leg != nil do
+            # assuming this weak amount is 7600, 
+            # after 
+            weak_amount =
+              if weak_leg.left > weak_leg.right do
+                weak_leg.right
+              else
+                weak_leg.left
+              end
+
+            IO.inspect(
+              "index: #{initial_index} , parent #{upline.parent} weak amount = #{weak_amount}"
+            )
+
+            if initial_index < 22 && weak_amount >= 500 do
+              p = %{
+                sales_id: 0,
+                is_paid: false,
+                remarks:
+                  "#{weak_leg.username} leg: #{weak_leg.left}|#{weak_leg.right}|#{username}'s auto deduct sum: #{sum} * 0.025| level: #{initial_index + 1}",
+                name: "repurchase bonus",
+                amount: (sum * 0.025) |> Float.round(2),
+                user_id: weak_leg.user_id,
+                day: Timex.end_of_month(date).day,
+                month: month,
+                year: year
+              }
+
+              CommerceFront.Settings.create_reward(p)
+
+              initial_index + 1
             else
-              weak_leg.left
+              initial_index
             end
-
-          IO.inspect(
-            "index: #{initial_index} , parent #{upline.parent} weak amount = #{weak_amount}"
-          )
-
-          if initial_index < 22 && weak_amount >= 500 do
-            p = %{
-              sales_id: 0,
-              is_paid: false,
-              remarks:
-                "#{weak_leg.username} leg: #{weak_leg.left}|#{weak_leg.right}|#{username}'s auto deduct sum: #{sum} * 0.025| level: #{initial_index + 1}",
-              name: "repurchase bonus",
-              amount: (sum * 0.025) |> Float.round(2),
-              user_id: weak_leg.user_id,
-              day: Timex.end_of_month(date).day,
-              month: month,
-              year: year
-            }
-
-            CommerceFront.Settings.create_reward(p)
-
-            initial_index + 1
           else
             initial_index
           end
@@ -1258,7 +1338,16 @@ defmodule CommerceFront.Calculation do
   """
   def drp_sales_level_bonus(sales_id, drp_amount, child_user, date) do
     {y, m, d} = date |> Date.to_erl()
-    uplines = CommerceFront.Settings.check_uplines(child_user.username, :referal)
+
+    uplines =
+      CommerceFront.Settings.check_uplines(child_user.username, :referal)
+      |> Enum.reverse()
+      |> List.insert_at(0, unpaid_node)
+      |> List.insert_at(0, unpaid_node)
+      |> List.insert_at(0, unpaid_node)
+      |> List.insert_at(0, unpaid_node)
+      |> List.insert_at(0, unpaid_node)
+      |> Enum.reverse()
 
     calc_fn = fn upline, index ->
       if index <= 5 && index > 0 do

@@ -55,6 +55,24 @@ defmodule CommerceFront do
     CommerceFront.Calculation.travel_fund(m, y)
   end
 
+  def monthly_calculations(date \\ Date.utc_today()) do
+    {y, m, d} = date |> Date.to_erl()
+    end_of_month = Timex.end_of_month(date)
+    CommerceFront.Calculation.matching_bonus(m, y)
+    CommerceFront.Calculation.elite_leader(m, y)
+    CommerceFront.Calculation.travel_fund(m, y)
+
+    CommerceFront.Settings.pay_unpaid_bonus(date, [
+      "matching bonus",
+      "elite leader",
+      "travel fund"
+    ])
+
+    CommerceFront.Calculation.repurchase_bonus(m, y)
+
+    CommerceFront.Settings.pay_unpaid_bonus(date, ["repurchase bonus"])
+  end
+
   def carry_forward_task(sdate \\ ~D[2023-11-07], edate \\ Date.utc_today() |> Date.add(-1)) do
     for date <- Date.range(sdate, edate) do
       CommerceFront.Settings.reconstruct_daily_group_sales_summary(date)

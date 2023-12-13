@@ -554,12 +554,13 @@ export let phxApp_ = {
       async: false,
       method: "get",
       headers: {
-     "Authorization": "Basic " + (phxApp_.user != null ? phxApp_.user.token : null),
+        "Authorization": "Basic " + (phxApp_.user != null ? phxApp_.user.token : null),
         'X-CSRF-Token': csrfToken
       },
       url: "/api/webhook?scope=" + scope,
       data: params
     }).done((j) => {
+      console.log(j)
       if (successCallback != null) {
 
         successCallback(j)
@@ -567,9 +568,16 @@ export let phxApp_ = {
       res = j
     }).fail(function(e) {
 
-      phxApp_.notify("Ops, somethings' not right!", {
-        type: "danger"
-      });
+      try {
+        phxApp_.notify("Not Added! reason: " + e.responseJSON.reason, {
+          type: "danger"
+        });
+      } catch (e2) {
+
+        phxApp_.notify("Ops, somethings' not right!", {
+          type: "danger"
+        });
+      }
       phxApp_.show()
       setTimeout(() => {
 
@@ -591,7 +599,7 @@ export let phxApp_ = {
       method: "post",
       headers: {
         '_commerce_front_key': memberApp_.user.token,
-       "Authorization": "Basic " + (phxApp_.user != null ? phxApp_.user.token : null),
+        "Authorization": "Basic " + (phxApp_.user != null ? phxApp_.user.token : null),
         'X-CSRF-Token': csrfToken
       },
       url: "/api/webhook?scope=" + scope,
@@ -1503,7 +1511,7 @@ export let phxApp_ = {
                 url: "/api/" + object,
                 dataType: "json",
                 headers: {
-             "Authorization": "Basic " + (phxApp_.user != null ? phxApp_.user.token : null),
+                  "Authorization": "Basic " + (phxApp_.user != null ? phxApp_.user.token : null),
                   'X-CSRF-Token': csrfToken
                 },
                 method: "POST",
@@ -1657,7 +1665,7 @@ export let phxApp_ = {
         dataType: "json",
         method: "POST",
         headers: {
-   "Authorization": "Basic " + (phxApp_.user != null ? phxApp_.user.token : null),
+          "Authorization": "Basic " + (phxApp_.user != null ? phxApp_.user.token : null),
         },
         enctype: "multipart/form-data",
         processData: false, // tell jQuery not to process the data

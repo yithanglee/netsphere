@@ -617,8 +617,8 @@ defmodule CommerceFront.Settings do
         %WalletTransaction{},
         params
         |> Map.merge(%{
-          before: ewallet.wallet_transaction.after,
-          after: ewallet.wallet_transaction.after + params.amount,
+          before: ewallet.wallet_transaction.after |> Float.round(2),
+          after: (ewallet.wallet_transaction.after + params.amount) |> Float.round(2),
           ewallet_id: ewallet.ewallet.id
         })
         |> IO.inspect()
@@ -737,15 +737,6 @@ defmodule CommerceFront.Settings do
     end)
     |> Multi.run(:gs_summary, fn _repo, %{gsd: gsd} ->
       check = get_latest_gs_summary_by_user_id(gsd.to_user_id, back_date)
-
-      if gsd.to_user_id == 584 do
-        r =
-          CommerceFront.Repo.all(
-            from(gss in CommerceFront.Settings.GroupSalesSummary, where: gss.user_id == ^584)
-          )
-
-        # IEx.pry()
-      end
 
       case check do
         nil ->
@@ -2304,6 +2295,13 @@ defmodule CommerceFront.Settings do
                 wallet_type: "register"
               })
 
+              create_wallet_transaction(%{
+                user_id: sale.sales_person_id,
+                amount: subtotal,
+                remarks: "#{title}: #{sale.id}",
+                wallet_type: "merchant"
+              })
+
               create_payment(%{
                 payment_method: "only_register_point",
                 amount: sale.grand_total,
@@ -2364,6 +2362,13 @@ defmodule CommerceFront.Settings do
                 amount: (subtotal - form_drp) * -1,
                 remarks: "#{title}: #{sale.id}",
                 wallet_type: "register"
+              })
+
+              create_wallet_transaction(%{
+                user_id: sale.sales_person_id,
+                amount: subtotal - form_drp,
+                remarks: "#{title}: #{sale.id}",
+                wallet_type: "merchant"
               })
 
               create_payment(%{
@@ -2568,6 +2573,8 @@ defmodule CommerceFront.Settings do
         if sales_person.is_stockist do
           stockist_register_bonus(sales_person, user.username, sale.total_point_value, sale)
         else
+          unpaid_user = CommerceFront.Settings.unpaid_user()
+          stockist_register_bonus(unpaid_user, user.username, sale.total_point_value, sale)
           {:ok, nil}
         end
       end)
@@ -3243,6 +3250,30 @@ defmodule CommerceFront.Settings do
     |> Repo.transaction()
   end
 
+  def highest_rank() do
+    Repo.all(from(r in Rank, order_by: [desc: r.retail_price])) |> List.first()
+  end
+
+  def unpaid_user() do
+    res = get_user_by_username("haho_unpaid")
+    # highest_rank = 
+    if res == nil do
+      {:ok, user} =
+        create_user(%{
+          "email" => "unpaid@1.com",
+          "username" => "haho_unpaid",
+          "fullname" => "haho_unpaid",
+          "phone" => "0122664254",
+          "password" => "abc333",
+          "rank_id" => CommerceFront.Settings.highest_rank().id
+        })
+
+      user
+    else
+      res
+    end
+  end
+
   def finance_user() do
     res = get_user_by_username("haho_finance")
 
@@ -3488,6 +3519,72 @@ defmodule CommerceFront.Settings do
 
     for row <- rows do
       Enum.zip(columns |> Enum.map(&(&1 |> String.to_atom())), row) |> Enum.into(%{})
+    end
+  end
+
+  def verify_parent(parent_id, user) do
+    parent_referral_id =
+      Repo.all(from(r in Referral, where: r.user_id == ^user.id, select: r.parent_user_id))
+      |> List.first()
+      |> IO.inspect()
+
+    parent_referral_id == parent_id
+  end
+
+  def accumulated_sales_by_user(%User{} = user, show_rank) do
+    {y, m, d} = Date.utc_today() |> Date.to_erl()
+    edate = NaiveDateTime.from_erl!({{y, m, d}, {0, 0, 0}})
+    sdate = edate |> Timex.shift(months: -6)
+
+    user = user |> Repo.preload(:rank)
+
+    sdate = user.inserted_at
+    edate = sdate |> Timex.shift(months: 6)
+
+    if user != nil do
+      Date.compare(~D[2024-01-01], ~D[2024-04-01]) == :lt
+
+      res =
+        if Date.compare(edate, Date.utc_today()) == :lt do
+          Repo.all(
+            from(s in Sale,
+              left_join: u in User,
+              on: s.sales_person_id == u.id,
+              where: u.username == ^user.username,
+              where: s.status != ^:pending_payment,
+              where: s.inserted_at > ^sdate and s.inserted_at < ^edate,
+              group_by: [s.sales_person_id],
+              select: sum(s.subtotal)
+            )
+          )
+          |> List.first()
+        else
+          Repo.all(
+            from(s in Sale,
+              left_join: u in User,
+              on: s.sales_person_id == u.id,
+              where: u.username == ^user.username,
+              where: s.status != ^:pending_payment,
+              where: s.inserted_at > ^sdate and s.inserted_at < ^edate,
+              or_where: s.user_id == ^user.id,
+              group_by: [s.sales_person_id],
+              select: sum(s.subtotal)
+            )
+          )
+          |> List.first()
+        end
+
+      if show_rank do
+        [res, user.rank.name]
+      else
+        res
+      end
+    else
+      if show_rank do
+        [0, "n/a"]
+      else
+        0
+      end
     end
   end
 

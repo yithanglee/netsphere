@@ -204,17 +204,27 @@ when use DRP register , this will calculate only the DRP sales level bonus
   + sales performance summary by country  [done]
 + the invoice display subtotal rename the discount to only DRP [done]
 
++ accumulate order to upgrade 180 days [done]
++ when upgrade can use DRP as well [done]
+ * pls check direct sponsor and only downline (esp level 1 referal downline) [done]
+
+!! need to ensure the balance of the reward allocations  [done]
+
+
+
 *OUTSTANDING*
 
 
-+ accumulate order to upgrade 180 days [in progress]
-+ when upgrade can use DRP as well [in progress]
-
-!! need to ensure the balance of the reward allocations 
 
 + admin to modify ranking...
 + admin give free DRP 
 
++ royalty bonus  
+  - only pay to  RP wallet
+  - monthly calculation
+  - referal group sales to calculate 
+  - put the royalty percentage in the user list
+  - royalty_users 
 
 
 
@@ -225,12 +235,6 @@ every  200 RP charge - 4RP
 + Travel fund need to cap per month 60 share
 + then recalculate the share per unit value
 
-+ royalty bonus  
-  - only pay to  RP wallet
-  - monthly calculation
-  - referal group sales to calculate 
-  - put the royalty percentage in the user list
-  - royalty_users 
     
 
 
