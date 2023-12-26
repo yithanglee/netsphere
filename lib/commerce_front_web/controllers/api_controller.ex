@@ -74,6 +74,10 @@ defmodule CommerceFrontWeb.ApiController do
 
     res =
       case params["scope"] do
+        "slides" ->
+          Settings.list_slides(true)
+          |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
+
         "translation" ->
           translation = CommerceFront.translation()
 

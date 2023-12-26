@@ -12,6 +12,30 @@ defmodule CommerceFront.Settings do
   import CommerceFront.Calculation,
     only: [special_share_reward: 3, sharing_bonus: 4, team_bonus: 5, stockist_register_bonus: 4]
 
+  alias CommerceFront.Settings.Slide
+
+  def list_slides(is_show) do
+    Repo.all(from(s in Slide, where: s.is_show == ^is_show))
+  end
+
+  def get_slide!(id) do
+    Repo.get!(Slide, id)
+  end
+
+  def create_slide(params \\ %{}) do
+    params = params |> Map.put("is_show", params["is_show"] == "on")
+    Slide.changeset(%Slide{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_slide(model, params) do
+    params = params |> Map.put("is_show", params["is_show"] == "on")
+    Slide.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_slide(%Slide{} = model) do
+    Repo.delete(model)
+  end
+
   alias CommerceFront.Settings.PickUpPoint
 
   def list_pick_up_points() do
@@ -4326,7 +4350,8 @@ defmodule CommerceFront.Settings do
         "path" => "#",
         "title" => "Users"
       },
-      "9" => %{"icon" => "book-solid", "path" => "/ranks", "title" => "Rank"}
+      "9" => %{"icon" => "book-solid", "path" => "/ranks", "title" => "Rank"},
+      "10" => %{"icon" => "book-solid", "path" => "/slides", "title" => "Slides"}
     }
   end
 
@@ -4368,6 +4393,10 @@ defmodule CommerceFront.Settings do
         |> Repo.insert()
       end
     end
+  end
+
+  def update_svt_menus() do
+    menu_list() |> update_admin_menus()
   end
 
   def populate_menus() do
