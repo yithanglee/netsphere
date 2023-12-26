@@ -21,6 +21,6 @@ defmodule CommerceFront.Settings.Staff do
   def changeset(staff, attrs) do
     staff
     |> cast(attrs, [:crypted_password, :username, :name, :email, :desc, :phone, :role_id])
-    |> validate_required([:name, :email, :desc, :phone])
+    |> validate_required([:name])
   end
 end

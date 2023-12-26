@@ -23,6 +23,10 @@ export let memberApp_ = {
   },
   redeem(dom) {
     $(dom).closest("form")
+
+    if (phxApp_.chosen_country_id_ != null) {
+      $("input[name='user[country_id]']").val(phxApp_.chosen_country_id_.id)
+    }
     phxApp_.validateForm("form", () => {
       console.info("validating form...")
       phxApp_.form($(dom).closest("form"), "redeem", (e) => {
@@ -49,6 +53,10 @@ export let memberApp_ = {
       if (this.user != null) {
         $("input[name='user[sales_person_id]']").val(this.user.id)
 
+      }
+
+      if (phxApp_.chosen_country_id_ != null) {
+        $("input[name='user[country_id]']").val(phxApp_.chosen_country_id_.id)
       }
     }
     phxApp_.validateForm("form", () => {
@@ -83,6 +91,10 @@ export let memberApp_ = {
         $("input[name='user[sales_person_id]']").val(this.user.id)
 
       }
+      if (phxApp_.chosen_country_id_ != null) {
+        console.log(phxApp_.chosen_country_id_)
+        $("input[name='user[country_id]']").val(phxApp_.chosen_country_id_.id)
+      }
     }
 
     phxApp_.validateForm("form", () => {
@@ -113,7 +125,10 @@ export let memberApp_ = {
     $("[aria-label='login']").removeClass("d-none")
     $("[aria-label='logout']").addClass("d-none")
     phxApp_.notify("Log out!")
-    phxApp_.navigateTo("/home")
+    document.cookie = "_commerce_front_key=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    setTimeout(() => {
+      location = "/login"
+    }, 1000)
   },
   updateUser(user) {
     memberApp_.user = user

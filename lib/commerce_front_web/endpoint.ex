@@ -7,7 +7,7 @@ defmodule CommerceFrontWeb.Endpoint do
   @session_options [
     store: :cookie,
     key: "_commerce_front_key",
-    signing_salt: "KLq1itdl"
+    signing_salt: "KLq1itadosl"
   ]
 
   socket "/socket", CommerceFrontWeb.UserSocket,
@@ -22,7 +22,7 @@ defmodule CommerceFrontWeb.Endpoint do
     at: "/",
     from: :commerce_front,
     gzip: false,
-    only: ~w(sw.js css fonts images vendor html js favicon.ico webfonts robots.txt)
+    only: ~w(sw.js  js  css fonts images vendor  favicon.ico webfonts robots.txt)
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.

@@ -42,6 +42,7 @@ defmodule CommerceFront.Settings.WalletTransaction do
     field(:amount, :float)
     field(:before, :float)
     field(:remarks, :binary)
+    field(:reward_id, :integer)
     # field(:user_id, :integer)
     belongs_to(:user, CommerceFront.Settings.User)
     # field(:ewallet_id, :integer)
@@ -53,7 +54,7 @@ defmodule CommerceFront.Settings.WalletTransaction do
   @doc false
   def changeset(wallet_transaction, attrs) do
     wallet_transaction
-    |> cast(attrs, [:before, :after, :amount, :remarks, :user_id, :ewallet_id])
+    |> cast(attrs, [:reward_id, :before, :after, :amount, :remarks, :user_id, :ewallet_id])
     |> validate_required([:before, :after, :amount, :remarks, :user_id, :ewallet_id])
   end
 end

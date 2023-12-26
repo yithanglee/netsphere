@@ -1,5 +1,6 @@
 defmodule CommerceFrontWeb.PageController do
   use CommerceFrontWeb, :controller
+  require IEx
 
   def index(conn, _params) do
     IO.inspect("it's reloading!")
@@ -8,6 +9,67 @@ defmodule CommerceFrontWeb.PageController do
 
   def login(conn, _params) do
     render(conn, "login.html")
+  end
+
+  def html(conn, params) do
+    app_dir = Application.app_dir(:commerce_front)
+    path = app_dir <> "/priv/static/html/v2/#{params["path"] |> Enum.join("/")}"
+
+    translation = CommerceFront.translation()
+
+    ori = translation |> Enum.map(&(&1 |> Map.get("Ori")))
+    eng = translation |> Enum.map(&(&1 |> Map.get("English")))
+    thai = translation |> Enum.map(&(&1 |> Map.get("Thailand")))
+    chinese = translation |> Enum.map(&(&1 |> Map.get("China")))
+    viet = translation |> Enum.map(&(&1 |> Map.get("Vietnam")))
+
+    translation_map =
+      case params["lang"] do
+        "th" ->
+          Enum.zip(ori, thai) |> Enum.into(%{})
+
+        "vn" ->
+          Enum.zip(ori, viet) |> Enum.into(%{})
+
+        "cn" ->
+          Enum.zip(ori, chinese) |> Enum.into(%{})
+
+        _ ->
+          Enum.zip(ori, eng) |> Enum.into(%{})
+      end
+
+    case File.read(path) do
+      {:ok, bin} ->
+        bin = bin |> String.replace("   ", "")
+
+        translate = fn keyword, html ->
+          if keyword == "Sales History" && html |> String.contains?("Sales History") do
+            # IEx.pry()
+          end
+
+          String.replace(html, keyword, translation_map[keyword])
+        end
+
+        final_html =
+          Enum.reduce(Map.keys(translation_map), bin, &translate.(&1, &2)) |> IO.inspect()
+
+        append_cache_request = fn conn ->
+          conn
+          |> put_resp_header("cache-control", "max-age=900, must-revalidate")
+        end
+
+        conn
+        |> append_cache_request.()
+        |> put_resp_content_type("document/html")
+        |> send_resp(200, final_html)
+
+      _ ->
+        final_html = ""
+
+        conn
+        |> put_resp_content_type("document/html")
+        |> send_resp(200, final_html)
+    end
   end
 
   def pdf_preview(conn, %{"id" => id, "type" => "do"} = params) do
@@ -25,8 +87,8 @@ defmodule CommerceFrontWeb.PageController do
   def pdf(conn, %{"id" => id, "type" => "do"} = params) do
     sale = CommerceFront.Settings.get_sale!(id)
 
-    server_url = Application.get_env(:commerce_front, :url)
     server_url = "http://localhost:4000"
+    server_url = Application.get_env(:commerce_front, :url)
 
     html =
       Phoenix.View.render_to_string(
@@ -97,8 +159,8 @@ defmodule CommerceFrontWeb.PageController do
   def pdf(conn, %{"id" => id} = params) do
     sale = CommerceFront.Settings.get_sale!(id)
 
-    server_url = Application.get_env(:commerce_front, :url)
     server_url = "http://localhost:4000"
+    server_url = Application.get_env(:commerce_front, :url)
 
     html =
       Phoenix.View.render_to_string(

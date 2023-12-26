@@ -43,8 +43,8 @@ defmodule CommerceFrontWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
-    plug :fetch_session
-    plug :protect_from_forgery
+    # plug :fetch_session
+    # plug :protect_from_forgery
 
     plug CORSPlug,
       origin: [
@@ -81,6 +81,12 @@ defmodule CommerceFrontWeb.Router do
 
   scope "/api", CommerceFrontWeb do
     pipe_through :api
+
+    post "/webhook/login", ApiController, :post
+  end
+
+  scope "/api", CommerceFrontWeb do
+    pipe_through :api
     get "/stream", ApiController, :stream_get
     options("/:webhook", ApiController, :get)
 
@@ -90,6 +96,11 @@ defmodule CommerceFrontWeb.Router do
     get("/:model", ApiController, :datatable)
     post("/:model", ApiController, :form_submission)
     delete("/:model/:id", ApiController, :delete_data)
+  end
+
+  scope "/html/:lang", CommerceFrontWeb do
+    pipe_through [:browser]
+    get "/*path", PageController, :html
   end
 
   scope "/", CommerceFrontWeb do

@@ -209,17 +209,9 @@ when use DRP register , this will calculate only the DRP sales level bonus
  * pls check direct sponsor and only downline (esp level 1 referal downline) [done]
 
 !! need to ensure the balance of the reward allocations  [done]
-
-
-
-*OUTSTANDING*
-
-
-
-+ admin to modify ranking...
-+ admin give free DRP 
-
-+ royalty bonus  
+ 
++  referal group sales...[done]
++ royalty bonus  [done]
   - only pay to  RP wallet
   - monthly calculation
   - referal group sales to calculate 
@@ -227,21 +219,49 @@ when use DRP register , this will calculate only the DRP sales level bonus
   - royalty_users 
 
 
-
 + for sabah sarwk < 200RP + 4RP shippping 
 < 400RP + 8RP   
-every  200 RP charge - 4RP 
+every  200 RP charge - 4RP [done]
++ admin to modify ranking...[done]
++ admin give free DRP [done]
+1 account approve button hide after approve [done]
+3 ref no = DRP + RP [done]
+4 customer order if upgrade show user [done]
+9 DO add username [done]
 
+5 multi language[done]
+1 to withdraw/convert must key in IC no and DOB [done]
+8 DO ref no when mark sent [done]
+b1 admin create self pick up points [done] 
+b2 user choose self pick up [done]
+
+
+--
+*OUTSTANDING*
+
++ pay a lump instead of detail lines for royalty bonus
 + Travel fund need to cap per month 60 share
 + then recalculate the share per unit value
 
-    
+
+sales page to include paid amount
+ewallet page to filter by wallet types
+dashboard to show sales that's not cancelled
 
 
-----
+00 send link to register + add products
+0 username cant modify by member
+1b withdraw bank account holder name must follow IC name
+2 DRP sales item line show as 0pv
+6 set combo items
+7 admin auto convert stockist 
+b3 multiple country shipping fee 
+b4 inventory logging - 2 MD
+b5 inventory audit - FOC
+10 admin side menu
 
+
+--
   + admin storekeeper , need to view sales by country
   + admin storekeeper need to print by date, country,
   + inventory with stock keeping transaction for store keeper 
-
-

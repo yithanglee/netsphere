@@ -1,4 +1,7 @@
 defmodule CommerceFront do
+  import Ecto.Query
+  alias CommerceFront.{Settings, Repo}
+
   @moduledoc """
   CommerceFront keeps the contexts that define your domain
   and business logic.
@@ -23,12 +26,13 @@ defmodule CommerceFront do
     # can only run once
     CommerceFront.Settings.carry_forward_entry(date)
     # this will form the weak leg
-    CommerceFront.Settings.pay_unpaid_bonus(date, [
-      "sharing bonus",
-      "team bonus",
-      "stockist register bonus",
-      "drp sales level bonus"
-    ])
+
+    # CommerceFront.Settings.pay_unpaid_bonus(date, [
+    #   "sharing bonus",
+    #   "team bonus",
+    #   "stockist register bonus",
+    #   "drp sales level bonus"
+    # ])
 
     if end_of_month == date do
       CommerceFront.Calculation.matching_bonus(m, y)
@@ -82,56 +86,104 @@ defmodule CommerceFront do
     end
   end
 
-  def test() do
-    # CommerceFront.Settings.reset()
-
-    samples = [
-      {"admin", "damien"},
-      {"damien", "summer"},
-      {"summer", "elis"},
-      {"elis", "orange"},
-      {"orange", "kathy"}
+  def populate_member_data() do
+    samples1 = [
+      "ac108",
+      "ac118",
+      "ac126",
+      "ac128",
+      "ac129",
+      "ac138",
+      "ac139",
+      "ac148",
+      "ac149",
+      "ac168",
+      "ac178",
+      "ac188"
     ]
 
+    samples = samples1 |> Enum.map(&{"as1319-U2", &1, 4, "left"})
+
     samples = [
-      # {"admin", "damien", 1},
-      # {"damien", "summer", 3},
-      # {"damien", "elis", 2},
-      # {"damien", "orange", 1},
-      # {"damien", "kathy", 2},
-      {"summer", "wsm1", 1},
-      {"summer", "wsm2", 3},
-      {"summer", "wsm3", 1},
-      {"summer", "wsm4", 3},
-      {"elis", "wlsm1", 1},
-      {"elis", "wlsm2", 2},
-      {"elis", "wlsm3", 3},
-      {"elis", "wlsm4", 3},
-      {"lsm1", "walsm1", 1},
-      {"lsm1", "walsm2", 1},
-      {"lsm1", "walsm3", 3},
-      {"lsm1", "walsm4", 3},
-      {"summer", "wbsm1", 1},
-      {"summer", "wbsm2", 3},
-      {"summer", "wbsm3", 1},
-      {"summer", "wbsm4", 3}
+      {"happiness-U3", "kwong39", 4, "right", "WONG AH YORK", "011-10621289",
+       "wongahyork4288@gmail.com", ""},
+      {"kwong39", "johortai", 4, "right", "Tai Lip Fin", "01110863731",
+       "tailipfin123123@gmail.com", ""},
+      {"kwong39", "henrylem", 4, "left", "Lem Choon chuan", "016-7356182", "a@1.com",
+       "590228015181"},
+      {"johortai", "ahfoo", 4, "left", "Ng Ah Foo", "017-527 5958", "ngaf68@gmail.com",
+       "590228015181"}
     ]
 
-    for {sponsor, username, rank_id} = sample <- samples do
+    for {sponsor, username, rank_id, direction, fullname, phone, email, ic_no} = sample <- samples do
       params =
         %{
-          "email" => "a@1.com",
-          "fullname" => "1",
+          "ic_no" => ic_no,
+          "email" => email,
+          "fullname" => fullname,
           "password" => "abc123",
-          "phone" => "60122664254",
+          "phone" => phone,
           "rank_id" => rank_id,
           "sponsor" => sponsor,
-          "username" => username
+          "username" => username,
+          "placement" => %{"position" => direction}
         }
         |> IO.inspect()
 
-      CommerceFront.Settings.register(params)
+      CommerceFront.Settings.register_without_products(params)
+      Process.sleep(2000)
     end
+  end
+
+  def housekeeping() do
+    samples1 = [
+      "haho108",
+      "haho118",
+      "haho119",
+      "haho128",
+      "haho138",
+      "haho148",
+      "haho168",
+      "haho178",
+      "haho188",
+      "haho198",
+      "haho208",
+      "haho218",
+      "haho222",
+      "haho228",
+      "haho333",
+      "haho555",
+      "haho666",
+      "haho777",
+      "haho888",
+      "haho999"
+    ]
+
+    samples1 = ["lcm690331"]
+
+    samples1 = [
+      "yyh168",
+      "pkwong",
+      "bylim",
+      "yhchan",
+      "tommycheng",
+      "kellykam",
+      "sallythioh"
+    ]
+
+    users = Repo.all(from(u in Settings.User, where: u.username in ^samples1))
+
+    user_ids = users |> Enum.map(& &1.id)
+
+    Repo.delete_all(from(e in Settings.WalletTransaction, where: e.user_id in ^user_ids))
+
+    Repo.delete_all(from(e in Settings.Ewallet, where: e.user_id in ^user_ids))
+
+    Repo.delete_all(from(e in Settings.Referral, where: e.user_id in ^user_ids))
+
+    Repo.delete_all(from(e in Settings.Placement, where: e.user_id in ^user_ids))
+
+    Repo.delete_all(from(u in Settings.User, where: u.username in ^samples1))
   end
 
   def get_order() do
@@ -297,8 +349,290 @@ defmodule CommerceFront do
 
 
 
-
       """
+      |> IO.puts()
+  end
+
+  @doc """
+  CommerceFront.eval_svt("stock_adjustment", "stock_adjustments", %{})
+  """
+
+  def eval_svt(
+        singular,
+        plural,
+        opts
+      ) do
+    struct =
+      singular |> String.split("_") |> Enum.map(&(&1 |> String.capitalize())) |> Enum.join("")
+
+    relationship = opts |> Map.get(:relationship, :none)
+    child_id = opts |> Map.get(:child_id)
+    parent_module = opts |> Map.get(:parent_module)
+    preloaded_parent = opts |> Map.get(:preloaded_parent)
+
+    dynamic_code =
+      case relationship do
+        :many ->
+          """
+          /** @type {import('./$types').PageLoad} */
+
+          import { genInputs, postData, buildQueryString } from '$lib/index.js';
+          import { PHX_HTTP_PROTOCOL, PHX_ENDPOINT } from '$lib/constants';
+          export const load = async ({ fetch, params, parent }) => {
+          let url = PHX_HTTP_PROTOCOL + PHX_ENDPOINT ,module;
+
+          let inputs = await genInputs(url, '#{struct}'), scope = "get_product_countries";
+
+          const queryString = buildQueryString({ scope: scope, id: params["#{child_id}"] });
+          const response = await fetch(url + '/svt_api/webhook?' + queryString, {
+            headers: {
+                  'Content-Type': 'application/json'
+              }
+          });
+            if (response.ok) {
+                let dataList = await response.json();
+                return {
+                    dataList: dataList,
+                    #{child_id}: params['#{child_id}'],
+                    module: '#{struct}',
+                    inputs: inputs
+                };
+            }
+          };
+
+
+
+          // new lines 
+
+
+          <script>
+            import Datatable from '$lib/components/Datatable.svelte';
+            /** @type {import('./$types').PageData} */
+            export let data;
+            let inputs = data.inputs,
+              dataList = data.dataList;
+          </script>
+
+          <Datatable
+            data={{
+              showNew: true,
+              canDelete: true,
+              appendQueries: { #{child_id}: data.#{child_id} },
+              inputs: inputs,
+              search_queries: null,
+              model: '#{struct}',
+              preloads: ['product', 'country'],
+              customCols: [
+                {
+                  title: 'General',
+                  list: [
+                    'id',
+                    {
+                      label: '#{parent_module}',
+                      selection: '#{parent_module}',
+                      multiSelection: true,
+                      dataList: dataList.#{preloaded_parent},
+                      module: '#{parent_module}',
+                      parentId: data.#{child_id},
+                      parent_module: '#{struct}'
+                    }
+                  ]
+                }
+              ],
+              columns: [
+                { label: 'ID', data: 'id' },
+                { label: 'Product', data: 'name', through: ['product'] },
+                { label: 'Country', data: 'name', through: ['country'] }
+                // { label: 'URL', data: 'route', through: ['app_route'] }
+              ]
+            }}
+          />
+
+
+
+
+
+          """
+
+        _ ->
+          """
+          /** @type {import('./$types').PageLoad} */
+
+          import { genInputs, postData, buildQueryString } from '$lib/index.js';
+          import { PHX_HTTP_PROTOCOL, PHX_ENDPOINT } from '$lib/constants';
+          export const load = async () => {
+          let url = PHX_HTTP_PROTOCOL + PHX_ENDPOINT ,module;
+
+          let inputs = await genInputs(url, '#{struct}')
+            return {module: '#{struct}',
+              inputs: inputs
+            };
+          };
+
+          // new lines 
+
+
+
+          <script>
+          import { PHX_HTTP_PROTOCOL, PHX_ENDPOINT } from '$lib/constants';
+          import { goto } from '$app/navigation';
+          import Datatable from '$lib/components/Datatable.svelte';
+          import { buildQueryString, postData } from '$lib/index.js';
+          /** @type {import('./$types').PageData} */
+          export let data;
+
+          let inputs = data.inputs;
+          var url = PHX_HTTP_PROTOCOL + PHX_ENDPOINT;
+
+          function downloadDO(data, checkPage, confirmModal) {
+            window.open(url + '/pdf?type=do&id=' + data.id, '_blank').focus();
+          }
+          function viewDO(data, checkPage, confirmModal) {
+            goto('/deliveries/' + data.id);
+          }
+          function showCondition(data) {
+            var bool = false;
+            if (data.status == 'processing') {
+              bool = true;
+            }
+            return bool;
+          }
+          function showCondition2(data) {
+            var bool = false;
+            if (data.status == 'pending_delivery') {
+              bool = true;
+            }
+            return bool;
+          }
+          function doMarkPendingDelivery(data, checkPage, confirmModal) {
+            console.log(data);
+            console.log('transfer approved!');
+
+            confirmModal(true, 'Are you sure to mark this order as pending delivery?', () => {
+              postData(
+                { scope: 'mark_do', id: data.id, status: 'pending_delivery' },
+                {
+                  endpoint: url + '/svt_api/webhook',
+                  successCallback: () => {
+                    checkPage();
+                  }
+                }
+              );
+            });
+          }
+          function doMarkSent(data, checkPage, confirmModal) {
+            console.log(data);
+            console.log('transfer approved!');
+
+            confirmModal(
+              true,
+              `
+              <label class="my-4 text-sm font-medium block 
+              text-gray-900 dark:text-gray-300 space-y-2">
+              <span>Shipping Ref</span>  <input name="shipping_ref" 
+              placeholder="" type="text" class="block w-75 disabled:cursor-not-allowed disabled:opacity-50 p-2.5 focus:border-primary-500 focus:ring-primary-500 dark:focus:border-primary-500 dark:focus:ring-primary-500 bg-gray-50 text-gray-900 dark:bg-gray-600 dark:text-white dark:placeholder-gray-400 border-gray-300 dark:border-gray-500 text-sm rounded-lg"> </label>
+              <span class="">Are you sure to mark this order as sent?</span>`,
+              () => {
+                var dom = document.querySelector("input[name='shipping_ref']");
+                postData(
+                  { scope: 'mark_do', shipping_ref: dom.value, id: data.id, status: 'sent' },
+                  {
+                    endpoint: url + '/svt_api/webhook',
+                    successCallback: () => {
+                      checkPage();
+                    }
+                  }
+                );
+              }
+            );
+          }
+          </script>
+
+          <Datatable
+          data={{
+            inputs: inputs,
+            join_statements: JSON.stringify([
+
+              { user: 'user' }
+            ]),
+            search_queries: ['a.id|b.username|b.fullname'],
+            model: 'Sale',
+            preloads: ['user', 'sales_person', 'payment'],
+            buttons: [
+              { name: 'Preview', onclickFn: viewDO },
+              { name: 'Download DO (PDF)', onclickFn: downloadDO },
+              {
+                name: 'Mark Pending Delivery',
+                onclickFn: doMarkPendingDelivery,
+                showCondition: showCondition
+              },
+              { name: 'Mark Sent', onclickFn: doMarkSent, showCondition: showCondition2 }
+            ],
+            customCols: [
+              {
+                title: 'Order',
+                list: [
+                  'id',
+                  'shipping_method',
+                  'shipping_company',
+                  'shipping_ref',
+                  { label: 'remarks', editor2: true },
+                  {
+                    label: 'role_id',
+                    selection: 'Role',
+                    module: 'Role',
+                    customCols: null,
+                    search_queries: ['a.name'],
+                    newData: 'name',
+                    title_key: 'name'
+                  },
+                ]
+              }
+            ],
+            columns: [
+              { label: 'ID', data: 'id' },
+              { label: 'Timestamp', data: 'inserted_at', formatDateTime: true , offset: 8},
+
+              {
+                label: 'Status',
+                data: 'status',
+                isBadge: true,
+                color: [
+                  {
+                    key: 'pending_payment',
+                    value: 'yellow'
+                  },
+                  {
+                    key: 'pending_confirmation',
+                    value: 'yellow'
+                  },
+                  {
+                    key: 'processing',
+                    value: 'blue'
+                  },
+                  {
+                    key: 'sent',
+                    value: 'pink'
+                  },
+                  {
+                    key: 'pending_delivery',
+                    value: 'purple'
+                  },
+                  {
+                    key: 'complete',
+                    value: 'green'
+                  }
+                ]
+              },
+              { label: 'User', data: 'username', through: ['user'] },
+              { label: 'Sales Person', data: 'username', through: ['sales_person'] }
+            ]
+          }}
+          />
+
+
+          """
+      end
       |> IO.puts()
   end
 
@@ -346,6 +680,18 @@ defmodule CommerceFront do
       # end
     else
       params
+    end
+  end
+
+  def translation() do
+    lines = File.read!("translation.csv") |> String.split("\n") |> Enum.reject(&(&1 == ""))
+    {header, lines} = List.pop_at(lines, 0)
+    header = String.split(header, ",")
+
+    for item <- lines do
+      items = String.split(item, ",")
+
+      Enum.zip(header, items) |> Enum.into(%{})
     end
   end
 end

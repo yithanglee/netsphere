@@ -4,7 +4,7 @@ case  @payment |> Map.get("method")  do
   "only_register_point"  ->
     "Register Point"
   "register_point"  ->
-    "DRP"
+    "DRP + RP"
   "product_point"  ->
     "Product Point"
   _ ->
@@ -55,7 +55,7 @@ end
           58200 Kuala Lumpur, Malaysia.</td>
       </tr>
       <tr>
-        <td>Phone: +6012 266 4254</td>
+        <td>Phone: +60 19-329 7627</td>
         <td>Email: haho_support@gmail.com</td>
         <td></td>
       </tr>
@@ -63,14 +63,23 @@ end
   </table>
 </div>
 <div class="card-body step_4" style="margin-left: 28px;">
-  <div class="" style="height: 220px; border-top: 1px solid grey; padding-top: 20px">
+  <div class="" style="height: 300px; border-top: 1px solid grey; padding-top: 20px">
     <div class="text-end fw-bold" style="margin-bottom: 10px; margin-right: 90px; font-size: 30px;"><%= @title %></div>
     <table class="pt-2 " style=" width: 35%; left: 0px;position: absolute;">
       <tbody id="contact_info">
         <tr>
+          <th class="text-end">USERNAME:</th>
+          <td> </td>
+          <td>
+            <%= @username%>
+           
+          </td>
+        </tr>
+        <tr>
           <th class="text-end">SEND TO:</th>
           <td> </td>
           <td>
+          
             <span id="chosen_pay_to">
               <%= @shipping |> Map.get("fullname")%></span>
           </td>
@@ -89,13 +98,22 @@ end
           <td></td>
           <td>N/A</td>
         </tr>
-        <tr valign="top">
-          <th class="text-end">ADDRESS:</th>
-          <td></td>
-          <td style="font-size: 0.8rem; word-wrap: break-word;width: 25vw;padding-right: 5vw;white-space: pre-wrap;"><%= @shipping |> Map.get("line1")%> <%= @shipping |> Map.get("line2")%> <%= @shipping |> Map.get("city")%>
-            <%= @shipping |> Map.get("postcode")%> <%= @shipping |> Map.get("state")%>
-          </td>
-        </tr>
+        <%= if @sales.pick_up_point != nil do %>
+          <tr valign="top">
+            <th class="text-end">PICK UP:</th>
+            <td></td>
+            <td style="font-size: 0.8rem; word-wrap: break-word;width: 25vw;padding-right: 5vw;"><%= raw(@sales.pick_up_point.name) %><br><%= raw(@sales.pick_up_point.address) %>
+            </td>
+          </tr>
+        <% else %>
+          <tr valign="top">
+            <th class="text-end">ADDRESS:</th>
+            <td></td>
+            <td style="font-size: 0.8rem; word-wrap: break-word;width: 25vw;padding-right: 5vw;white-space: pre-wrap;"><%= @shipping |> Map.get("line1")%> <%= @shipping |> Map.get("line2")%> <%= @shipping |> Map.get("city")%>
+              <%= @shipping |> Map.get("postcode")%> <%= @shipping |> Map.get("state")%>
+            </td>
+          </tr>
+        <% end %>
       </tbody>
     </table>
     <table id="doc_info " class="" style="width: 30%;position: absolute;right: 40px;">
@@ -116,7 +134,13 @@ end
         <tr valign="top">
           <th class="text-end">REF NO:</th>
           <td></td>
-          <td><span id="chosen_cheque_no"></span></td>
+          <td><span id="chosen_cheque_no"></span>
+
+            <%= if @sales.shipping_ref  != nil do %>
+            <%= @sales.shipping_ref%>
+            <% end %>
+
+          </td>
         </tr>
         <tr valign="top">
           <th class="text-end">DATE:</th>

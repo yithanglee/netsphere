@@ -82,7 +82,7 @@ table td, table th {
     <% else  %>
     <div class="justify-center " style="page-break-after: always;">
       <% end %>
-      <%= render("header.html", title: @title, conn: @conn, sales: @sale, payment: user_deet  |> Map.get("payment"), shipping: user_deet |> Map.get("shipping")) %>
+      <%= render("header.html", username: @sale.user.username, title: @title, conn: @conn, sales: @sale, payment: user_deet  |> Map.get("payment"), shipping: user_deet |> Map.get("shipping")) %>
       <center class="" style="">
         <table class=" " style="width: 85%;">
           <thead>
@@ -127,7 +127,7 @@ table td, table th {
             </tr>
             <tr>
               <td colspan="4" class="text-end">
-                Shipping
+                Shipping + Tax
               </td>
               <td class="text-end">
                 <%= @sale.shipping_fee |> :erlang.float_to_binary(decimals: 2) %>
@@ -177,4 +177,11 @@ table td, table th {
       </center>
     </div>
     <% end %>
+      <div class="" style="height: 300px; border-top: 1px solid grey; padding-top: 20px; margin-top: 80px;">
+        
+
+  <center style="position: relative; bottom: 0px;">
+    *** This is computer generated, no signature required. ***
+  </center>
+      </div>
   </div>

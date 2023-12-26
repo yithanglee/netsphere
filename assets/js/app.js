@@ -10,12 +10,16 @@ import { phxApp_ } from './phx_app.js';
 import { memberApp_ } from './member_app.js';
 import { Socket } from "./phoenix.js"
 import { phoenixModel } from './phoenixModel.js';
+import { MENUS } from './menu.js';
 
-$("html").attr("data-bs-theme", "light")
-var useSw = true,
+
+$("html").attr("data-bs-theme", localStorage.getItem("data-bs-theme"))
+var useSw = false,
   isDev = window.location.hostname == "localhost";
 
 if (isDev) {
+
+  // phxApp_.post("admin_menus", { scope: "admin_menus", list: MENUS })
   useSw = false
 }
 if ('serviceWorker' in navigator && useSw) {
@@ -27,10 +31,69 @@ if ('serviceWorker' in navigator && useSw) {
       console.error('Service Worker registration failed:', error);
     });
 }
+var langPrefix = "v2";
+window.translationRes = "";
+
+
+function evalCountry(countryName) {
+  var prefix = "v2"
+
+  if (countryName == "Thailand") {
+    prefix = "th"
+  }
+  if (countryName == "Vietnam") {
+    prefix = "vn"
+  }
+  if (countryName == "China") {
+    prefix = "cn"
+  }
+
+  return prefix;
+}
+
+
+try {
+  if (localStorage.region != null) {
+    langPrefix = evalCountry(localStorage.region)
+  }
+  translationRes = phxApp_.api("translation", { lang: langPrefix });
+} catch (error) {
+  console.error("Error fetching translation:", error);
+}
+$.fn.extend({
+  customHtml: async function(newHtml) {
+
+    var translation_map = Object.keys(translationRes);
+    var v2 = translation_map.reduce((acc, key) => {
+
+      var regex = new RegExp(key, "g");
+    
+      return acc.replace(regex, translationRes[key]);
+    }, newHtml);
+
+
+    return this.html(v2);
+  },
+  customAppend: async function(newHtml) {
+
+    var translation_map = Object.keys(translationRes);
+    var v2 = translation_map.reduce((acc, key) => {
+
+      var regex = new RegExp(key, "g");
+      return acc.replace(regex, translationRes[key]);
+    }, newHtml);
+
+
+    return this.append(v2);
+  }
+});
 
 window.phoenixModel = phoenixModel;
 window.phoenixModels = []
 window.phxApp = phxApp_
+phxApp_.api("countries", {}, null, (e) => {
+  phxApp_.countries_ = e
+})
 if (isDev) {
 
   window.commerceApp = commerceApp_
@@ -70,20 +133,19 @@ window.addEventListener(
 
 const route_list = [
   { html: "register_wallet.html", title: "Register Wallet ", route: "/register_wallet" },
-  
   { html: "bonus_wallet.html", title: "Bonus Wallet ", route: "/bonus_wallet" },
   { html: "new_topup.html", title: "Register Point Topup ", route: "/topup_register_point" },
   { html: "upgrade.html", title: "Upgrade ", route: "/upgrade" },
   { html: "redeem.html", title: "Redeem ", route: "/redeem" },
   { html: "withdrawal.html", title: "Withdrawal ", route: "/withdrawals" },
-  { html: "reward_details.html", title: "Reward Details ", route: "/reward_details/:name" },
+  { html: "reward_details.html", title: "Reward Details ", route: "/reward_details/:name/:month/:year" },
   { html: "sales_detail.html", title: "Sales Details", route: "/sales/:id" },
   { html: "sales.html", title: "Sales History", route: "/sales" },
   { html: "wallet_transaction.html", title: "Transactions ", route: "/wallets/:id" },
   { html: "product.html", title: "Product", route: "/products/:id/:name" },
   { html: "register.html", title: "Register", route: "/register" },
-  { html: "logout.html", title: "Logout", route: "/logout" },
-  { html: "login.html", title: "Login", route: "/login" },
+  { html: "logout.html", title: "Logout", route: "/logout", public: true },
+  { html: "login.html", title: "Login", route: "/login", public: true },
   { html: "profile.html", title: "Profile", route: "/profile" },
   { html: "placement.html", title: "Placement", route: "/placement" },
   { html: "placement_full.html", title: "Placement(Full)", route: "/placement_full" },

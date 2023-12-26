@@ -17,6 +17,7 @@ defmodule CommerceFront.Settings.User do
     field(:rank_name, :string)
     field(:username, :string)
     belongs_to(:rank, CommerceFront.Settings.Rank)
+    has_one(:royalty_user, CommerceFront.Settings.RoyaltyUser)
     field(:u2, :string, virtual: true)
     field(:u3, :string, virtual: true)
     # field(:placement, :string, virtual: true)
@@ -50,10 +51,10 @@ defmodule CommerceFront.Settings.User do
       :bank_name
     ])
     |> validate_required([
-      :email,
-      :username,
-      :fullname,
-      :phone
+      # :email,
+      :username
+      # :fullname,
+      # :phone
       # :ic_no,
       # :crypted_password,
       # :approved,

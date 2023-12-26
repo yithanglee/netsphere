@@ -14,15 +14,19 @@ import {
 } from './phoenixModel.js';
 export let commerceApp_ = {
   cart_: [],
+  region: "MY",
   emptyCart_() {
     this.cart_ = []
     localStorage.setItem("cart", JSON.stringify(this.cart_))
+    localStorage.removeItem("first_cart_country_id")
+    commerceApp_.first_cart_country_id = null
   },
   restoreCart() {
     if (localStorage.getItem("cart") != null) {
       this.cart_ = JSON.parse(localStorage.getItem("cart"));
-    }
 
+      commerceApp_.first_cart_country_id = localStorage.getItem("first_cart_country_id")
+    }
 
   },
   hasCartItems() {
@@ -100,6 +104,7 @@ export let commerceApp_ = {
       foundItem.qty -= 1
 
       if (foundItem.qty == 0) {
+
         this.removeItem_(id)
       }
 
@@ -130,6 +135,10 @@ export let commerceApp_ = {
     var removed = this.cart_.splice(index, 1)
     localStorage.setItem("cart", JSON.stringify(this.cart_))
 
+    if (commerceApp_.cart_.length == 0) {
+      commerceApp_.first_cart_country_id = null
+    }
+
   },
   toastChanges() {
     phxApp_.toast({ content: `<div class=""><ul class="">` + $(".ac").html() + `</ul></div>` })
@@ -146,7 +155,7 @@ export let commerceApp_ = {
     // this find all all the related components on the page and transform them.
     // has to be done after rendering page, 
     // callback function to call this render
-    var list = ["userProfile", "wallet", "announcement", "products", "product",
+    var list = ["topup", "country", "light", "userProfile", "wallet", "announcement", "products", "product",
       "rewardList", "cart", "cartItems", "salesItems", "upgradeTarget"
     ]
 
@@ -162,6 +171,327 @@ export let commerceApp_ = {
     })
   },
   components: {
+    topup() {
+      function payData(params) {
+        var rowData = phxApp.rowData(params)
+        console.log(rowData)
+        if (rowData.payment != null) {
+          if (rowData.payment.payment_method == "fpx") {
+
+
+            phxApp.modal({ autoClose: false, selector: "#mySubModal", header: "FPX", content: `
+
+              <p>You will be redirected to pay this topup.</p>
+              <a target="_blank" href="` + rowData.payment.payment_url + `" class="btn btn-primary">Pay
+              </a>
+              <div class="btn btn-primary check">Recheck
+              </div>
+
+              ` })
+
+            $(".check").click(() => {
+              phxApp.api("check_bill", { id: rowData.payment.billplz_code })
+            })
+
+          } else {
+            phxApp.modal({ selector: "#mySubModal", header: "Details", content: `
+
+            <div class="btn btn-primary delete">Delete Request
+              </div>
+
+
+              ` })
+          }
+
+        } else {
+
+          phxApp.modal({ selector: "#mySubModal", header: "Details", content: `
+
+              <p>` + rowData.remarks + `</p>
+
+              ` })
+        }
+
+
+
+        $(".delete").unbind()
+        $(".delete").click(() => {
+          phxApp.api("delete_topup_request", { id: rowData.id }, null, (r) => {
+
+            $("#mySubModal").modal('hide')
+            if (r.status == "error") {
+              if (r.reason != "") {
+                phxApp.notify("Not Deleted! Reason: " + r.reason, { type: "danger" })
+              }
+            } else {
+              phxApp.notify("Deleted!")
+              phxApp.navigateTo("/topup_register_point")
+            }
+          })
+        })
+
+      }
+      $("topup").customHtml(`    
+        <div class="card-body ">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3>Topup Transaction</h3>
+            <div class="btn btn-primary " id="new_topup">
+              <span class="d-flex align-items-center"><i class="fa fa-plus me-1"></i>Topup</span></div>
+          </div>
+          <div class="" id="tab2"></div>
+        </div>
+          `)
+
+
+
+      $("#new_topup").click(() => {
+
+        phxApp.modal({ selector: "#mySubModal", autoClose: false, header: 'New Register Point Topup', content: `
+          <div class="row ">
+           <div class="px-4">
+           Kindly bank in to this account.
+           </div>
+          <div class="p-4 fs-5">
+            HAHO LIFE SDN. BHD.<br>
+            MBB A/C：5642 4949 7131
+          </div>
+            <form class="with_mod col-12 row p-4" module="WalletTopup" id="WalletTopup">
+            </form>
+          </div>
+        ` })
+
+
+        phxApp.createForm({
+            id: "0",
+            user_id: phxApp.user.id
+          },
+          null,
+          ['id',
+            { label: 'amount', alt_name: 'Amount (RP)' },
+            'remarks',
+            {
+              label: 'payment_method',
+              selection: [
+                // { id: 'fpx', name: 'FPX' }, 
+                { id: 'bank in slip', name: 'BANK IN SLIP' }
+              ]
+            },
+            { label: 'img_url', upload: true },
+            'user_id'
+
+          ],
+
+          (j) => {
+            phxApp.navigateTo("/topup_register_point")
+
+          }
+
+        )
+
+
+        $("input[name='WalletTopup[amount]']").on("change", () => {
+          var valu = $("input[name='WalletTopup[amount]']").val()
+          $("input[name='WalletTopup[remarks]']").val("MYR " + valu * 5)
+        })
+
+      })
+
+      var customCols = null;
+      var random_id = phxApp.makeid(4)
+      wallet_topupSource = new phoenixModel({
+        onDrawFn: () => {
+          setTimeout(() => {
+            phxApp.formatDate()
+          }, 200)
+        },
+        xcard: (params) => {
+          console.log(params)
+          var data = params
+
+          var font_class = "text-success"
+          if (data.amount < 0) {
+            font_class = "text-danger"
+          }
+          var status = `<span class="badge bg-warning">PENDING</span>`
+          if (data.is_approved) {
+            status = `<span class="badge bg-success">APPROVED</span>`
+          }
+          var card = `
+         
+
+          <div class="row border-1 border-top py-2">
+            <div class="col-6 text-start text-sm">` + status + `</div>
+           <div class="col-6 text-end text-sm">Amount (RP)</div>
+          </div>
+          <div class="row">
+            <div class="col-6 text-start text-sm format_datetime">` + data.inserted_at + `</div>
+       
+           <div class="col-6 text-end "> <span class='format-integer'>` + data.amount + `</span></div>
+          </div>
+
+          `
+          return card
+        },
+        data: {
+          grid_class: "col-12 ",
+          dom: `
+         <"row px-4 px-lg-0" 
+          <"col-12 col-lg-6 "l>
+          <"col-12 col-lg-6 text-lg-end "i>
+        >
+        <"row grid_view d-block d-lg-none">
+        <"list_view d-none d-lg-block"t>
+        <"row transform-75 px-4"
+            <"col-lg-6 col-12">
+            <"col-lg-6 col-12"p>
+          >
+      `,
+          preloads: ["user", "payment"],
+          additional_join_statements: [{
+            user: "user"
+          }, ],
+          additional_search_queries: [
+            "a.user_id=" + phxApp.user.id
+          ],
+        },
+        columns: [
+
+          { label: 'id', data: 'id' },
+          { label: 'Date', data: 'inserted_at' },
+          { label: 'Approved?', data: 'is_approved', showBoolean: true },
+          {
+            label: "Payment",
+            data: "id",
+            showChild: true,
+            xdata: {
+              child: 'payment',
+              data: 'payment_method'
+            }
+          },
+          { label: 'Amount', data: 'amount', className: "format-float" },
+          { label: 'Action', data: 'id', className: "" }
+
+        ],
+        moduleName: "WalletTopup",
+        link: "WalletTopup",
+        customCols: customCols,
+        buttons: [{
+          name: "Details",
+          iconName: "fa fa-info",
+          color: "btn-sm btn-outline-warning",
+          onClickFunction: payData,
+          fnParams: {
+
+          }
+        }, ],
+        tableSelector: "#" + random_id
+      })
+      wallet_topupSource.load(random_id, "#tab2")
+    },
+    country() {
+      if (localStorage.getItem("region") != null) {
+
+
+        var sel =
+          phxApp_.countries_.filter((v, i) => {
+            return v.name == localStorage.getItem("region")
+          })[0]
+
+
+        phxApp_.chosen_country_id_ = sel
+
+        $("country").customHtml(`
+
+
+        <li class="nav-item">
+          <a class="nav-link choose-region" href="javascript:void(0);" > <i class="fa fa-globe"></i>` + localStorage.getItem("region") + `</a>
+        </li>
+
+      `)
+
+      } else {
+
+        $("country").customHtml(`
+
+
+        <li class="nav-item">
+          <a class="nav-link choose-region" href="javascript:void(0);" > <i class="fa fa-globe"></i> MY</a>
+        </li>
+
+      `)
+
+      }
+      var countries = []
+
+
+      phxApp_.countries_.forEach((v, i) => {
+        countries.push(`
+            <button type="button" aria-name="` + v.name + `" aria-country="` + v.id + `" class="btn btn-primary ">` + v.name + `</button>
+          `)
+      })
+      $(".choose-region").click(() => {
+        commerceApp_.emptyCart_()
+        phxApp_.modal({ selector: "#mySubModal", content: `
+          <center>
+            <div class="btn-group-vertical">
+            ` + countries.join("") + `
+            </div>
+          </center>
+        `, header: "Choose region", autoClose: false })
+        $("[aria-country]").unbind()
+        $("[aria-country]").click(function() {
+          var country_id = $(this).attr("aria-country"),
+            name = $(this).attr("aria-name")
+          phxApp_.chosen_country_id_ = country_id
+          phxApp_.notify("Chosen region: " + name)
+          localStorage.setItem("region", name)
+          $("#mySubModal").modal('hide')
+
+          try {
+
+
+            var langPrefix = "v2";
+
+            function evalCountry(countryName) {
+              var prefix = "v2"
+
+              if (countryName == "Thailand") {
+                prefix = "th"
+              }
+              if (countryName == "Vietnam") {
+                prefix = "vn"
+              }
+              if (countryName == "China") {
+                prefix = "cn"
+              }
+
+              return prefix;
+            }
+
+            if (localStorage.region != null) {
+              langPrefix = evalCountry(localStorage.region)
+            }
+
+            translationRes = phxApp_.api("translation", { lang: langPrefix });
+          } catch (error) {
+            console.error("Error fetching translation:", error);
+          }
+
+          commerceApp_.components["country"]()
+          commerceApp_.components["products"]()
+          if ($("[name='user[pick_up_point_id]']").length > 0) {
+
+            commerceApp_.components["cartItems"]()
+          }
+
+
+
+        })
+
+      })
+
+    },
+
     upgradeTarget() {
 
       window.upgradeTarget
@@ -170,7 +500,7 @@ export let commerceApp_ = {
       } else {
         $("input[name='user[upgrade]']").val(window.upgradeTarget)
       }
-      $("upgradeTarget").html(`<span>for: <span id="upgradeTarget">` + window.upgradeTarget + `</span> <a class="ms-4" href="javascript:void(0);" aria-upgrade=true> <i class="fa fa-edit"></i> Change</a> </span>`)
+      $("upgradeTarget").customHtml(`<span>for: <span id="upgradeTarget">` + window.upgradeTarget + `</span> <a class="ms-4" href="javascript:void(0);" aria-upgrade=true> <i class="fa fa-edit"></i> Change</a> </span>`)
 
       $("[aria-upgrade]").click(() => {
         phxApp_.modal({ selector: "#mySubModal", autoClose: false, content: `
@@ -202,7 +532,7 @@ export let commerceApp_ = {
             (res) => {
               phxApp_.notify("User verified!")
               $(".selectUser").removeClass("disabled")
-              $(".pv-info").html(`Accumulated sales PV: ` + res[0] + ` | Rank: ` + res[1])
+              $(".pv-info").customHtml(`Accumulated sales PV: ` + res[0] + ` | Rank: ` + res[1])
             })
 
 
@@ -409,7 +739,7 @@ export let commerceApp_ = {
                   <span class=" ">RP <span class="format-float">` + subtotal + `</span></span>
                 </div>
                <div class="d-flex justify-content-between align-items-center">
-                  <span class="fs-5">Shipping</span>
+                  <span class="fs-5">Shipping + Tax</span>
                   <span class=" ">RP <span class="format-float">` + shipping_fee + `</span></span>
                 </div>
 
@@ -450,28 +780,46 @@ export let commerceApp_ = {
       }
 
 
+      var addre = `
+  <span class="text-secondary">Deliver To:</span> 
+                   <span>` + shipping.line1 + `, ` + shipping.line2 + `</span>
+                   <span>` + shipping.city + ` ` + shipping.postcode + `, ` + shipping.state + ` </span>
 
+      `
 
-      $("salesItems").html(`
+      if (sale.pick_up_point != null) {
+        addre =
+
+          `                   <span class="text-secondary">Pick Up Point: </span>
+ <span>` + sale.pick_up_point.name + ` </span>
+                   <span>` + sale.pick_up_point.address + ` </span>
+
+`
+
+      }
+
+      $("salesItems").customHtml(`
         <div class="d-flex align-items-center justify-content-between gap-2">
           <h2>Sales Details</h2><small class="badge bg-primary">` + sale.status + `</small>
         </div>
                 <div class="d-flex flex-column mb-4 ">
                    <span class="text-secondary">Recipient:</span> 
-                   <span>` + (reg_dets.user.fullname || phxApp_.user.fullname) + `, ` + (reg_dets.user.phone || phxApp_.user.phone) + `</span>
-                   <span>` + (reg_dets.user.email || phxApp_.user.email) + ` </span>
+                   <span>` + (shipping.fullname || phxApp_.user.fullname) + `, ` + (shipping.phone || phxApp_.user.phone) + `</span>
+                   
                 </div>
 
 
                 <div class="d-flex flex-column mb-4 ">
-                   <span class="text-secondary">Deliver To:</span> 
-                   <span>` + shipping.line1 + `, ` + shipping.line2 + `</span>
-                   <span>` + shipping.city + ` ` + shipping.postcode + `, ` + shipping.state + ` </span>
+                 
+                    ` + addre + `
                 </div>
 
                    <span class="text-secondary">Items:</span>
                 <div class="d-flex flex-column gap-2">` + list.join("") + `
                 ` + payment_info + `
+                </div>
+                <div class="my-4">
+                  <a class="btn btn-primary" href="/pdf?id=` + sale.id + `" target="_blank">Print</a>
                 </div>
 
         `)
@@ -480,6 +828,276 @@ export let commerceApp_ = {
 
 
       ColumnFormater.formatDate();
+    },
+    evalStates() {
+      $("select[name='user[shipping][state]']").customHtml(`<option></option>`)
+      var malaysia = phxApp_.countries_.filter((v, i) => {
+        return v.name == "Malaysia"
+      })[0]
+      if (malaysia.id == phxApp_.chosen_country_id_.id) {
+
+
+        if ($("[name='user[pick_up_point_id]']").val() == null) {
+
+          $(".ss1").customHtml(`
+                <select class="form-select" required id="s1" name="user[shipping][state]">
+                </select>
+                <label class="ms-2" for="floatingInput">State</label>
+          `)
+        } else {
+          $(".ss1").customHtml(`
+                <select class="form-select"  id="s1" name="user[shipping][state]">
+                </select>
+                <label class="ms-2" for="floatingInput">State</label>
+          `)
+        }
+        var states = [
+          ["jhr", "Johor"],
+          ["kdh", "Kedah"],
+          ["ktn", "Kelantan"],
+          ["mlk", "Melaka"],
+          ["nsn", "Negeri Sembilan"],
+          ["phg", "Pahang"],
+          ["prk", "Perak"],
+          ["pls", "Perlis"],
+          ["png", "Pulau Pinang"],
+          ["sgr", "Selangor"],
+          ["trg", "Terengganu"],
+          ["kul", "Kuala Lumpur"],
+          ["pjy", "Putra Jaya"],
+          ["srw", "Sarawak"],
+          ["sbh", "Sabah"],
+          ["lbn", "Labuan"]
+        ]
+        states.forEach((v, i) => {
+          if (window.selectedState == v[1]) {
+            $("select[name='user[shipping][state]']").append(`
+              <option selected value="` + v[1] + `">` + v[1] + `</option>`)
+          } else {
+            $("select[name='user[shipping][state]']").append(`
+              <option value="` + v[1] + `">` + v[1] + `</option>`)
+          }
+        })
+        $("select[name='user[shipping][state]']").change(() => {
+          window.selectedState = $("select[name='user[shipping][state]']").val()
+          commerceApp_.components["updateCart"]()
+          commerceApp_.components["cartItems"]()
+        })
+      } else {
+        if ($("[name='user[pick_up_point_id]']").val() == null) {
+
+          $(".ss1").customHtml(`
+                <input class="form-control" required id="s1" name="user[shipping][state]">
+                </input>
+                <label class="ms-2" for="floatingInput">State</label>
+          `)
+        } else {
+
+          $(".ss1").customHtml(`
+                <input class="form-control"  id="s1" name="user[shipping][state]">
+                </input>
+                <label class="ms-2" for="floatingInput">State</label>
+          `)
+        }
+      }
+
+
+    },
+    evalShipping(subtotal) {
+      var s = 0
+
+      var malaysia = phxApp_.countries_.filter((v, i) => {
+        return v.name == "Malaysia"
+      })[0]
+
+      var singapore = phxApp_.countries_.filter((v, i) => {
+        return v.name == "Singapore"
+      })[0]
+      if (malaysia.id == phxApp_.chosen_country_id_.id) {
+        if ($("[name='user[pick_up_point_id]']").val() != "") {
+          s = 0
+        } else {
+
+          if (["Sabah", "Sarawak", "Labuan"].includes(window.selectedState)) {
+            s = Math.ceil(subtotal / 200) * 4
+          } else {
+            if (subtotal >= 100) {
+              s = 0
+            } else {
+              s = 2
+            }
+          }
+        }
+
+      } else {
+        s = subtotal * 0.10
+        if (singapore.id == phxApp_.chosen_country_id_.id) {
+          s = subtotal * 0.05
+        }
+      }
+
+
+      return s
+    },
+    evalShippingAddresses() {
+      phxApp_.api("list_pick_up_point_by_country", { country_id: phxApp_.chosen_country_id_.id }, null, (list) => {
+        phxApp_.pick_up_points = list
+
+
+        if ($("[name='user[pick_up_point_id]']").val() != "") {
+          var id = $("[name='user[pick_up_point_id]']").val()
+          var pup = phxApp_.pick_up_points.filter((v, i) => {
+            return v.id == id
+          })[0]
+          try {
+            $("[name='user[shipping][state]']").removeAttr("required")
+            console.log("attr removed")
+            $(".self-pickup-form").customHtml(`
+                   <div class="d-flex flex-column">
+                      <span>` + pup.name + `</span>
+                      <span class="text-secondary">` + pup.address + `</span>
+                      <span class="mt-4">
+                      </span>
+                    </div>
+
+            `)
+          } catch (e) {
+            $(".shipping-form").removeClass("d-none")
+            $(".self-pickup-form").addClass("d-none")
+            phxApp_.notify("No pick up points in this region", { type: "danger" })
+
+          }
+        }
+
+        var adds = []
+        list.forEach((v, i) => {
+          adds.push(`
+              <div class="card my-2" style="cursor: pointer;">
+                <div class="card-body">
+                  <div class="d-flex flex-column">
+                    <span>` + v.name + `</span>
+                    <span class="text-secondary">` + v.address + `</span>
+                    <span class="mt-4">
+                      <div class="btn btn-primary" aria-address="` + v.id + `">Choose</div>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            `)
+        })
+        $(".self-pickup").unbind()
+        $(".self-pickup").click(() => {
+          window.selectedState = null
+
+
+          $(".shipping-form").addClass("d-none")
+          $(".self-pickup-form").removeClass("d-none")
+          phxApp_.modal({ autoClose: false, selector: "#mySubModal", content: `
+            <div class="d-flex flex-column">
+              ` + adds.join("") + `
+            </div>
+            `, header: "Pick Up Points" })
+          $("[aria-address]").click(function() {
+            var id = $(this).attr("aria-address")
+
+            var pup = phxApp_.pick_up_points.filter((v, i) => {
+              return v.id == id
+            })[0]
+            try {
+              $("[name='user[shipping][state]']").removeAttr("required")
+              console.log("attr removed")
+              $(".self-pickup-form").customHtml(`
+                   <div class="d-flex flex-column">
+                      <span>` + pup.name + `</span>
+                      <span class="text-secondary">` + pup.address + `</span>
+                      <span class="mt-4">
+                      </span>
+                    </div>
+
+            `)
+            } catch (e) {
+              $(".shipping-form").removeClass("d-none")
+              $(".self-pickup-form").addClass("d-none")
+              phxApp_.notify("No pick up points in this region", { type: "danger" })
+
+            }
+            $("[name='user[pick_up_point_id]']").val(id)
+
+            $("#mySubModal").modal('hide')
+            $("[name='user[shipping][state]']").val(null)
+
+            commerceApp_.components["cartItems"]()
+          })
+        })
+      })
+      phxApp_.api("list_user_sales_addresses_by_username", { username: phxApp_.user.username }, null, (list) => {
+        phxApp_.addresses = list
+        if (list.length > 0) {
+          if (window.choosenAddress != null) {
+
+            var address = list.filter((v, i) => {
+              return v.id == window.choosenAddress
+            })[0]
+            $("[name='user[shipping][phone]']").val(address.phone)
+            $("[name='user[shipping][fullname]']").val(address.fullname)
+            $("[name='user[shipping][line1]']").val(address.line1)
+            $("[name='user[shipping][line2]']").val(address.line2)
+            $("[name='user[shipping][city]']").val(address.city)
+            $("[name='user[shipping][postcode]']").val(address.postcode)
+            setTimeout(() => {
+              $("[name='user[shipping][state]']").val(address.state)
+            }, 500)
+          }
+        }
+        $(".change-address").unbind()
+        var adds = []
+        list.forEach((v, i) => {
+          adds.push(`
+              <div class="card my-2" style="cursor: pointer;">
+                <div class="card-body">
+                  <div class="d-flex flex-column">
+                    <span>` + v.fullname + `</span>
+                    <span class="text-secondary">` + v.line1 + `, ` + v.line2 + `</span>
+                    <span class="mt-4">
+                      <div class="btn btn-primary" aria-address="` + v.id + `">Choose</div>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            `)
+        })
+        $(".change-address").click(() => {
+          $("[name='user[pick_up_point_id]']").val("")
+          $(".shipping-form").removeClass("d-none")
+          $(".self-pickup-form").addClass("d-none")
+          $("[name='user[shipping][state]']").attr("required")
+          console.log("attr add")
+          phxApp_.modal({ autoClose: false, selector: "#mySubModal", content: `
+            <div class="d-flex flex-column">
+              ` + adds.join("") + `
+            </div>
+            `, header: "Change address" })
+          $("[aria-address]").click(function() {
+            var id = $(this).attr("aria-address")
+            window.choosenAddress = id
+            var address = phxApp_.addresses.filter((v, i) => {
+              return v.id == id
+            })[0]
+            $("[name='user[shipping][phone]']").val(address.phone)
+            $("[name='user[shipping][fullname]']").val(address.fullname)
+            $("[name='user[shipping][line1]']").val(address.line1)
+            $("[name='user[shipping][line2]']").val(address.line2)
+            $("[name='user[shipping][city]']").val(address.city)
+            $("[name='user[shipping][postcode]']").val(address.postcode)
+            setTimeout(() => {
+              $("[name='user[shipping][state]']").val(address.state)
+            }, 500)
+            $("#mySubModal").modal('hide')
+            commerceApp_.components["cartItems"]()
+          })
+        })
+      })
+
     },
     cartItems() {
       var count = 0,
@@ -503,6 +1121,9 @@ export let commerceApp_ = {
         return a + b
       }, 0)
 
+      this.evalShippingAddresses()
+      console.log("end eval shipping")
+      this.evalStates()
 
       if ($("cartItems").attr("upgrade") != null) {
         if (window.upgradeTarget != null) {
@@ -521,10 +1142,8 @@ export let commerceApp_ = {
           phxApp_.notify("Only available for direct recruited downline.")
         })
       }
+      shipping_fee = this.evalShipping(subtotal)
 
-      if (subtotal >= 100) {
-        shipping_fee = 0
-      }
 
       commerceApp_.cart_.forEach((v, i) => {
         var img = '/images/placeholder.png';
@@ -536,14 +1155,18 @@ export let commerceApp_ = {
             img = '/images/placeholder.png'
           }
         }
-        list.push(`
 
-            <div class="d-flex align-items-center justify-content-between gap-2">
-            <input type="hidden"  name="user[products][` + i + `][item_name]" value="` + v.name + `">
-            <input type="hidden"  name="user[products][` + i + `][item_price]" value="` + v.retail_price + `">
-            <input type="hidden"  name="user[products][` + i + `][item_pv]" value="` + v.point_value + `">
-            <input type="hidden"  name="user[products][` + i + `][img_url]" value="` + v.img_url + `">
-            <input type="hidden"  name="user[products][` + i + `][qty]" value="` + v.qty + `">
+        var linePassed = ''
+
+        if (parseInt(localStorage.first_cart_country_id) != phxApp_.chosen_country_id_.id) {
+
+          linePassed = `border border-danger`
+
+          console.log(linePassed)
+          list.push(`
+
+            <div class="d-flex align-items-center justify-content-between gap-2 ` + linePassed + ` rounded p-2 me-3">
+           
               <div class="d-flex align-items-center justify-content-between gap-2">
                 <div class="d-flex justify-content-center align-items-center " style="
                                   cursor: pointer;   
@@ -573,16 +1196,11 @@ export let commerceApp_ = {
                                   ">
                   </div>
                 </div>
-                <span>` + v.name + ` <small>(x` + v.qty + `)</small></span>
+                <span>` + v.name + ` <small>(x` + v.qty + `)</small> <br><small> <i class="fa fa-exclamation-triangle text-danger "></i>Product not available for this region</small></span>
               </div>
               <div class="d-flex flex-column flex-lg-row justify-content-between align-items-center">
-                <div class="d-flex flex-column align-items-end">
-                  <span class="font-sm ">RP <span class="format-float">` + (v.retail_price * v.qty).toFixed(2) + `</span></span>
-                  <span class="font-sm text-info "><span class="format-integer">` + (v.point_value * v.qty) + `</span> PV</span>
-                </div>
+                
                 <div class="text-center">
-                  <div class="btn btn-sm" add-product-id="` + v.id + `"><i class="text-info fa fa-plus"></i></div>
-                  <div class="btn btn-sm" minus-product-id="` + v.id + `"><i class="text-danger fa fa-minus"></i></div>
                   <div class="btn btn-sm" delete-product-id="` + v.id + `"><i class="text-danger fa fa-times"></i></div>
                 </div>
               </div>
@@ -590,10 +1208,69 @@ export let commerceApp_ = {
 
           
             `)
+        } else {
+
+          console.log(linePassed)
+          list.push(`
+
+              <div class="d-flex align-items-center justify-content-between gap-2 ` + linePassed + ` rounded p-2 me-3">
+              <input type="hidden"  name="user[products][` + i + `][item_name]" value="` + v.name + `">
+              <input type="hidden"  name="user[products][` + i + `][item_price]" value="` + v.retail_price + `">
+              <input type="hidden"  name="user[products][` + i + `][item_pv]" value="` + v.point_value + `">
+              <input type="hidden"  name="user[products][` + i + `][img_url]" value="` + v.img_url + `">
+              <input type="hidden"  name="user[products][` + i + `][qty]" value="` + v.qty + `">
+                <div class="d-flex align-items-center justify-content-between gap-2">
+                  <div class="d-flex justify-content-center align-items-center " style="
+                                    cursor: pointer;   
+                                    position: relative; 
+                                    height: 60px;">
+                    <div class="rounded py-2" style="
+                                    height: 50px;
+                                    width: 72%;
+                                    filter: blur(4px);
+                                    position: absolute;
+                                    background-repeat: no-repeat;
+                                    background-position: center;
+                                    background-size: cover;
+                                    background-image: url('` + img + `');
+                                    bottom: 6px;
+                                    left: 16px;
+                                    ">
+                    </div>
+                    <div class="rounded py-2" style="
+                                    height: 50px;
+                                    width:  60px;
+                                    z-index: 1;
+                                    background-position: center;
+                                    background-repeat: no-repeat;
+                                    background-size: cover; 
+                                    background-image: url('` + img + `');
+                                    ">
+                    </div>
+                  </div>
+                  <span>` + v.name + ` <small>(x` + v.qty + `)</small></span>
+                </div>
+                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-center">
+                  <div class="d-flex flex-column align-items-end">
+                    <span class="font-sm ">RP <span class="format-float">` + (v.retail_price * v.qty).toFixed(2) + `</span></span>
+                    <span class="font-sm text-info "><span class="format-integer">` + (v.point_value * v.qty) + `</span> PV</span>
+                  </div>
+                  <div class="text-center">
+                    <div class="btn btn-sm" add-product-id="` + v.id + `"><i class="text-info fa fa-plus"></i></div>
+                    <div class="btn btn-sm" minus-product-id="` + v.id + `"><i class="text-danger fa fa-minus"></i></div>
+                    <div class="btn btn-sm" delete-product-id="` + v.id + `"><i class="text-danger fa fa-times"></i></div>
+                  </div>
+                </div>
+              </div>
+
+            
+              `)
+        }
+
 
 
       })
-      $("cartItems").html(`
+      $("cartItems").customHtml(`
 
                   <div class="d-flex flex-column gap-1">` + list.join("") + `
                     <div class="d-flex justify-content-between align-items-center">
@@ -692,10 +1369,8 @@ export let commerceApp_ = {
 
           drp_amount = $("#drp_payment").val()
         }
-        if (subtotal >= 100) {
-          shipping_fee = 0
-        }
-        $("cartItems").html(`
+        shipping_fee = commerceApp_.components.evalShipping(subtotal)
+        $("cartItems").customHtml(`
 
                   <div class="d-flex flex-column gap-1">` + list.join("") + `
                     <div class="d-flex justify-content-between align-items-center">
@@ -968,6 +1643,10 @@ export let commerceApp_ = {
         $(".only-downline").click(() => {
           phxApp_.notify("Only available for direct recruited downline.")
         })
+      } else {
+        subtotal = subtotal
+        console.log(subtotal)
+        eligible_rank = this.evalRank(subtotal)
       }
 
       bg_ranks = [
@@ -978,7 +1657,14 @@ export let commerceApp_ = {
 
       ]
 
-      perc = subtotal / memberApp_.ranks[2].retail_price * 100
+
+      rankSubtotal = memberApp_.ranks.sort((a, b) => {
+        return a.retail_price - b.retail_price
+      }).findIndex(item => item.name === eligible_rank);
+      console.log(rankSubtotal)
+      perc = (rankSubtotal + 1) * 25
+
+
 
       $(".ac").each((i, vv) => {
 
@@ -1123,12 +1809,12 @@ export let commerceApp_ = {
       perc = subtotal / memberApp_.ranks[0].retail_price * 100
 
       $("cart").each((i, v) => {
-        var needDropUp = `dropdown`
+        var needDropUp = `dropstart`
 
         if ($(v).attr("dropup") != null) {
           needDropUp = `dropup`
         }
-        $(v).html(`
+        $(v).customHtml(`
             <div class="` + needDropUp + `  ">
               <div class="mx-3 py-2 btn btn-outline-success rounded-xl position-relative"  data-bs-toggle="dropdown" aria-expanded="false">
                 <div style="top: 4px !important;" class="badge bg-warning position-absolute top-0 start-100 translate-middle bc">` + count + `</div>
@@ -1197,8 +1883,31 @@ export let commerceApp_ = {
       ColumnFormater.formatDate();
 
     },
+    light() {
+      $("light").customHtml(`
+              <div class=" py-2 btn btn-outline-success rounded-xl position-relative light"  >
+                <i class="fa fa-lightbulb far"></i>
+              </div>
+        `)
+      // $("html").attr("data-bs-theme", localStorage.get("data-bs-theme"))
+
+      $(".light").unbind()
+      $(".light").on("click", () => {
+
+        if ($("html").attr("data-bs-theme") == "light") {
+
+          localStorage.setItem("data-bs-theme", "dark")
+          $("html").attr("data-bs-theme", "dark")
+        } else {
+
+          localStorage.setItem("data-bs-theme", "light")
+          $("html").attr("data-bs-theme", "light")
+        }
+
+      })
+    },
     product() {
-      $("product").html(`
+      $("product").customHtml(`
           <div class="text-center mt-4">
             <div class="spinner-border loading2" role="status">
               <span class="visually-hidden">Loading...</span>
@@ -1214,18 +1923,50 @@ export let commerceApp_ = {
         $("title").html(data.name)
 
         function addToCart_() {
-          commerceApp_.addItem_(data)
-          commerceApp_.components["updateCart"]()
 
-          phxApp_.notify("Added " + data.name, {
-            delay: 2000,
-            type: "success",
-            placement: {
-              from: "top",
-              align: "center"
-            }
-          })
-          phxApp_.toast({ content: `<div class=""><ul class="">` + $(".ac").html() + `</ul></div>` })
+          if (commerceApp_.first_cart_country_id == null && commerceApp_.cart_.length == 0) {
+            commerceApp_.first_cart_country_id = phxApp_.chosen_country_id_.id
+            console.log("first country id is " + phxApp_.chosen_country_id_.id)
+            localStorage.setItem("first_cart_country_id", phxApp_.chosen_country_id_.id)
+          }
+
+          console.log(check)
+          if (data.countries.map((vv, ii) => { return vv.id }).includes(parseInt(commerceApp_.first_cart_country_id))) {
+
+            commerceApp_.addItem_(data)
+            commerceApp_.components["updateCart"]()
+
+            phxApp_.notify("Added " + data.name, {
+              delay: 2000,
+              type: "success",
+              placement: {
+                from: "top",
+                align: "center"
+              }
+            })
+            phxApp_.toast({ content: `<div class=""><ul class="">` + $(".ac").html() + `</ul></div>` })
+          } else if (commerceApp_.first_cart_country_id == null) {
+            commerceApp_.addItem_(data)
+            commerceApp_.components["updateCart"]()
+            phxApp_.notify("Added " + data.name, {
+              delay: 2000,
+              type: "success",
+              placement: {
+                from: "top",
+                align: "center"
+              }
+            })
+            phxApp_.toast({ content: `<div class=""><ul class="">` + $(".ac").html() + `</ul></div>` })
+          } else {
+            phxApp_.notify("Not Added ! Please choose your region products.", {
+              delay: 2000,
+              type: "danger",
+              placement: {
+                from: "top",
+                align: "center"
+              }
+            })
+          }
 
         }
 
@@ -1242,7 +1983,7 @@ export let commerceApp_ = {
             img = '/images/placeholder.png'
           }
         }
-        $("#pcontent").html(`
+        $("#pcontent").customHtml(`
 
         <div class="d-flex flex-column justify-content-center align-items-center ">
           <h2 id="ptitle">
@@ -1294,124 +2035,183 @@ export let commerceApp_ = {
     },
     products() {
 
-      $("products").html(`
-          <div class="text-center mt-4">
-            <div class="spinner-border loading" role="status">
-              <span class="visually-hidden">Loading...</span>
-            </div>
-          </div>
-            
 
-          <div class="row gx-0 d-none loading">
-            <div class="col-12 col-lg-10 offset-lg-1">
-              <div id="tab1"></div>
-            </div>
-          </div>
-        `)
+      if (phxApp_.chosen_country_id_ == null) {
+        var countries = []
 
 
-
-      var customCols = null,
-        random_id = 'products',
-        productSource = new phoenixModel({
-          onDrawFn: () => {
-            $(".spinner-border.loading").parent().remove()
-            $(".loading").removeClass("d-none")
-
-            setTimeout(() => {
-              ColumnFormater.formatDate()
-            }, 200)
-
-          },
-          xcard: (params) => {
-
-            var data = params,
-              img = '/images/placeholder.png';
-            if (data.img_url != null) {
-
-              try {
-                img = data.img_url
-              } catch (e) {
-                img = '/images/placeholder.png'
-              }
-            }
-            var card = `
-          <div  class="m-2 d-flex flex-column gap-2" onclick="phxApp.navigateTo('/products/` + data.id + `/` + data.name + `')">
-            <div  class="d-flex justify-content-center mb-4 py-4 background-p" 
-                  style="
-                    cursor: pointer;   
-                    position: relative; "
-                   >
-              <div class="rounded py-2 background-p" style="
-                
-                    width: 80%;
-                    filter: blur(4px);
-                    position: absolute;
-                    background-repeat: no-repeat;
-                    background-position: center;
-                    background-size: cover;
-                    background-image: url('` + img + `');
-                    
-                    ">
-              </div>
-              <div class="rounded py-2 foreground-p" style="
-                   
-                    width:  100%;
-                    z-index: 1;
-                    background-position: center;
-                    background-repeat: no-repeat;
-                    background-size: cover; 
-                    background-image: url('` + img + `');
-                    ">
-              </div>
-            </div>
-            <div class="d-flex flex-column justify-content-center gap-2 mt-4">
-              <div class="font-sm fw-bold text-center">` + data.name + `</div>
-               <div class="d-flex flex-column justify-content-center ">
-                  <div class="font-sm fw-light text-secondary text-center format-float">` + data.retail_price + `</div>
-                  <div class="font-sm fw-light text-info text-center ">PV <span class="format-float">` + data.point_value + `</span></div>
-               </div>
-           
-            </div>
-          </div>
-          `
-            return card
-          },
-          data: {
-            grid_class: "col-4 col-lg-3",
-            dom: `
-
-                <"row px-4"
-                  <"col-lg-6 col-12"i>
-                  <"col-12 col-lg-6">
-                >
-                <"row grid_view ">
-                <"list_view d-none"t>
-                <"row transform-75 px-4"
-                  <"col-lg-6 col-12">
-                  <"col-lg-6 col-12"p>
-                >
-
-            `
-          },
-          columns: [
-
-            {
-              label: 'id',
-              data: 'id'
-            }, {
-              label: 'Action',
-              data: 'id'
-            }
-
-          ],
-          moduleName: "Product",
-          link: "Product",
-          customCols: customCols,
-          buttons: [],
-          tableSelector: "#" + random_id
+        phxApp_.countries_.forEach((v, i) => {
+          countries.push(`
+            <button type="button" aria-name="` + v.name + `" aria-country="` + v.id + `" class="btn btn-primary ">` + v.name + `</button>
+          `)
         })
-      productSource.load(random_id, "#tab1")
+        phxApp_.modal({ selector: "#mySubModal", content: `
+          <center>
+            <div class="btn-group-vertical">
+            ` + countries.join("") + `
+            </div>
+          </center>
+        `, header: "Choose region", autoClose: false })
+
+        $("[aria-country]").unbind()
+        $("[aria-country]").click(function() {
+          var country_id = $(this).attr("aria-country"),
+            name = $(this).attr("aria-name")
+          phxApp_.chosen_country_id_ = country_id
+          phxApp_.notify("Chosen region: " + name)
+          localStorage.setItem("region", name)
+          $("#mySubModal").modal('hide')
+          commerceApp_.components["country"]()
+          // commerceApp_.components["products"]()
+          phxApp_.navigateTo("/home")
+        })
+
+      }
+      if (phxApp_.chosen_country_id_ != null) {
+
+        $("products").customHtml(`
+            <div class="text-center mt-4">
+              <div class="spinner-border loading" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+            </div>
+              
+
+            <div class="row gx-0 d-none loading">
+              <div class="col-12 col-lg-10 offset-lg-1">
+                <div id="product_tab1"></div>
+              </div>
+            </div>
+          `).then(() => {
+
+          var customCols = null,
+            random_id = 'products',
+            productSource = new phoenixModel({
+              onDrawFn: () => {
+                $(".spinner-border.loading").parent().remove()
+                $(".loading").removeClass("d-none")
+
+                setTimeout(() => {
+                  ColumnFormater.formatDate()
+                }, 200)
+
+              },
+              xcard: (params) => {
+
+                var data = params.product,
+                  img = '/images/placeholder.png';
+                if (data.img_url != null) {
+
+                  try {
+                    img = data.img_url
+                  } catch (e) {
+                    img = '/images/placeholder.png'
+                  }
+                }
+                var card = `
+            <div  class="m-2 d-flex flex-column gap-2" onclick="phxApp.navigateTo('/products/` + data.id + `/` + data.name + `')">
+              <div  class="d-flex justify-content-center mb-4 py-4 background-p" 
+                    style="
+                      cursor: pointer;   
+                      position: relative; "
+                     >
+                <div class="rounded py-2 background-p" style="
+                  
+                      width: 80%;
+                      filter: blur(4px);
+                      position: absolute;
+                      background-repeat: no-repeat;
+                      background-position: center;
+                      background-size: cover;
+                      background-image: url('` + img + `');
+                      
+                      ">
+                </div>
+                <div class="rounded py-2 foreground-p" style="
+                     
+                      width:  100%;
+                      z-index: 1;
+                      background-position: center;
+                      background-repeat: no-repeat;
+                      background-size: cover; 
+                      background-image: url('` + img + `');
+                      ">
+                </div>
+              </div>
+              <div class="d-flex flex-column justify-content-center gap-2 mt-4">
+                <div class="font-sm fw-bold text-center">` + data.name + `</div>
+                 <div class="d-flex flex-column justify-content-center ">
+                    <div class="font-sm fw-light text-secondary text-center format-float">` + data.retail_price + `</div>
+                    <div class="font-sm fw-light text-info text-center ">PV <span class="format-float">` + data.point_value + `</span></div>
+                 </div>
+             
+              </div>
+            </div>
+            `
+                return card
+              },
+              data: {
+                sorts: [
+                  [1, "asc"]
+                ],
+
+                additional_join_statements: [{
+                  product: "product"
+                  // product_country: "product_country",
+
+                }],
+                // additional_search_queries: [
+                //   "b.country_id=" + phxApp_.chosen_country_id_.id
+                // ],
+
+                country_id: phxApp_.chosen_country_id_.id,
+                preloads: ["product"],
+                grid_class: "col-4 col-lg-3",
+                dom: `
+
+                  <"row px-4"
+                    <"col-lg-6 col-12"i>
+                    <"col-12 col-lg-6">
+                  >
+                  <"row grid_view ">
+                  <"list_view d-none"t>
+                  <"row transform-75 px-4"
+                    <"col-lg-6 col-12">
+                    <"col-lg-6 col-12"p>
+                  >
+
+              `
+              },
+              columns: [
+
+                {
+                  label: 'id',
+                  data: 'id'
+                },
+                // {
+                //   label: 'retail_price',
+                //   data: 'retail_price'
+                // },
+
+                {
+                  label: 'Action',
+                  data: 'id'
+                }
+
+              ],
+              moduleName: "ProductCountry",
+              link: "ProductCountry",
+              customCols: customCols,
+              buttons: [],
+              tableSelector: "#" + random_id
+            })
+          productSource.load(random_id, "#product_tab1")
+        })
+      }
+
+
+
+
 
 
     },
@@ -1422,7 +2222,7 @@ export let commerceApp_ = {
       } catch (e) {
 
       }
-      $("announcement").html(`
+      $("announcement").customHtml(`
         <div class="spinner-border" role="status">
           <span class="visually-hidden">Loading...</span>
         </div>
@@ -1432,7 +2232,7 @@ export let commerceApp_ = {
 
       }, null, (list) => {
 
-        $("announcement").html(``)
+        $("announcement").customHtml(``)
 
         list.forEach((v, i) => {
 
@@ -1498,7 +2298,7 @@ export let commerceApp_ = {
 
       $("rewardList").each((rii, v) => {
 
-        $(v).html(`
+        $(v).customHtml(`
           <div class="text-center mt-4">
             <div class="spinner-border loading" role="status">
               <span class="visually-hidden">Loading...</span>
@@ -1521,7 +2321,9 @@ export let commerceApp_ = {
 
           $(".spinner-border.loading").parent().remove()
           $(".loading").removeClass("d-none")
-          var rewards = ["sharing bonus", "team bonus", "matching bonus", "elite leader", "travel fund", "repurchase bonus", "drp sales level bonus", "stockist register bonus"],
+          var rewards = ["sharing bonus", "team bonus", "matching bonus", "elite leader", "travel fund", "repurchase bonus", "drp sales level bonus", "stockist register bonus",
+              // "royalty bonus"
+            ],
             list = []
           rewards.forEach((r2, ii) => {
 
@@ -1540,7 +2342,7 @@ export let commerceApp_ = {
                 <span class="format-float">
                   ` + v.sum + `
                 </span>
-                <a href="/reward_details/` + v.name + `" class="navi btn btn-info btn-sm">
+                <a href="/reward_details/` + v.name + `/` + v.period[0] + `/` + v.period[1] + `" class="navi btn btn-primary btn-sm">
                 <i class="fa fa-info"></i>
                 </a>
               </span>
@@ -1553,7 +2355,7 @@ export let commerceApp_ = {
             })
           })
 
-          $("#tab" + rii).html(`` + list.join("") + ``)
+          $("#tab" + rii).customHtml(`` + list.join("") + ``)
           phxApp.formatDate()
         })
       })
@@ -1571,7 +2373,7 @@ export let commerceApp_ = {
 
 
         if (wallets.length == 0) {
-          $("wallet").parent().html(`<div class="p-4">Wallet info expired</div>`)
+          $("wallet").parent().customHtml(`<div class="p-4">Wallet info expired</div>`)
         } else {
 
           $("wallet").each((i, v) => {
@@ -1588,10 +2390,19 @@ export let commerceApp_ = {
                 return ColumnFormater.capitalize(v)
               }).join(" ")
 
-              $(v).html(`
+              $(v).customHtml(`
               <a href="/wallets/` + wallet.id + `" class="navi" >
-              <div class="card mb-3 mb-lg-0">
-                <div class="card-body p-1 py-2 ">
+
+              <div class=" card mb-3 mb-lg-0">
+                <div style="
+                  width: 4px;
+                  position: absolute;
+                  height: 100%;
+                  background: rgb(251,254,253);
+                  background: linear-gradient(45deg, rgb(86, 253, 197) 0%, rgb(218, 216, 216) 100%);
+
+                " class="card-body p-0 "></div>
+                <div class="card-body p-1 py-2 " style="width: 220px;">
                   <div class="d-flex gap-1 align-items-center">
                     <div wallet-id="` + wallet.id + `" class="d-none d-lg-block mx-2 py-2 btn btn-outline-success rounded-xl">
                       <i class=" fa fa-dollar-sign "></i>
@@ -1605,6 +2416,14 @@ export let commerceApp_ = {
                     </div>
                   </div>
                 </div>
+
+                <div class="card-body p-0 d-none" style="
+
+                  background: rgb(251,254,253);
+                  background: linear-gradient(90deg, rgb(86, 253, 197) 0%, rgb(218, 216, 216) 100%);
+                  height: 2px;
+
+                "></div>
               </div>
               </a>
 
@@ -1635,13 +2454,13 @@ export let commerceApp_ = {
 
         var rank_name = user.rank != null ? user.rank.name : user.rank_name;
         var name = user != null ? "Welcome! " + `<a href="/profile" class="navi">` + user.fullname + ` (` + rank_name + `)</a>` : `<a href="/login" class="navi">Login</a>`
-        $("userProfile").html(`
+        $("userProfile").customHtml(`
             
               ` + name + `
            
         `)
       } else {
-        $("userProfile").html(`
+        $("userProfile").customHtml(`
             
             <a href="/login" class="navi">Login</a>
            

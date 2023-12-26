@@ -62,6 +62,7 @@ defmodule CommerceFront.ApiAuthorization do
           "sign_in",
           "update_customer",
           "food_payment",
+          "admin_menus",
           "customer_topup"
         ] ->
           conn
@@ -86,7 +87,7 @@ defmodule CommerceFront.ApiAuthorization do
                 IO.inspect("not auth")
 
                 conn
-                |> resp(500, Jason.encode!(%{message: "Not authorized."}))
+                |> resp(403, Jason.encode!(%{message: "Not authorized."}))
                 |> halt
               end
             end
@@ -95,7 +96,7 @@ defmodule CommerceFront.ApiAuthorization do
               IO.inspect("not auth")
 
               conn
-              |> resp(500, Jason.encode!(%{message: "Not authorized."}))
+              |> resp(403, Jason.encode!(%{message: "Not authorized."}))
               |> halt
           end
       end

@@ -59,6 +59,7 @@ defmodule CommerceFrontWeb.ApiController do
   require IEx
 
   def get(conn, params) do
+    # can get data from conn.private.plug_session
     token = params |> Map.get("token")
 
     %{id: id} =
@@ -73,17 +74,65 @@ defmodule CommerceFrontWeb.ApiController do
 
     res =
       case params["scope"] do
+        "translation" ->
+          translation = CommerceFront.translation()
+
+          ori = translation |> Enum.map(&(&1 |> Map.get("Ori")))
+          eng = translation |> Enum.map(&(&1 |> Map.get("English")))
+          thai = translation |> Enum.map(&(&1 |> Map.get("Thailand")))
+          chinese = translation |> Enum.map(&(&1 |> Map.get("China")))
+          viet = translation |> Enum.map(&(&1 |> Map.get("Vietnam")))
+
+          translation_map =
+            case params["lang"] do
+              "th" ->
+                Enum.zip(ori, thai) |> Enum.into(%{})
+
+              "vn" ->
+                Enum.zip(ori, viet) |> Enum.into(%{})
+
+              "cn" ->
+                Enum.zip(ori, chinese) |> Enum.into(%{})
+
+              _ ->
+                Enum.zip(ori, eng) |> Enum.into(%{})
+            end
+
+        "get_product_countries" ->
+          Settings.get_product!(params["id"]) |> BluePotion.sanitize_struct()
+
+        "get_role_app_routes" ->
+          Settings.get_role!(params["id"]) |> BluePotion.sanitize_struct()
+
+        "list_pick_up_point_by_country" ->
+          Settings.list_pick_up_point_by_country(params["country_id"])
+          |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
+
+        "list_user_sales_addresses_by_username" ->
+          Settings.list_user_sales_addresses_by_username(params["username"])
+          |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
+
+        "countries" ->
+          Settings.list_countries()
+          |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
+
+        "yearly_sales_performance" ->
+          Settings.yearly_sales_performance()
+
+        "royalty_bonus" ->
+          Settings.royalty_bonus(params["date"])
+
         "get_accumulated_sales" ->
           user = Settings.get_user_by_username(params["username"])
 
           if params["parent_id"] != nil do
-            check = Settings.verify_parent(String.to_integer(params["parent_id"]), user)
+            # check = Settings.verify_parent(String.to_integer(params["parent_id"]), user)
 
-            if check do
-              Settings.accumulated_sales_by_user(user, params["show_rank"])
-            else
-              %{status: "error", reason: "not your downline"}
-            end
+            # if check do
+            # else
+            #   %{status: "error", reason: "not your downline"}
+            # end
+            Settings.accumulated_sales_by_user(user, params["show_rank"])
           else
             Settings.accumulated_sales(params["username"])
           end
@@ -93,6 +142,18 @@ defmodule CommerceFrontWeb.ApiController do
 
         "get_cookie_user" ->
           Settings.get_cookie_user_by_cookie(params["cookie"]) |> BluePotion.sanitize_struct()
+
+        "delete_topup_request" ->
+          wt = Settings.get_wallet_topup!(params["id"]) |> CommerceFront.Repo.preload(:payment)
+
+          if wt.is_approved == false do
+            wt.payment |> CommerceFront.Repo.delete()
+            {:ok, ww} = wt |> CommerceFront.Repo.delete()
+
+            ww |> BluePotion.sanitize_struct()
+          else
+            %{status: :error, reason: "Already approved"}
+          end
 
         "delete_request" ->
           {:ok, ww} = Settings.delete_wallet_withdrawal_by_id(params["id"])
@@ -200,17 +261,18 @@ defmodule CommerceFrontWeb.ApiController do
       end
 
     append_cache_request = fn conn ->
-      # if conn.req_headers
-      #    |> Enum.into(%{})
-      #    |> Map.get("referer", "")
-      #    |> String.contains?("admin") do
-      #   conn
-      # else
-      #   conn
-      #   |> put_resp_header("cache-control", "max-age=900, must-revalidate")
-      # end
-
-      conn
+      if Map.get(conn.params, "scope") in [
+           "countries",
+           "get_ranks",
+           "list_pick_up_point_by_country",
+           "list_user_sales_addresses_by_username",
+           "translation"
+         ] do
+        conn
+        |> put_resp_header("cache-control", "max-age=900, must-revalidate")
+      else
+        conn
+      end
     end
 
     with true <- is_map(res),
@@ -281,6 +343,75 @@ defmodule CommerceFrontWeb.ApiController do
   def post(conn, params) do
     res =
       case params["scope"] do
+        "do_adjustment" ->
+          Settings.approve_adjustment(params)
+          %{status: "ok"}
+
+        "admin_menus" ->
+          params["list"] |> Settings.update_admin_menus()
+
+          %{status: "ok"}
+
+        "admin_modify_referral" ->
+          CommerceFront.Settings.change_referral(
+            params["username"],
+            params["to_new_placement_username"]
+          )
+
+          %{status: "ok"}
+
+        "admin_modify_placement" ->
+          CommerceFront.Settings.change_placement(
+            params["username"],
+            params["to_new_placement_username"],
+            params["position"]
+          )
+
+          %{status: "ok"}
+
+        "admin_insert_wallet_trx" ->
+          sample = %{user_id: 609, amount: 1100.00, remarks: "something", wallet_type: "register"}
+          ewallet = CommerceFront.Settings.get_ewallet!(params["ewallet_id"]) |> IO.inspect()
+
+          nparams =
+            params
+            |> Map.put("amount", params["amount"] |> Float.parse() |> elem(0))
+            |> Map.merge(%{"user_id" => ewallet.user_id, "wallet_type" => ewallet.wallet_type})
+            |> Enum.reduce(%{}, fn {key, value}, acc ->
+              acc |> Map.put(String.to_atom(key), value)
+            end)
+
+          CommerceFront.Settings.create_wallet_transaction(nparams)
+
+          %{status: "ok"}
+
+        "admin_register_member" ->
+          sample = %{
+            "scope" => "admin_register_member",
+            "user" => %{
+              "email" => "888@1.com",
+              "fullname" => "w2",
+              "password" => "[FILTERED]",
+              "phone" => "888",
+              "placement" => %{"position" => "left"},
+              "sponsor" => "wer1",
+              "username" => "wer2"
+            }
+          }
+
+          case Settings.register_without_products(params["user"]) do
+            {:ok, multi_res} ->
+              %{status: "ok"}
+
+            {:error, _model, changeset, succeeded} ->
+              errors = changeset.errors |> Keyword.keys()
+
+              {reason, message} = changeset.errors |> hd()
+              {proper_message, message_list} = message
+              final_reason = Atom.to_string(reason) <> " " <> proper_message
+              %{status: "error", reason: final_reason}
+          end
+
         "mark_do" ->
           sale = Settings.get_sale!(params["id"]) |> IO.inspect()
 
@@ -290,7 +421,8 @@ defmodule CommerceFrontWeb.ApiController do
               %{status: "ok"}
 
             sale.status == :pending_delivery && params["status"] == "sent" ->
-              Settings.update_sale(sale, %{status: params["status"]})
+              Settings.mark_sent(params, sale)
+
               %{status: "ok"}
 
             true ->
@@ -389,6 +521,7 @@ defmodule CommerceFrontWeb.ApiController do
               Settings.create_session_user(%{"cookie" => token, "user_id" => user.id})
 
               %{
+                id: user.id,
                 status: "ok",
                 res: token,
                 role_app_routes:
@@ -416,6 +549,9 @@ defmodule CommerceFrontWeb.ApiController do
           case Settings.create_sales_transaction(params) |> IO.inspect() do
             {:ok, multi_res} ->
               %{status: "ok", res: multi_res.payment |> BluePotion.sanitize_struct()}
+
+            {:error, "Please check cart items."} ->
+              %{status: "error", reason: "Please check cart items."}
 
             {:error, :payment, "not sufficient", passed_cg} ->
               %{status: "error", reason: "wallet balance not sufficient"}
@@ -445,6 +581,9 @@ defmodule CommerceFrontWeb.ApiController do
                     res: multi_res.payment |> Map.delete(:user) |> BluePotion.sanitize_struct()
                   }
 
+                {:error, "Please check cart items."} ->
+                  %{status: "error", reason: "Please check cart items."}
+
                 {:error, :payment, "not sufficient", passed_cg} ->
                   %{status: "error", reason: "wallet balance not sufficient"}
 
@@ -464,8 +603,17 @@ defmodule CommerceFrontWeb.ApiController do
             {:error, :payment, "not sufficient", passed_cg} ->
               %{status: "error", reason: "wallet balance not sufficient"}
 
+            {:error, "Please enter a password."} ->
+              %{status: "error", reason: "Please enter a password."}
+
+            {:error, "Please check cart items."} ->
+              %{status: "error", reason: "Please check cart items."}
+
+            {:error, "Sponsor cannot be Shopper to register new member."} ->
+              %{status: "error", reason: "sponsor cannot be Shopper to register new member."}
+
             _ ->
-              %{status: "error"}
+              %{status: "error", reason: "Please contact admin."}
           end
 
         "login" ->
@@ -489,7 +637,14 @@ defmodule CommerceFrontWeb.ApiController do
           %{status: "ok"}
       end
 
-    json(conn, res)
+    append_session = fn conn ->
+      # conn |> put_session(:test_session, %{id: 1, role: "tester"})
+      conn
+    end
+
+    conn
+    |> append_session.()
+    |> json(res)
   end
 
   def print_pdf(conn, params) do
@@ -983,7 +1138,8 @@ defmodule CommerceFrontWeb.ApiController do
                               """
                           end
                         else
-                          with true <- i |> String.contains?("id"),
+                          with true <-
+                                 i |> String.contains?("id") || i in ["year", "month", "day"],
                                false <- i |> String.contains?("uuid"),
                                false <- i |> String.contains?("paid"),
                                false <- i |> String.contains?("is_"),
@@ -1130,6 +1286,8 @@ defmodule CommerceFrontWeb.ApiController do
       end
       |> IO.inspect()
 
+    Enum.map([1, 2, 4], fn x -> x end)
+
     preloads =
       if preloads == nil do
         preloads = []
@@ -1152,6 +1310,31 @@ defmodule CommerceFrontWeb.ApiController do
         additional_search_queries,
         preloads
       )
+
+    %{data: data, draw: _draw, recordsFiltered: _recordsFiltered, recordsTotal: _recordsTotal} =
+      json
+
+    sanitize_pw = fn data ->
+      if model == "Sale" do
+        data
+        |> Enum.map(fn x ->
+          x
+          |> IO.inspect()
+          |> Map.put(
+            :registration_details,
+            x.registration_details
+            |> Jason.decode!()
+            |> Kernel.get_and_update_in(["user", "password"], &{&1, ""})
+            |> elem(1)
+            |> Jason.encode!()
+          )
+        end)
+      else
+        data
+      end
+    end
+
+    json = Map.put(json, :data, data |> sanitize_pw.())
 
     conn
     |> put_resp_content_type("application/json")

@@ -23,10 +23,13 @@ export let phxApp_ = {
       $(dom).append(html)
     },
   },
+  chosen_country_id_: null,
+  countries_: [],
   route_names: [{
       html: "landing.html",
       title: "Home",
-      route: "/home"
+      route: "/home",
+      public: true
     },
 
 
@@ -108,22 +111,18 @@ export let phxApp_ = {
     return label
   },
   async navigateTo(route, additionalParamString) {
-
-
-
     if (route == null) {
       route = window.location.pathname
     }
     var current_pattern = route.split("/").filter((v, i) => {
       return v != "";
     })
-    console.log(current_pattern)
 
     var match_1 = this.route_names.filter((rroute, i) => {
       var z = rroute.route.split("/").filter((v, i) => {
         return v != "";
       })
-      console.log(z[z.length - 1])
+
 
       if (z[z.length - 1].includes(":")) {
         return z.length == current_pattern.length
@@ -135,26 +134,14 @@ export let phxApp_ = {
 
     var match_2 =
       match_1.filter((rroute, i) => {
-        console.log(rroute)
         var z = rroute.route.split("/").filter((v, i) => {
           return v != "";
         })
         return z[0] == current_pattern[0]
       })
-    // try {
-    //   var canvas = await html2canvas(document.querySelector("#content"));
-    //   $("#old_content").html(canvas)
-    // } catch (e) {
-    //   console.error(e)
-
-    // }
-    // $("#old_content").show()
-    // $("#content").hide()
     this.hide()
-
-
+    memberApp_.restoreUser();
     if (match_2.length > 0) {
-
       var params = {}
       match_2.forEach((rroute, i) => {
         var z = rroute.route.split("/").forEach((v, ii) => {
@@ -163,9 +150,22 @@ export let phxApp_ = {
           }
         })
       })
+      console.info(match_2)
 
-      console.log("params here")
-      console.log(params)
+      if (match_2[0].public) {
+
+      } else {
+        await memberApp_.restoreUser()
+        console.log("resting?")
+
+        if (memberApp_.user != null) {
+
+        } else {
+          // location = "/logout"
+          phxApp_.navigateTo("/logout")
+        }
+      }
+
       window.pageParams = params
       var xParamString = ""
       if (additionalParamString == null) {
@@ -182,22 +182,15 @@ export let phxApp_ = {
           fn: `phxApp.navigateTo('` + route + `', '` + xParamString + `')`,
           params: params
         };
-        console.log("xparams")
-        console.log(xParamString)
-        console.log("route")
-        console.log(route)
         window.stateObj = stateObj
         window.matchTitle = match_2[0].title
         window.matchRoute = route
-
-
         if (Object.keys(params).includes("title")) {
           history.pushState(stateObj, evalTitle(params.title), route);
           $("title").html(this.evalTitle(params.title))
         } else {
           history.pushState(stateObj, this.evalTitle(match_2[0].title), route);
           $("title").html(this.evalTitle(match_2[0].title))
-
         }
       }
       var nav = this.html("blog_nav.html")
@@ -211,27 +204,22 @@ export let phxApp_ = {
           `
       var keys = Object.keys(match_2[0])
       if (keys.includes("skipNav")) {
-
         $("#content").html(initPage)
         this.navigateCallback()
       } else {
         if (keys.includes("customNav")) {
           var nav = this.html(match_2[0].customNav)
         }
-
-
-
-
-
         $("#content").html(nav)
         $("#content").append(initPage)
-        // $("#old_content").fadeOut(500)
-        // $("#content").fadeIn(500)
-
         this.navigateCallback()
       }
       return match_2[0]
     } else {
+
+
+      console.info(match_1)
+
       var nav = this.html("blog_nav.html")
       var footer_modals = this.html("footer_modals.html")
       var html = this.html("landing.html")
@@ -239,8 +227,6 @@ export let phxApp_ = {
       <div class="page-content pb-0">
         ` + html + `
       </div>        ` + footer_modals + ``
-
-
       $("#content").html(nav)
       $("#content").append(initPage)
       this.navigateCallback()
@@ -272,9 +258,9 @@ export let phxApp_ = {
         this[v] = options[v]
       }
     })
-    $(this.selector).find(this.title).html(this.header)
-    $(this.selector).find(this.body).html(this.content)
-    $(this.selector).find(this.foot).html(this.footer)
+    $(this.selector).find(this.title).customHtml(this.header)
+    $(this.selector).find(this.body).customHtml(this.content)
+    $(this.selector).find(this.foot).customHtml(this.footer)
     $(this.selector).modal("show")
 
     this.drawFn();
@@ -454,8 +440,10 @@ export let phxApp_ = {
   },
   form(dom, scope, successCallback, failedCallback, appendMap) {
     phxApp_.show()
-    var formData = new FormData($(dom)[0])
+    var prefix = "",
+      formData = new FormData($(dom)[0])
     formData.append("scope", scope)
+
     if (appendMap != null) {
 
       var keys = Object.keys(appendMap)
@@ -464,9 +452,12 @@ export let phxApp_ = {
         formData.append(k, appendMap[k])
       })
     }
+    if (scope == "login") {
+      prefix = "/login"
+    }
     var csrfToken = this.csrf_()
     $.ajax({
-        url: "/api/webhook",
+        url: "/api/webhook" + prefix,
         dataType: "json",
         headers: {
           "Authorization": "Basic " + (phxApp_.user != null ? phxApp_.user.token : null),
@@ -508,7 +499,11 @@ export let phxApp_ = {
 
         }
 
-      }).fail(() => {
+      }).fail(function(e) {
+        if (e.status == 403) {
+          memberApp_.logout()
+        }
+
         phxApp_.notify("Not added!", {
           type: "danger"
         });
@@ -521,12 +516,34 @@ export let phxApp_ = {
       $(v).html('')
     })
 
-    var prefix = "v2",
-      res = ""
+
+    var langPrefix = "v2";
+
+    function evalCountry(countryName) {
+      var prefix = "v2"
+
+      if (countryName == "Thailand") {
+        prefix = "th"
+      }
+      if (countryName == "Vietnam") {
+        prefix = "vn"
+      }
+      if (countryName == "China") {
+        prefix = "cn"
+      }
+
+      return prefix;
+    }
+
+    if (localStorage.region != null) {
+      langPrefix = evalCountry(localStorage.region)
+    }
+
+    var res = "";
     $.ajax({
       async: false,
       method: "get",
-      url: "/html/" + prefix + "/" + page
+      url: "/html/" + langPrefix + "/" + page
     }).done((j) => {
       res = j
     })
@@ -567,6 +584,10 @@ export let phxApp_ = {
       }
       res = j
     }).fail(function(e) {
+      if (e.status == 403) {
+        memberApp_.logout()
+      }
+
 
       try {
         phxApp_.notify("Not Added! reason: " + e.responseJSON.reason, {
@@ -611,6 +632,9 @@ export let phxApp_ = {
       }
       res = j
     }).fail(function(e) {
+      if (e.status == 403) {
+        memberApp_.logout()
+      }
 
       phxApp_.notify("Ops, somethings' not right!", {
         type: "danger"
@@ -843,6 +867,17 @@ export let phxApp_ = {
       }
 
     }
+    var translation_map = Object.keys(translationRes);
+
+
+
+    var label_title = translation_map.reduce((acc, key) => {
+
+      var regex = new RegExp(key, "g");
+      return acc.replace(regex, translationRes[key]);
+    }, label_title);
+
+
 
 
     switch (j[v]) {
@@ -1296,6 +1331,14 @@ export let phxApp_ = {
                 `<div class="row subform" style="display: none;"><div class="offset-1 col-sm-9">` +
                 combo.join("") +
                 `</div></div>`;
+            }).fail(function(e) {
+              if (e.status == 403) {
+                memberApp_.logout()
+              }
+
+              phxApp_.notify("Not Added!", {
+                type: "danger"
+              });
             });
           }
         }
@@ -1344,7 +1387,7 @@ export let phxApp_ = {
   createForm(dtdata, table, customCols, postFn, onDrawFn) {
     $(".with_mod").each(function(i, xv) {
       // var xv = form ;
-      $(xv).html(``);
+      $(xv).customHtml(``);
 
       var mod = $(this).attr("module");
       var object = $(this).attr("id");
@@ -1367,7 +1410,7 @@ export let phxApp_ = {
             console.log("has multi list," + customCols.length)
             // insert the tabs?
 
-            $(xv).html(`<input type="hidden" name="_csrf_token"  value="">
+            $(xv).customHtml(`<input type="hidden" name="_csrf_token"  value="">
                             <div class="row">
                               <div class="col-12 col-lg-4">
                                 <ul class="nav nav-pills flex-column form_nav">
@@ -1392,19 +1435,20 @@ export let phxApp_ = {
             }
             $(customCols).each((i, v) => {
               if (i == 0) {
-                $(".form_nav").append(`
+                $(".form_nav").customAppend(`
                                    <li class="nav-item">
                                       <a class="active nav-link fnc" aria-index="` + i + `" href="javascript:void(0);"  >` + v.name + `</a>
                                     </li>
                           `)
               } else {
 
-                $(".form_nav").append(`
+                $(".form_nav").customAppend(`
                                    <li class="nav-item">
                                       <a class="nav-link fnc" aria-index="` + i + `" href="javascript:void(0);"  >` + v.name + `</a>
                                     </li>
                           `)
               }
+
               $(".fnc").each((i, v) => {
 
                 v.onclick = () => {
@@ -1418,13 +1462,13 @@ export let phxApp_ = {
               })
               // insert the panels
               if (i == 0) {
-                $("#form_panels").append(`<div class="fp row" id="panel_` + i + `"></div>`)
+                $("#form_panels").customAppend(`<div class="fp row" id="panel_` + i + `"></div>`)
 
               } else {
-                $("#form_panels").append(`<div class="fp row d-none"  id="panel_` + i + `"></div>`)
+                $("#form_panels").customAppend(`<div class="fp row d-none"  id="panel_` + i + `"></div>`)
 
               }
-              $("#panel_" + i).append(`<div class="col-lg-12"><b class="pb-4">` + v.name + `</b></div>`);
+              $("#panel_" + i).customAppend(`<div class="col-lg-12"><b class="pb-4">` + v.name + `</b></div>`);
               phxApp_.appendInputs($("#panel_" + i), v.list, j, object)
             })
 
@@ -1558,11 +1602,21 @@ export let phxApp_ = {
 
 
               })
+
               .fail(function(e) {
-                console.log(e.responseJSON.status);
-                phxApp_.notify("Not Added! reason: " + e.responseJSON.status, {
-                  type: "danger"
-                });
+                if (e.status == 403) {
+                  memberApp_.logout()
+                }
+                try {
+                  console.log(e.responseJSON.status);
+                  phxApp_.notify("Not Added! reason: " + e.responseJSON.status, {
+                    type: "danger"
+                  });
+                } catch (ee) {
+                  phxApp_.notify("Not Added!", {
+                    type: "danger"
+                  });
+                }
               });
           }
 
@@ -1631,6 +1685,14 @@ export let phxApp_ = {
         phxApp_.repopulateFormInput(dtdata, xv);
 
 
+      }).fail(function(e) {
+        if (e.status == 403) {
+          memberApp_.logout()
+        }
+        console.log(e.responseJSON.status);
+        phxApp_.notify("Not Added!", {
+          type: "danger"
+        });
       });
       // return xv;
     });
@@ -1711,6 +1773,10 @@ export let phxApp_ = {
         phxApp_.hide()
       })
       .fail(function(e) {
+        if (e.status == 403) {
+          memberApp_.logout()
+        }
+
         try {
           console.log(e.responseJSON.status);
           phxApp_.notify("Not Added! reason: " + e.responseJSON.status, {
@@ -1878,7 +1944,7 @@ export let phxApp_ = {
   },
   appendDtButtons(table_selector, parent_container_selector, data) {
 
-    $(table_selector).closest(parent_container_selector).find(".module_buttons").html(`
+    $(table_selector).closest(parent_container_selector).find(".module_buttons").customHtml(`
                 <button type="submit" onclick="toggleView('` + table_selector + `')" class="btn btn-fill btn-round btn-primary" data-href="" data-module="" data-ref="">
                 <i class="fa fa-th-large"></i></button>
                 <button type="submit" onclick="phxApp.Functions.reinit()" class="btn btn-fill btn-round btn-primary" data-href="" data-module="" data-ref="">
@@ -2002,6 +2068,14 @@ export let phxApp_ = {
         onCompleteFn()
       }
 
+    }).fail(function(e) {
+      if (e.status == 403) {
+        memberApp_.logout()
+      }
+
+      phxApp_.notify("Not Added!", {
+        type: "danger"
+      });
     });
   },
   populateTableData(dataSourcee, length, onCompleteFn) {
@@ -2281,7 +2355,7 @@ export let phxApp_ = {
     if (check.length == 0) {
       window.phoenixModels.push(dataSource)
     } else {
-      console.log("the dt already exist, consider reinsert?")
+      console.info("the dt already exist, consider reinsert?")
 
 
       var delete_idx =
@@ -2295,6 +2369,63 @@ export let phxApp_ = {
     }
 
     return table;
+  },
+  editData(params) {
+    console.log("editing data...")
+    var dt = params.dataSource;
+    window.currentSelector = dt.tableSelector
+    var table = dt.table;
+    var r = table.row(params.row);
+    var rowData = table.data()[params.index]
+
+
+    var preferedLink;
+    if (params.link != null) {
+      preferedLink = params.link;
+    } else {
+      preferedLink = dt.link;
+    }
+    var default_selector = "#sideModal"
+    if ($(default_selector).length == 0) {
+      default_selector = "#mySubModal"
+    }
+    if (dt.data.modalSelector != null) {
+      default_selector = dt.data.modalSelector
+    }
+
+    function call() {
+      console.log(rowData)
+      var jj =
+        `<form style="margin-top: 0px;" class="with_mod" id="` +
+        preferedLink +
+        `"  module="` +
+        dt.moduleName +
+        `"></form>`;
+      // r.child(jj).show();
+
+      $(default_selector)
+        .find(".modal-title")
+        .html("Edit " + dt.moduleName);
+      $(default_selector).find(".modal-body").html(jj);
+      $(default_selector).modal('show');
+
+
+      phxApp_.createForm(rowData, table, params.customCols, params.postFn);
+      if (params.drawFn != null) {
+        params.drawFn()
+      }
+    }
+
+    if (r.child.isShown()) {
+      r.child.hide();
+      call();
+    } else {
+      table.rows().every(function(rowIdx, tableLoop, rowLoop) {
+        this.child.hide();
+      });
+      gParent = this;
+      call();
+    }
   }
 
 

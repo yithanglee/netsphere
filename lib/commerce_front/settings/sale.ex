@@ -16,7 +16,7 @@ defmodule CommerceFront.Settings.Sale do
       complete
       sent
       refund
-      canceled
+      cancelled
     )
   )
 
@@ -26,7 +26,9 @@ defmodule CommerceFront.Settings.Sale do
     field(:sale_date, :date)
     field(:status, StatusEnum, default: :pending_confirmation)
     field(:subtotal, :float)
-
+    field(:shipping_method, :string)
+    field(:shipping_company, :string)
+    field(:shipping_ref, :string)
     field(:shipping_fee, :float, default: 0.0)
     field(:grand_total, :float, default: 0.0)
     field(:total_point_value, :integer)
@@ -34,8 +36,11 @@ defmodule CommerceFront.Settings.Sale do
     # field(:payment_id, :integer)
     has_one(:payment, CommerceFront.Settings.Payment, foreign_key: :sales_id)
     has_many(:sales_items, CommerceFront.Settings.SalesItem, foreign_key: :sales_id)
-
+    # field(:country_id, :integer)
+    belongs_to(:country, CommerceFront.Settings.Country)
     # add :sales_person_id, :integer
+    # field(:pick_up_point_id, :integer)
+    belongs_to(:pick_up_point, CommerceFront.Settings.PickUpPoint)
     # field(:user_id, :integer)
     # this is the new user
     belongs_to(:user, CommerceFront.Settings.User)
@@ -50,6 +55,11 @@ defmodule CommerceFront.Settings.Sale do
   def changeset(sale, attrs) do
     sale
     |> cast(attrs, [
+      :shipping_method,
+      :shipping_company,
+      :pick_up_point_id,
+      :country_id,
+      :shipping_ref,
       :shipping_fee,
       :grand_total,
       :sales_person_id,

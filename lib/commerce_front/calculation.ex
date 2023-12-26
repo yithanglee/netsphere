@@ -8,6 +8,61 @@ defmodule CommerceFront.Calculation do
   alias CommerceFront.Settings
   alias CommerceFront.Settings.{User, Reward}
 
+  def royalty_bonus(sale, user, date) do
+    {y, m, d} =
+      date
+      |> Date.to_erl()
+
+    uplines = CommerceFront.Settings.check_uplines(user.username, :referal)
+
+    calc = fn upline, remainder_perc ->
+      upline_user = Settings.get_user_by_username(upline.parent) |> Repo.preload(:royalty_user)
+
+      if upline_user |> Map.get(:royalty_user) != nil do
+        royalty_user = upline_user |> Map.get(:royalty_user)
+        perc = royalty_user.perc
+
+        res = (remainder_perc - perc) |> Float.round(2)
+
+        if res >= 0 do
+          CommerceFront.Settings.create_reward(%{
+            sales_id: sale.id,
+            is_paid: false,
+            remarks:
+              "sales-#{sale.id} on #{y}-#{m}-#{d}|royalty perc: #{perc}|calc perc: #{perc}| #{perc} * #{sale.total_point_value} ",
+            name: "royalty bonus",
+            amount: (perc * sale.total_point_value) |> Float.round(2),
+            user_id: upline_user.id,
+            day: d,
+            month: m,
+            year: y
+          })
+
+          res
+        else
+          CommerceFront.Settings.create_reward(%{
+            sales_id: sale.id,
+            is_paid: false,
+            remarks:
+              "sales-#{sale.id} on #{y}-#{m}-#{d}|royalty perc: #{perc}|calc perc: #{remainder_perc}| #{remainder_perc} * #{sale.total_point_value} ",
+            name: "royalty bonus",
+            amount: (remainder_perc * sale.total_point_value) |> Float.round(2),
+            user_id: upline_user.id,
+            day: d,
+            month: m,
+            year: y
+          })
+
+          0
+        end
+      else
+        remainder_perc
+      end
+    end
+
+    Enum.reduce(uplines, 0.05, &calc.(&1, &2))
+  end
+
   def stockist_register_bonus(sales_person, username, pv, sale) do
     bonus = (pv * 0.03) |> Float.round(2)
 
