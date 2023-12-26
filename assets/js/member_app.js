@@ -85,6 +85,42 @@ export let memberApp_ = {
       })
     })
   },
+  linkRegister(dom) {
+    if ($("form#register")) {
+      if (this.user != null) {
+        $("input[name='user[sales_person_id]']").val(this.user.id)
+
+
+      }
+      $("input[name='user[share_code]']").val(pageParams.share_code)
+      if (phxApp_.chosen_country_id_ != null) {
+        console.log(phxApp_.chosen_country_id_)
+        $("input[name='user[country_id]']").val(phxApp_.chosen_country_id_.id)
+      }
+    }
+
+    phxApp_.validateForm("form", () => {
+      console.log("validating form...")
+      phxApp_.form($(dom).closest("form"), "link_register", (e) => {
+        console.log("after register form...")
+        console.log(e)
+        if (e != null) {
+          commerceApp_.emptyCart_()
+          if (e.billplz_code != null) {
+
+            window.location = e.payment_url
+          } else {
+
+            phxApp_.navigateTo(e.payment_url)
+          }
+
+        } else {
+          commerceApp_.emptyCart_()
+          phxApp_.navigateTo("/login")
+        }
+      })
+    })
+  },
   register(dom) {
     if ($("form#register")) {
       if (this.user != null) {

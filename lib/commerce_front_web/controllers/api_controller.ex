@@ -253,6 +253,9 @@ defmodule CommerceFrontWeb.ApiController do
         "referral" ->
           Settings.display_refer_tree(params["username"])
 
+        "get_share_link" ->
+          Settings.generate_link(params)
+
         "gen_inputs" ->
           BluePotion.test_module(params["module"])
 
@@ -265,8 +268,8 @@ defmodule CommerceFrontWeb.ApiController do
            "countries",
            "get_ranks",
            "list_pick_up_point_by_country",
-           "list_user_sales_addresses_by_username",
-           "translation"
+           "list_user_sales_addresses_by_username"
+           # "translation"
          ] do
         conn
         |> put_resp_header("cache-control", "max-age=900, must-revalidate")
@@ -590,6 +593,30 @@ defmodule CommerceFrontWeb.ApiController do
                 _ ->
                   %{status: "error"}
               end
+          end
+
+        "link_register" ->
+          # get the billplz link first, then make payment
+          # create the sales first
+          # Settings.register(params["user"])
+          case Settings.create_sales_transaction(params) |> IO.inspect() do
+            {:ok, multi_res} ->
+              %{status: "ok", res: multi_res.payment |> BluePotion.sanitize_struct()}
+
+            {:error, :payment, "not sufficient", passed_cg} ->
+              %{status: "error", reason: "wallet balance not sufficient"}
+
+            {:error, "Please enter a password."} ->
+              %{status: "error", reason: "Please enter a password."}
+
+            {:error, "Please check cart items."} ->
+              %{status: "error", reason: "Please check cart items."}
+
+            {:error, "Sponsor cannot be Shopper to register new member."} ->
+              %{status: "error", reason: "sponsor cannot be Shopper to register new member."}
+
+            _ ->
+              %{status: "error", reason: "Please contact admin."}
           end
 
         "register" ->

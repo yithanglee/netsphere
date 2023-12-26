@@ -51,7 +51,7 @@ Re-entry,Re-entry,重复消费,สั่งซื้อซ้ำ,Mua hàng lặp
 Recipient Details,Recipient Details,收件人信息,ผู้รับ,Thông tin người nhận
 Redeem,Redeem,兑换产品,แลกสินค้า/รางวัล,Đổi sản phẩm
 Referal,Referal,简介,แนะนำ,Giới thiệu
-Register,Register,注册,ลงทะเบียน,Đăng ký
+ Register,Register,注册,ลงทะเบียน,Đăng ký
 Register Point,Register Point,注册积分,คะแนน RP,Đăng ký tích điểm
 Register Wallet,Register Wallet,注册钱包,วอลเลทลงทะเบียนใหม่,Đăng ký ví
 Registration Details,Registration Details,注册详情,ข้อมูลผู้ลงทะเบียนใหม่,Chi tiết đăng ký
@@ -64,7 +64,7 @@ Silver,Silver,银级,Silver,Silver
 Sponsor Username,Sponsor Username,推荐人用户名,ยูสเซอร์เนมผู้สปอนเซอร์,Tên người giới thiệu
 State,State,州属,จังหวัด,Trang chủ
 Subtotal,Subtotal,小计,ยอดรวม,Tổng số phụ
- Summary,Summary,概括,สรุป,Bản tổng hợp
+_Summary,Summary,概括,สรุป,Bản tổng hợp
 Team Bonus Summary,Team Bonus Summary,团队奖,สรุปโบนัสบริหารทีม,Tiền thưởng đội nhóm
 This month,This month,这个月,เดือนปัจจุบัน,Tháng này
 _Topup,Topup,充值,ท๊อปอัพ,Nạp tiền
@@ -78,3 +78,4 @@ Welcome,Welcome,欢迎,ยินดีต้อนรับ,Chào mừng
 _Withdraw,Withdraw,提现,ถอนเงินโบนัส,Rút tiền
 Withdrawal_Request,Withdrawal Request,申请提现,Withdrawal Request,Withdrawal Request
 _Withdrawal,Withdrawal,提现,ถอนเงินโบนัส,Rút tiền
+linkRegister,linkRegister,linkRegister,linkRegister,linkRegister

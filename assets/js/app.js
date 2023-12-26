@@ -132,6 +132,7 @@ window.addEventListener(
 );
 
 const route_list = [
+  { html: "code_register.html", title: "Register ", route: "/code_register/:share_code", public: true, skipNav: true },
   { html: "register_wallet.html", title: "Register Wallet ", route: "/register_wallet" },
   { html: "bonus_wallet.html", title: "Bonus Wallet ", route: "/bonus_wallet" },
   { html: "new_topup.html", title: "Register Point Topup ", route: "/topup_register_point" },

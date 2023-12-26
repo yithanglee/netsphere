@@ -2563,8 +2563,55 @@ defmodule CommerceFront.Settings do
 
   @doc """
   this is to create the billplz link and let user to complete the flow 
+
+
+
   """
   def create_sales_transaction(params) do
+    sample = %{
+      "_csrf_token" => "M1oBJw0lSBksOFRmMDwNei4NES0iHTIfykmjOKytbwmPbikBYiDFIDTo",
+      "scope" => "register",
+      "user" => %{
+        "country_id" => "1",
+        "email" => "a@1.com",
+        "fullname" => "1",
+        "password" => "[FILTERED]",
+        "phone" => "1",
+        "pick_up_point_id" => "2",
+        "placement" => %{"position" => ""},
+        "products" => %{
+          "0" => %{
+            "img_url" => "/images/uploads/5.jpg",
+            "item_name" => "Product D",
+            "item_price" => "50",
+            "item_pv" => "25",
+            "qty" => "6"
+          },
+          "1" => %{
+            "img_url" => "/images/uploads/3.jpg",
+            "item_name" => "Product C",
+            "item_price" => "200",
+            "item_pv" => "100",
+            "qty" => "1"
+          }
+        },
+        "rank_id" => "2",
+        "sales_person_id" => "",
+        "share_code" => "bc165de9-b13e-460f-9200-731ec7d599cb",
+        "shipping" => %{
+          "city" => "",
+          "fullname" => "LEE YIT LIN",
+          "line1" => "",
+          "line2" => "",
+          "phone" => "0122774254",
+          "postcode" => "",
+          "state" => "Johor"
+        },
+        "sponsor" => "",
+        "username" => "susan1"
+      }
+    }
+
     IO.inspect(params)
 
     title =
@@ -2580,9 +2627,18 @@ defmodule CommerceFront.Settings do
       end
 
     # {:error, Ecto.Changeset.add_error(cg, :amount, "Cannot be less than 100")}
+    share_link =
+      if params["user"]["share_code"] != nil do
+        CommerceFront.Settings.get_share_link_by_code(params["user"]["share_code"])
+        |> Repo.preload(:user)
+      end
 
     sponsor =
       cond do
+        params["scope"] == "link_register" ->
+          CommerceFront.Settings.get_user_by_username(share_link.user.username)
+          |> Repo.preload(:rank)
+
         params["scope"] == "register" ->
           CommerceFront.Settings.get_user_by_username(params["user"]["sponsor"])
           |> Repo.preload(:rank)
@@ -2621,6 +2677,26 @@ defmodule CommerceFront.Settings do
 
         true ->
           nil
+      end
+
+    params =
+      if params["scope"] == "link_register" do
+        params =
+          params
+          |> Kernel.get_and_update_in(
+            ["user", "sales_person_id"],
+            &{&1, sponsor.id}
+          )
+          |> elem(1)
+
+        params
+        |> Kernel.get_and_update_in(
+          ["user", "sponsor"],
+          &{&1, sponsor.username}
+        )
+        |> elem(1)
+      else
+        params
       end
 
     cond do
@@ -2748,6 +2824,26 @@ defmodule CommerceFront.Settings do
           |> IO.inspect()
         end)
         |> Multi.run(:payment, fn _repo, %{sales2: sale} ->
+          params =
+            if params["scope"] == "link_register" do
+              params =
+                params
+                |> Kernel.get_and_update_in(
+                  ["user", "payment"],
+                  &{&1, %{"method" => "only_register_point"}}
+                )
+                |> elem(1)
+
+              params
+              |> Kernel.get_and_update_in(
+                ["user", "placement", "position"],
+                &{&1, share_link.position}
+              )
+              |> elem(1)
+            else
+              params
+            end
+
           case params["user"]["payment"]["method"] do
             "product_point" ->
               wallets = CommerceFront.Settings.list_ewallets_by_user_id(sale.sales_person_id)
@@ -2837,7 +2933,7 @@ defmodule CommerceFront.Settings do
                     wallet_type: "register"
                   })
 
-                  if params["scope"] == "register" do
+                  if params["scope"] == "register" || params["scope"] == "link_register" do
                     sponsor_username =
                       Jason.decode!(sale.registration_details)
                       |> Kernel.get_in(["user", "sponsor"])
@@ -2907,7 +3003,11 @@ defmodule CommerceFront.Settings do
                     wallet_type: "merchant"
                   })
 
-                  {:ok, %CommerceFront.Settings.Payment{payment_url: "/home", user: user}}
+                  if share_link != nil do
+                    {:ok, %CommerceFront.Settings.Payment{payment_url: "/login", user: user}}
+                  else
+                    {:ok, %CommerceFront.Settings.Payment{payment_url: "/home", user: user}}
+                  end
 
                 _ ->
                   {:error, "not sufficient"}
@@ -5116,5 +5216,47 @@ defmodule CommerceFront.Settings do
       update_stock_adjustment(sa, %{status: "complete"})
     end)
     |> Repo.transaction()
+  end
+
+  alias CommerceFront.Settings.ShareLink
+
+  def list_share_links() do
+    Repo.all(ShareLink)
+  end
+
+  def get_share_link_by_code(code) do
+    Repo.get_by(ShareLink, share_code: code)
+  end
+
+  def get_share_link!(id) do
+    Repo.get!(ShareLink, id)
+  end
+
+  def create_share_link(params \\ %{}) do
+    ShareLink.changeset(%ShareLink{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_share_link(model, params) do
+    ShareLink.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_share_link(%ShareLink{} = model) do
+    Repo.delete(model)
+  end
+
+  def generate_link(params) do
+    user = get_user_by_username(params["username"])
+
+    {:ok, l} =
+      create_share_link(%{
+        user_id: user.id,
+        share_code: Ecto.UUID.generate(),
+        position: params["position"]
+      })
+
+    server_url = Application.get_env(:commerce_front, :url)
+    server_url = "http://localhost:4000"
+
+    BluePotion.sanitize_struct(l) |> Map.put(:link, "#{server_url}/code_register/#{l.share_code}")
   end
 end

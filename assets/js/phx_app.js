@@ -65,6 +65,9 @@ export let phxApp_ = {
   upgrade(dom) {
     memberApp_.upgrade(dom)
   },
+  linkRegister(dom) {
+    memberApp_.linkRegister(dom)
+  },
   register(dom) {
     memberApp_.register(dom)
   },
@@ -296,8 +299,8 @@ export let phxApp_ = {
 
 
 
-    $(this.selector).find(this.title).html(this.header)
-    $(this.selector).find(this.body).html(this.content)
+    $(this.selector).find(this.title).customHtml(this.header)
+    $(this.selector).find(this.body).customHtml(this.content)
 
     $(this.selector).toast('show')
     this.drawFn();

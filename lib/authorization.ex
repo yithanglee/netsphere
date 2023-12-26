@@ -63,7 +63,8 @@ defmodule CommerceFront.ApiAuthorization do
           "update_customer",
           "food_payment",
           "admin_menus",
-          "customer_topup"
+          "customer_topup",
+          "link_register"
         ] ->
           conn
 
