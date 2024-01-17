@@ -19,8 +19,11 @@ defmodule CommerceFront do
 
   """
   def daily_task(date \\ Date.utc_today()) do
-    IO.inspect("performing daily task...")
-    {y, m, d} = date |> Date.to_erl()
+    IO.inspect("performing daily task... #{date} at #{NaiveDateTime.utc_now()}")
+    preferred_date = NaiveDateTime.utc_now() |> NaiveDateTime.to_date() |> Date.add(-1)
+    date = preferred_date
+    IO.inspect("changed to... #{preferred_date} at #{NaiveDateTime.utc_now()}")
+    {y, m, d} = preferred_date |> Date.to_erl()
     end_of_month = Timex.end_of_month(date)
     CommerceFront.Calculation.daily_team_bonus(date)
     # can only run once
@@ -87,88 +90,64 @@ defmodule CommerceFront do
   end
 
   def populate_member_data() do
-    samples1 = [
-      "ac108",
-      "ac118",
-      "ac126",
-      "ac128",
-      "ac129",
-      "ac138",
-      "ac139",
-      "ac148",
-      "ac149",
-      "ac168",
-      "ac178",
-      "ac188"
-    ]
+    rows = File.read!("h4.csv") |> String.split("\n") |> Enum.reject(&(&1 == "")) |> IO.inspect()
 
-    samples = samples1 |> Enum.map(&{"as1319-U2", &1, 4, "left"})
+    for sample <- rows do
+      [sponsor, username, _placement, direction, fullname] = sample |> String.split(",")
 
-    samples = [
-      {"happiness-U3", "kwong39", 4, "right", "WONG AH YORK", "011-10621289",
-       "wongahyork4288@gmail.com", ""},
-      {"kwong39", "johortai", 4, "right", "Tai Lip Fin", "01110863731",
-       "tailipfin123123@gmail.com", ""},
-      {"kwong39", "henrylem", 4, "left", "Lem Choon chuan", "016-7356182", "a@1.com",
-       "590228015181"},
-      {"johortai", "ahfoo", 4, "left", "Ng Ah Foo", "017-527 5958", "ngaf68@gmail.com",
-       "590228015181"}
-    ]
+      dir =
+        if direction == "L" do
+          "left"
+        else
+          "right"
+        end
 
-    for {sponsor, username, rank_id, direction, fullname, phone, email, ic_no} = sample <- samples do
       params =
         %{
-          "ic_no" => ic_no,
-          "email" => email,
+          "ic_no" => "0",
+          "email" => "0@gmail.com",
           "fullname" => fullname,
-          "password" => "abc123",
-          "phone" => phone,
-          "rank_id" => rank_id,
+          "password" => username,
+          "phone" => "0",
+          "rank_id" => 4,
           "sponsor" => sponsor,
           "username" => username,
-          "placement" => %{"position" => direction}
+          "placement" => %{"position" => dir},
+          "country_id" => CommerceFront.Settings.get_country_by_name("Indonesia") |> Map.get(:id)
         }
         |> IO.inspect()
 
-      CommerceFront.Settings.register_without_products(params)
+      CommerceFront.Settings.register_without_products(params) |> IO.inspect()
       Process.sleep(2000)
     end
+
+    # samples = [
+    #   {"haho3000", "hh3100", 4, "left", "Koh Jia Xuan", "0", "0@gmail.com", ""}
+    # ]
+
+    # for {sponsor, username, rank_id, direction, fullname, phone, email, ic_no} = sample <- samples do
+    #   params =
+    #     %{
+    #       "ic_no" => ic_no,
+    #       "email" => email,
+    #       "fullname" => fullname,
+    #       "password" => username,
+    #       "phone" => phone,
+    #       "rank_id" => rank_id,
+    #       "sponsor" => sponsor,
+    #       "username" => username,
+    #       "placement" => %{"position" => direction}
+    #     }
+    #     |> IO.inspect()
+
+    #   CommerceFront.Settings.register_without_products(params)
+    #   Process.sleep(2000)
+    # end
   end
 
   def housekeeping() do
     samples1 = [
-      "haho108",
-      "haho118",
-      "haho119",
-      "haho128",
-      "haho138",
-      "haho148",
-      "haho168",
-      "haho178",
-      "haho188",
-      "haho198",
-      "haho208",
-      "haho218",
-      "haho222",
-      "haho228",
-      "haho333",
-      "haho555",
-      "haho666",
-      "haho777",
-      "haho888",
-      "haho999"
-    ]
-
-    samples1 = ["lcm690331"]
-
-    samples1 = [
-      "yyh168",
-      "pkwong",
-      "bylim",
-      "yhchan",
-      "tommycheng",
-      "kellykam",
-      "sallythioh"
+      "Indasan"
     ]
 
     users = Repo.all(from(u in Settings.User, where: u.username in ^samples1))

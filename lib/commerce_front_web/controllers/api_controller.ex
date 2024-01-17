@@ -74,6 +74,124 @@ defmodule CommerceFrontWeb.ApiController do
 
     res =
       case params["scope"] do
+        "extend_user" ->
+          res = Settings.get_member_by_cookie(params["token"]) |> BluePotion.sanitize_struct()
+
+          if res != nil do
+            user = Settings.get_user!(res.user_id)
+
+            token = Settings.member_token(user.id)
+            Settings.create_session_user(%{"cookie" => token, "user_id" => user.id})
+
+            res2 =
+              user
+              |> BluePotion.sanitize_struct()
+              |> Map.put(:token, token)
+
+            %{status: "ok", res: res2}
+          else
+            %{status: "error", reason: "Please contact admin."}
+          end
+
+        "manual_approve_bank_in" ->
+          title = "Link Register"
+
+          with sale <-
+                 Settings.get_sale!(params["id"]),
+               {:ok, register_params} <- sale.registration_details |> Jason.decode() do
+            # check sales person... register point sufficient
+            wallets = CommerceFront.Settings.list_ewallets_by_user_id(sale.sales_person_id)
+
+            # drp = wallets |> Enum.filter(&(&1.wallet_type == :direct_recruitment)) |> List.first()
+            rp = wallets |> Enum.filter(&(&1.wallet_type == :register)) |> List.first()
+
+            check_sufficient = fn subtotal ->
+              # here proceed to normal registration and deduct the ewallet 
+
+              with true <- (rp.total >= sale.grand_total) |> IO.inspect() do
+                {:ok, sale} =
+                  CommerceFront.Settings.update_sale(sale, %{
+                    total_point_value: sale.total_point_value
+                  })
+
+                CommerceFront.Settings.create_wallet_transaction(%{
+                  user_id: sale.sales_person_id,
+                  amount: subtotal * -1,
+                  remarks: "#{title}: #{sale.id}",
+                  wallet_type: "register"
+                })
+
+                if params["scope"] == "register" || params["scope"] == "link_register" do
+                  sponsor_username =
+                    Jason.decode!(sale.registration_details)
+                    |> Kernel.get_in(["user", "sponsor"])
+
+                  sponsor = CommerceFront.Settings.get_user_by_username(sponsor_username)
+
+                  CommerceFront.Settings.create_wallet_transaction(%{
+                    user_id: sponsor.id,
+                    amount: (subtotal * 0.5) |> Float.round(2),
+                    remarks: "#{title}: #{sale.id}",
+                    wallet_type: "merchant"
+                  })
+                end
+
+                CommerceFront.Settings.create_payment(%{
+                  payment_method: "only_register_point",
+                  amount: sale.grand_total,
+                  sales_id: sale.id,
+                  webhook_details: "rp paid: #{subtotal}"
+                })
+
+                {:ok, sale}
+              else
+                _ ->
+                  {:error, nil}
+              end
+            end
+
+            case check_sufficient.(sale.grand_total) do
+              # direct register liao... 
+
+              {:ok, sale} ->
+                {:ok, user} = CommerceFront.Settings.register(register_params["user"], sale)
+                # register(params["user"], sale)
+
+                CommerceFront.Settings.create_wallet_transaction(%{
+                  user_id: user.id,
+                  amount: sale.subtotal,
+                  remarks: "#{title}: #{sale.id}",
+                  wallet_type: "merchant"
+                })
+
+                # {:ok, %CommerceFront.Settings.Payment{payment_url: "/home", user: user}}
+                %{
+                  status: "ok",
+                  res: %{payment_url: "/home", user: user}
+                }
+
+              _ ->
+                {:error, "not sufficient"}
+                %{status: "error"}
+            end
+
+            # case Settings.register(register_params["user"], sales) do
+            #   {:ok, multi_res} ->
+            #     %{status: "ok", res: multi_res |> BluePotion.sanitize_struct()}
+
+            #   _ ->
+            #     %{status: "error"}
+            # end
+          else
+            _ ->
+              %{status: "error"}
+          end
+
+        "get_share_link_by_code" ->
+          Settings.get_share_link_by_code(params["code"])
+          |> CommerceFront.Repo.preload(:user)
+          |> BluePotion.sanitize_struct()
+
         "slides" ->
           Settings.list_slides(true)
           |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
@@ -180,6 +298,9 @@ defmodule CommerceFrontWeb.ApiController do
             Settings.list_ewallets_by_user_id(id)
             |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
 
+        "get_mproduct" ->
+          Settings.get_merchant_product!(params["id"]) |> BluePotion.sanitize_struct()
+
         "get_product" ->
           Settings.get_product!(params["id"]) |> BluePotion.sanitize_struct()
 
@@ -272,8 +393,8 @@ defmodule CommerceFrontWeb.ApiController do
            "countries",
            "get_ranks",
            "list_pick_up_point_by_country",
-           "list_user_sales_addresses_by_username"
-           # "translation"
+           "list_user_sales_addresses_by_username",
+           "translation"
          ] do
         conn
         |> put_resp_header("cache-control", "max-age=900, must-revalidate")
@@ -350,6 +471,10 @@ defmodule CommerceFrontWeb.ApiController do
   def post(conn, params) do
     res =
       case params["scope"] do
+        "approve_merchant" ->
+          Settings.approve_merchant(params)
+          %{status: "ok"}
+
         "do_adjustment" ->
           Settings.approve_adjustment(params)
           %{status: "ok"}
@@ -548,6 +673,25 @@ defmodule CommerceFrontWeb.ApiController do
               %{status: "error"}
           end
 
+        "merchant_checkout" ->
+          # get the billplz link first, then make payment
+          # create the sales first
+          # Settings.register(params["user"])
+
+          case Settings.create_sales_transaction(params) |> IO.inspect() do
+            {:ok, multi_res} ->
+              %{status: "ok", res: multi_res.payment |> BluePotion.sanitize_struct()}
+
+            {:error, "Please check cart items."} ->
+              %{status: "error", reason: "Please check cart items."}
+
+            {:error, :payment, "not sufficient", passed_cg} ->
+              %{status: "error", reason: "wallet balance not sufficient"}
+
+            _ ->
+              %{status: "error"}
+          end
+
         "redeem" ->
           # get the billplz link first, then make payment
           # create the sales first
@@ -652,12 +796,15 @@ defmodule CommerceFrontWeb.ApiController do
 
           case auth do
             {:ok, user} ->
+              token = Settings.member_token(user.id)
+              Settings.create_session_user(%{"cookie" => token, "user_id" => user.id})
+
               %{
                 status: "ok",
                 res:
                   user
                   |> BluePotion.sanitize_struct()
-                  |> Map.put(:token, Settings.member_token(user.id))
+                  |> Map.put(:token, token)
               }
 
             _ ->

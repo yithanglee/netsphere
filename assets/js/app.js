@@ -132,6 +132,15 @@ window.addEventListener(
 );
 
 const route_list = [
+ { html: "merchant_application.html", title: "Merchant Application ", route: "/merchant_application"},
+ { html: "merchant_profile.html", title: "Merchant Profile ", route: "/merchant_profile"},
+ { html: "merchant_checkout.html", title: "Merchant Checkout ", route: "/merchant_checkout"},
+ { html: "merchant_purchases.html", title: "Merchant Purchases", route: "/merchant_purchases"},
+ { html: "merchant_sales.html", title: "Merchant Sales", route: "/merchant_sales"},
+ { html: "merchant_mall.html", title: "Merchant Mall", route: "/merchant_mall"},
+  { html: "merchant_products.html", title: "Merchant Products", route: "/merchant_products"},
+   { html: "mproduct.html", title: "Merchant Product", route: "/mproducts/:id/:name" },
+
   { html: "code_register.html", title: "Register ", route: "/code_register/:share_code", public: true, skipNav: true },
   { html: "register_wallet.html", title: "Register Wallet ", route: "/register_wallet" },
   { html: "bonus_wallet.html", title: "Bonus Wallet ", route: "/bonus_wallet" },
@@ -146,6 +155,7 @@ const route_list = [
   { html: "product.html", title: "Product", route: "/products/:id/:name" },
   { html: "register.html", title: "Register", route: "/register" },
   { html: "logout.html", title: "Logout", route: "/logout", public: true },
+  { html: "thank_you.html", title: "Login", route: "/thank_you", public: true },
   { html: "login.html", title: "Login", route: "/login", public: true },
   { html: "profile.html", title: "Profile", route: "/profile" },
   { html: "placement.html", title: "Placement", route: "/placement" },

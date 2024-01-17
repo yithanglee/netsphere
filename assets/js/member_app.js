@@ -4,6 +4,7 @@ export let memberApp_ = {
   user: {},
   ranks: [],
   restoreUser() {
+    // use cookie to restore user
     this.ranks = phxApp_.api("get_ranks", {})
     this.user = JSON.parse(localStorage.getItem("user"));
     if (this.user != null) {
@@ -18,8 +19,46 @@ export let memberApp_ = {
       }
     }
   },
+  extendUser() {
+    phxApp_.api("extend_user", { token: this.user.token }, null, (j) => {
+
+
+      console.log(j)
+      if (j.status == "ok") {
+        memberApp_.user = j.res
+        memberApp_.save(j.res)
+
+      }
+    })
+  },
   save(j) {
     localStorage.setItem("user", JSON.stringify(j))
+  },
+  merchantCheckout(dom) {
+    $(dom).closest("form")
+
+    if (phxApp_.chosen_country_id_ != null) {
+      $("input[name='user[country_id]']").val(phxApp_.chosen_country_id_.id)
+    }
+    phxApp_.validateForm("form", () => {
+      console.info("validating form...")
+      phxApp_.form($(dom).closest("form"), "merchant_checkout", (e) => {
+        console.info("after redeem form...")
+        console.log(e)
+        if (e != null) {
+
+          console.log("e user")
+          console.log(e.user)
+
+          commerceApp_.emptyCart_(true)
+
+          phxApp_.navigateTo(e.payment_url)
+        } else {
+          commerceApp_.emptyCart_(true)
+          phxApp_.navigateTo("/profile")
+        }
+      })
+    })
   },
   redeem(dom) {
     $(dom).closest("form")

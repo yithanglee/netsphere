@@ -265,3 +265,68 @@ b5 inventory audit - FOC
   + admin storekeeper , need to view sales by country
   + admin storekeeper need to print by date, country,
   + inventory with stock keeping transaction for store keeper 
+
+
+
+  ----
+
+
+  merchant mall
+
+
+  100 RP merchant product
+
+
+
+  merchant point 50% max
+
+  register point 50% min
+
+
+
+
+
+   based on received RP to collect the platofrm fee
+   collected RP 10% to payout commission
+
+
+
+
+
+
+30% / 5
+20% / 5
+
+4%
+4%
+4%
+4%
+4%
+
+
+
+10% / 5
+
+   2%
+   2%
+   2%
+   2%
+   2%
+
+
+   merchant product can set min 10% as commission 
+
+
+   100 RP 
+
+
+
+register  form
+add nationality * compolosry [v]
+add residence address
+delviery method : send to addres
+
+
+foreigners need deduct 10% as foregiener income tax
+
+when  update rp remarks, ensure the is_approved mark is checked [v]

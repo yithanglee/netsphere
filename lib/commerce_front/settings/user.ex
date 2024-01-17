@@ -20,8 +20,10 @@ defmodule CommerceFront.Settings.User do
     has_one(:royalty_user, CommerceFront.Settings.RoyaltyUser)
     field(:u2, :string, virtual: true)
     field(:u3, :string, virtual: true)
+    has_one(:merchant, CommerceFront.Settings.Merchant)
     # field(:placement, :string, virtual: true)
 
+    field(:country_id, :integer)
     field(:is_stockist, :boolean, default: false)
     has_one(:placement, CommerceFront.Settings.Placement)
     field(:stockist_user_id, :integer)
@@ -34,6 +36,7 @@ defmodule CommerceFront.Settings.User do
   def changeset(user, attrs) do
     user
     |> cast(attrs, [
+      :country_id,
       :is_stockist,
       :stockist_user_id,
       :rank_id,

@@ -22,13 +22,25 @@ defmodule CommerceFront.Settings do
     Repo.get!(Slide, id)
   end
 
+  def append_bool_key(params, bool_key) do
+    if bool_key in Map.keys(params) do
+      params |> Map.put(bool_key, Map.get(params, bool_key) == "on")
+    else
+      params
+    end
+  end
+
   def create_slide(params \\ %{}) do
-    params = params |> Map.put("is_show", params["is_show"] == "on")
+    bool_key = "is_show"
+    params = append_bool_key(params, bool_key)
+
     Slide.changeset(%Slide{}, params) |> Repo.insert() |> IO.inspect()
   end
 
   def update_slide(model, params) do
-    params = params |> Map.put("is_show", params["is_show"] == "on")
+    bool_key = "is_show"
+    params = append_bool_key(params, bool_key)
+
     Slide.changeset(model, params) |> Repo.update() |> IO.inspect()
   end
 
@@ -185,6 +197,11 @@ defmodule CommerceFront.Settings do
 
   alias CommerceFront.Settings.SessionUser
 
+  def get_member_by_cookie(cookie) do
+    Repo.all(from(s in SessionUser, where: s.cookie == ^cookie))
+    |> List.first()
+  end
+
   def get_cookie_user_by_cookie(cookie) do
     Repo.all(
       from(s in SessionUser, where: s.cookie == ^cookie, preload: [user: [role: :app_routes]])
@@ -223,14 +240,21 @@ defmodule CommerceFront.Settings do
   end
 
   def create_app_route(params \\ %{}) do
-    params = params |> Map.put("can_get", params["can_get"] == "on")
-    params = params |> Map.put("can_post", params["can_post"] == "on")
+    bool_key = "can_get"
+    params = append_bool_key(params, bool_key)
+
+    bool_key = "can_post"
+    params = append_bool_key(params, bool_key)
+
     AppRoute.changeset(%AppRoute{}, params) |> Repo.insert() |> IO.inspect()
   end
 
   def update_app_route(model, params) do
-    params = params |> Map.put("can_get", params["can_get"] == "on")
-    params = params |> Map.put("can_post", params["can_post"] == "on")
+    bool_key = "can_get"
+    params = append_bool_key(params, bool_key)
+
+    bool_key = "can_post"
+    params = append_bool_key(params, bool_key)
     AppRoute.changeset(model, params) |> Repo.update() |> IO.inspect()
   end
 
@@ -373,12 +397,16 @@ defmodule CommerceFront.Settings do
   end
 
   def create_withdrawal_batch(params \\ %{}) do
-    params = params |> Map.put("is_open", params["is_open"] == "on")
+    bool_key = "is_open"
+    params = append_bool_key(params, bool_key)
+
     WithdrawalBatch.changeset(%WithdrawalBatch{}, params) |> Repo.insert() |> IO.inspect()
   end
 
   def update_withdrawal_batch(model, params) do
-    params = params |> Map.put("is_open", params["is_open"] == "on")
+    bool_key = "is_open"
+    params = append_bool_key(params, bool_key)
+
     WithdrawalBatch.changeset(model, params) |> Repo.update() |> IO.inspect()
   end
 
@@ -535,7 +563,8 @@ defmodule CommerceFront.Settings do
   end
 
   def update_wallet_topup(model, params) do
-    params = params |> Map.put("is_approved", params["is_approved"] == "on")
+    bool_key = "is_approved"
+    params = append_bool_key(params, bool_key)
 
     WalletTopup.changeset(model, params) |> Repo.update() |> IO.inspect()
   end
@@ -1130,6 +1159,8 @@ defmodule CommerceFront.Settings do
   alias CommerceFront.Settings.User
 
   def member_token(id) do
+    Repo.delete_all(from(su in CommerceFront.Settings.SessionUser, where: su.user_id == ^id))
+
     Phoenix.Token.sign(
       CommerceFrontWeb.Endpoint,
       "member_signature",
@@ -1159,7 +1190,9 @@ defmodule CommerceFront.Settings do
 
   def auth_user(params) do
     user =
-      Repo.all(from(u in User, where: u.username == ^params["username"], preload: :rank))
+      Repo.all(
+        from(u in User, where: u.username == ^params["username"], preload: [:merchant, :rank])
+      )
       |> List.first()
 
     with true <- user != nil,
@@ -1178,7 +1211,7 @@ defmodule CommerceFront.Settings do
   end
 
   def get_user!(id) do
-    Repo.all(from(u in User, where: u.id == ^id)) |> List.first()
+    Repo.all(from(u in User, where: u.id == ^id, preload: [:rank, :merchant])) |> List.first()
   end
 
   def create_user(attrs \\ %{}) do
@@ -1226,7 +1259,11 @@ defmodule CommerceFront.Settings do
 
     case cg do
       {:ok, u} ->
-        u = u |> Repo.preload(:rank) |> Map.put(:token, CommerceFront.Settings.member_token(u.id))
+        u =
+          u
+          |> Repo.preload([:merchant, :rank])
+          |> Map.put(:token, CommerceFront.Settings.member_token(u.id))
+
         {:ok, u}
 
       {:error, cg} ->
@@ -2294,7 +2331,7 @@ defmodule CommerceFront.Settings do
 
     Multi.new()
     |> Multi.run(:delete_initial_entries, fn _repo, %{} ->
-      if date == ~D[2023-11-07] do
+      if date == ~D[2023-12-16] do
         Repo.delete_all(GroupSalesSummary)
         Repo.delete_all(PlacementGroupSalesDetail)
 
@@ -2585,6 +2622,8 @@ defmodule CommerceFront.Settings do
     |> Repo.transaction()
   end
 
+  require IEx
+
   @doc """
   this is to create the billplz link and let user to complete the flow 
 
@@ -2699,6 +2738,9 @@ defmodule CommerceFront.Settings do
         params["scope"] == "redeem" ->
           %{rank: %{name: "redeem"}}
 
+        params["scope"] == "merchant_checkout" ->
+          %{rank: %{name: "merchant_checkout"}}
+
         true ->
           nil
       end
@@ -2710,6 +2752,22 @@ defmodule CommerceFront.Settings do
           |> Kernel.get_and_update_in(
             ["user", "sales_person_id"],
             &{&1, sponsor.id}
+          )
+          |> elem(1)
+
+        params =
+          params
+          |> Kernel.get_and_update_in(
+            ["user", "payment"],
+            &{&1, %{"method" => "bank_in"}}
+          )
+          |> elem(1)
+
+        params =
+          params
+          |> Kernel.get_and_update_in(
+            ["user", "placement", "position"],
+            &{&1, share_link.position}
           )
           |> elem(1)
 
@@ -2781,7 +2839,13 @@ defmodule CommerceFront.Settings do
 
               {:ok, pres} = product_params |> CommerceFront.Settings.create_sales_item()
 
-              p = get_product_by_name(product_params["item_name"])
+              p =
+                if params["scope"] == "merchant_checkout" do
+                  CommerceFront.Settings.get_merchant_product_by_name(product_params["item_name"])
+                else
+                  get_product_by_name(product_params["item_name"])
+                end
+
               p |> Map.put(:qty, product_params["qty"] |> String.to_integer())
             end
 
@@ -2792,7 +2856,11 @@ defmodule CommerceFront.Settings do
           total_rp = Enum.reduce(res, 0, &calc_rp.(&1, &2))
 
           calc_pv = fn product, acc ->
-            acc + product.point_value * product.qty
+            if params["scope"] == "merchant_checkout" do
+              acc + product.retail_price * product.qty
+            else
+              acc + product.point_value * product.qty
+            end
           end
 
           total_pv =
@@ -2802,7 +2870,7 @@ defmodule CommerceFront.Settings do
               0
             else
               _ ->
-                Enum.reduce(res, 0, &calc_pv.(&1, &2))
+                Enum.reduce(res, 0, &calc_pv.(&1, &2)) |> :erlang.trunc()
             end
             |> IO.inspect()
 
@@ -2844,30 +2912,17 @@ defmodule CommerceFront.Settings do
             }
             |> IO.inspect()
 
+          cg =
+            if params["scope"] == "merchant_checkout" do
+              Map.put(cg, :user_id, params["user"]["sales_person_id"])
+            else
+              cg
+            end
+
           update_sale(sale, cg)
           |> IO.inspect()
         end)
         |> Multi.run(:payment, fn _repo, %{sales2: sale} ->
-          params =
-            if params["scope"] == "link_register" do
-              params =
-                params
-                |> Kernel.get_and_update_in(
-                  ["user", "payment"],
-                  &{&1, %{"method" => "only_register_point"}}
-                )
-                |> elem(1)
-
-              params
-              |> Kernel.get_and_update_in(
-                ["user", "placement", "position"],
-                &{&1, share_link.position}
-              )
-              |> elem(1)
-            else
-              params
-            end
-
           case params["user"]["payment"]["method"] do
             "product_point" ->
               wallets = CommerceFront.Settings.list_ewallets_by_user_id(sale.sales_person_id)
@@ -2908,6 +2963,9 @@ defmodule CommerceFront.Settings do
                 _ ->
                   {:error, "not sufficient"}
               end
+
+            "bank_in" ->
+              {:ok, %CommerceFront.Settings.Payment{payment_url: "/thank_you", user: nil}}
 
             "fpx" ->
               res = Billplz.create_collection("#{title} Order: #{sale.id}")
@@ -3018,19 +3076,28 @@ defmodule CommerceFront.Settings do
                 # direct register liao... 
 
                 {:ok, sale} ->
-                  {:ok, user} = register(params["user"], sale)
+                  if params["scope"] != "merchant_checkout" do
+                    {:ok, user} = register(params["user"], sale)
 
-                  create_wallet_transaction(%{
-                    user_id: user.id,
-                    amount: sale.subtotal,
-                    remarks: "#{title}: #{sale.id}",
-                    wallet_type: "merchant"
-                  })
+                    create_wallet_transaction(%{
+                      user_id: user.id,
+                      amount: sale.subtotal,
+                      remarks: "#{title}: #{sale.id}",
+                      wallet_type: "merchant"
+                    })
 
-                  if share_link != nil do
-                    {:ok, %CommerceFront.Settings.Payment{payment_url: "/login", user: user}}
+                    if share_link != nil do
+                      {:ok, %CommerceFront.Settings.Payment{payment_url: "/login", user: user}}
+                    else
+                      {:ok, %CommerceFront.Settings.Payment{payment_url: "/home", user: user}}
+                    end
                   else
-                    {:ok, %CommerceFront.Settings.Payment{payment_url: "/home", user: user}}
+                    {:ok, sale} =
+                      update_sale(sale, %{
+                        status: :processing
+                      })
+
+                    {:ok, %CommerceFront.Settings.Payment{payment_url: "/sales/#{sale.id}"}}
                   end
 
                 _ ->
@@ -3085,7 +3152,7 @@ defmodule CommerceFront.Settings do
 
                     create_wallet_transaction(%{
                       user_id: sponsor.id,
-                      amount: (subtotal - form_drp * 0.5) |> Float.round(2),
+                      amount: ((subtotal - form_drp) * 0.5) |> Float.round(2),
                       remarks: "#{title}: #{sale.id}",
                       wallet_type: "merchant"
                     })
@@ -3114,7 +3181,7 @@ defmodule CommerceFront.Settings do
 
                     create_wallet_transaction(%{
                       user_id: sponsor.id,
-                      amount: (subtotal * 0.5) |> Float.round(2),
+                      amount: ((subtotal - form_drp) * 0.5) |> Float.round(2),
                       remarks: "#{title}: #{sale.id}",
                       wallet_type: "merchant"
                     })
@@ -3162,6 +3229,81 @@ defmodule CommerceFront.Settings do
                   )
 
                   {:ok, %CommerceFront.Settings.Payment{payment_url: "/home", user: user}}
+
+                _ ->
+                  {:error, "not sufficient"}
+              end
+
+            "merchant_point" ->
+              # check sales person... register point sufficient
+              wallets = CommerceFront.Settings.list_ewallets_by_user_id(sale.sales_person_id)
+
+              merchant_p = wallets |> Enum.filter(&(&1.wallet_type == :merchant)) |> List.first()
+
+              rp = wallets |> Enum.filter(&(&1.wallet_type == :register)) |> List.first()
+
+              check_sufficient = fn subtotal ->
+                # here proceed to normal registration and deduct the ewallet 
+                form_drp =
+                  if params["user"]["payment"]["drp"] != nil do
+                    String.to_integer(params["user"]["payment"]["drp"])
+                  else
+                    0
+                  end
+
+                with true <- :erlang.trunc(merchant_p.total) >= form_drp,
+                     true <- (rp.total >= sale.grand_total - form_drp) |> IO.inspect() do
+                  {:ok, sale} =
+                    update_sale(sale, %{
+                      status: :processing,
+                      total_point_value: sale.total_point_value - form_drp
+                    })
+
+                  create_wallet_transaction(%{
+                    user_id: sale.sales_person_id,
+                    amount: form_drp * -1,
+                    remarks: "#{title}: #{sale.id}",
+                    wallet_type: "merchant"
+                  })
+
+                  create_wallet_transaction(%{
+                    user_id: sale.sales_person_id,
+                    amount: (subtotal - form_drp) * -1,
+                    remarks: "#{title}: #{sale.id}",
+                    wallet_type: "register"
+                  })
+
+                  create_payment(%{
+                    payment_method: "merchant_point",
+                    amount: sale.grand_total,
+                    sales_id: sale.id,
+                    webhook_details: "rp paid: #{subtotal - form_drp}|mp paid: #{form_drp}"
+                  })
+
+                  {:ok, sale}
+                else
+                  _ ->
+                    {:error, nil}
+                end
+              end
+
+              case check_sufficient.(sale.grand_total) do
+                {:ok, sale} ->
+                  form_drp =
+                    if params["user"]["payment"]["drp"] != nil do
+                      String.to_integer(params["user"]["payment"]["drp"])
+                    else
+                      0
+                    end
+
+                  CommerceFront.Calculation.mp_sales_level_bonus(
+                    sale.id,
+                    form_drp,
+                    sale,
+                    Date.utc_today()
+                  )
+
+                  {:ok, %CommerceFront.Settings.Payment{payment_url: "/sales/#{sale.id}"}}
 
                 _ ->
                   {:error, "not sufficient"}
@@ -4224,6 +4366,20 @@ defmodule CommerceFront.Settings do
       },
       "10" => %{
         "children" => %{
+          "0" => %{"icon" => "book-solid", "path" => "/users", "title" => "Users"},
+          "1" => %{
+            "icon" => "book-solid",
+            "path" => "/users/placements",
+            "title" => "Placements"
+          }
+        },
+        "icon" => "",
+        "path" => "#",
+        "title" => "Users"
+      },
+      "11" => %{"icon" => "book-solid", "path" => "/ranks", "title" => "Rank"},
+      "12" => %{
+        "children" => %{
           "0" => %{
             "icon" => "camera-foto-solid",
             "path" => "/ewallets/withdrawal_batches",
@@ -4254,7 +4410,8 @@ defmodule CommerceFront.Settings do
         "path" => "/announcements",
         "title" => "Announcements"
       },
-      "3" => %{
+      "3" => %{"icon" => "book-solid", "path" => "/slides", "title" => "Slides"},
+      "4" => %{
         "children" => %{
           "0" => %{
             "icon" => "camera-foto-solid",
@@ -4281,7 +4438,7 @@ defmodule CommerceFront.Settings do
         "path" => "#",
         "title" => "Commission"
       },
-      "4" => %{
+      "5" => %{
         "children" => %{
           "0" => %{
             "icon" => "book-solid",
@@ -4308,13 +4465,18 @@ defmodule CommerceFront.Settings do
         "path" => "#",
         "title" => "GroupSales"
       },
-      "5" => %{
+      "6" => %{
         "icon" => "book-solid",
         "path" => "/deliveries",
         "title" => "Deliveries"
       },
-      "6" => %{"icon" => "book-solid", "path" => "/sales", "title" => "Sales"},
       "7" => %{
+        "icon" => "book-solid",
+        "path" => "/merchants",
+        "title" => "merchants"
+      },
+      "8" => %{"icon" => "book-solid", "path" => "/sales", "title" => "Sales"},
+      "9" => %{
         "children" => %{
           "0" => %{
             "icon" => "book-solid",
@@ -4336,63 +4498,86 @@ defmodule CommerceFront.Settings do
         "icon" => "",
         "path" => "#",
         "title" => "Stocks"
-      },
-      "8" => %{
-        "children" => %{
-          "0" => %{"icon" => "book-solid", "path" => "/users", "title" => "Users"},
-          "1" => %{
-            "icon" => "book-solid",
-            "path" => "/users/placements",
-            "title" => "Placements"
-          }
-        },
-        "icon" => "",
-        "path" => "#",
-        "title" => "Users"
-      },
-      "9" => %{"icon" => "book-solid", "path" => "/ranks", "title" => "Rank"},
-      "10" => %{"icon" => "book-solid", "path" => "/slides", "title" => "Slides"}
+      }
     }
   end
 
   def update_admin_menus(list) do
     IO.inspect(list)
-    Repo.delete_all(AppRoute)
-    Repo.delete_all(RoleAppRoute)
-    role = get_admin_staff()
-    list = list |> Map.values()
+    # how to retain existing role app route?
 
-    for menu <- list do
-      {:ok, route} =
-        create_app_route(%{
-          "name" => menu |> Map.get("title"),
-          "route" => menu |> Map.get("path"),
-          "icon" => menu |> Map.get("icon")
-        })
+    rars = Repo.all(from(r in Role, preload: [:app_routes]))
 
-      RoleAppRoute.changeset(%RoleAppRoute{}, %{
-        role_id: role.id,
-        app_route_id: route.id
-      })
-      |> Repo.insert()
+    Multi.new()
+    |> Multi.run(:update, fn _repo, %{} ->
+      Repo.delete_all(AppRoute)
+      Repo.delete_all(RoleAppRoute)
 
-      children = Map.get(menu, "children", %{}) |> Map.values()
+      for role <- rars do
+        list = list |> Map.values()
 
-      for child <- children do
-        {:ok, croute} =
-          create_app_route(%{
-            "name" => child |> Map.get("title"),
-            "route" => child |> Map.get("path"),
-            "icon" => child |> Map.get("icon")
-          })
+        for menu <- list do
+          {:ok, route} =
+            create_app_route(%{
+              "name" => menu |> Map.get("title"),
+              "route" => menu |> Map.get("path"),
+              "icon" => menu |> Map.get("icon")
+            })
 
-        RoleAppRoute.changeset(%RoleAppRoute{}, %{
-          role_id: role.id,
-          app_route_id: croute.id
-        })
-        |> Repo.insert()
+          admin_role = get_admin_staff()
+
+          cg =
+            RoleAppRoute.changeset(%RoleAppRoute{}, %{
+              role_id: role.id,
+              app_route_id: route.id
+            })
+
+          if role.name == admin_role.name do
+            cg
+            |> Repo.insert()
+          else
+            if role.app_routes
+               |> Enum.filter(&(&1.route == route.route))
+               |> Enum.filter(&(&1.name == route.name)) != [] do
+              cg
+              |> Repo.insert()
+            end
+          end
+
+          children = Map.get(menu, "children", %{}) |> Map.values()
+
+          for child <- children do
+            {:ok, croute} =
+              create_app_route(%{
+                "name" => child |> Map.get("title"),
+                "route" => child |> Map.get("path"),
+                "icon" => child |> Map.get("icon")
+              })
+
+            ccg =
+              RoleAppRoute.changeset(%RoleAppRoute{}, %{
+                role_id: role.id,
+                app_route_id: croute.id
+              })
+
+            if role.name == admin_role.name do
+              ccg
+              |> Repo.insert()
+            else
+              if role.app_routes
+                 |> Enum.filter(&(&1.route == croute.route))
+                 |> Enum.filter(&(&1.name == croute.name)) != [] do
+                ccg
+                |> Repo.insert()
+              end
+            end
+          end
+        end
       end
-    end
+
+      {:ok, nil}
+    end)
+    |> Repo.transaction()
   end
 
   def update_svt_menus() do
@@ -5283,9 +5468,110 @@ defmodule CommerceFront.Settings do
         position: params["position"]
       })
 
+    server_url = "http://localhost:4000/"
     server_url = Application.get_env(:commerce_front, :url)
-    server_url = "http://localhost:4000"
 
-    BluePotion.sanitize_struct(l) |> Map.put(:link, "#{server_url}/code_register/#{l.share_code}")
+    BluePotion.sanitize_struct(l) |> Map.put(:link, "#{server_url}code_register/#{l.share_code}")
+  end
+
+  alias CommerceFront.Settings.Merchant
+
+  def list_merchants() do
+    Repo.all(Merchant)
+  end
+
+  def get_merchant!(id) do
+    Repo.get!(Merchant, id)
+  end
+
+  def create_merchant(params \\ %{}) do
+    Merchant.changeset(%Merchant{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_merchant(model, params) do
+    bool_key = "is_open"
+    params = append_bool_key(params, bool_key)
+
+    Merchant.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_merchant(%Merchant{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.MerchantProduct
+
+  def list_merchant_products() do
+    Repo.all(MerchantProduct)
+  end
+
+  def get_merchant_product_by_name(name) do
+    Repo.all(from(mp in MerchantProduct, where: mp.name == ^name)) |> List.first()
+  end
+
+  def get_merchant_product!(id) do
+    Repo.get!(MerchantProduct, id)
+  end
+
+  def create_merchant_product(params \\ %{}) do
+    MerchantProduct.changeset(%MerchantProduct{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_merchant_product(model, params) do
+    MerchantProduct.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_merchant_product(%MerchantProduct{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.MerchantSale
+
+  def list_merchant_sales() do
+    Repo.all(MerchantSale)
+  end
+
+  def get_merchant_sale!(id) do
+    Repo.get!(MerchantSale, id)
+  end
+
+  def create_merchant_sale(params \\ %{}) do
+    MerchantSale.changeset(%MerchantSale{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_merchant_sale(model, params) do
+    MerchantSale.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_merchant_sale(%MerchantSale{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.MerchantSaleItem
+
+  def list_merchant_sales_items() do
+    Repo.all(MerchantSaleItem)
+  end
+
+  def get_merchant_sale_item!(id) do
+    Repo.get!(MerchantSaleItem, id)
+  end
+
+  def create_merchant_sale_item(params \\ %{}) do
+    MerchantSaleItem.changeset(%MerchantSaleItem{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_merchant_sale_item(model, params) do
+    MerchantSaleItem.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_merchant_sale_item(%MerchantSaleItem{} = model) do
+    Repo.delete(model)
+  end
+
+  def approve_merchant(params) do
+    m = get_merchant!(params["id"])
+
+    update_merchant(m, %{is_approved: true})
   end
 end

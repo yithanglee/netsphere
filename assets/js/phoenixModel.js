@@ -78,26 +78,33 @@ export class phoenixModel {
       }
       phxApp_.populateTable(this)
       this.table.on('draw', () => {
+        var toggleView = `
 
-        // <---- this function used to populate the grid view button ---->
-        $(this.tableSelector).closest(".table-responsive").find(".module_buttons").html(`
-              <div class="d-flex align-items-center">
-                <div class="dropdown morphing scale-left ">
-                  <a href="#" class="more-icon dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"><i class="fa fa-ellipsis-h"></i></a>
-                  <ul class="dropdown-menu dropdown-animation dropdown-menu-end shadow border-0">
                     <li>
                       <a class="dropdown-item" href="javascript:void(0);" onclick="toggleView('` + this.tableSelector + `')">
                         <i class="me-3 fa fa-th-large"></i>Grid View
                       </a>
                     </li>
+
+        `
+        var dfault_btns = `
+              <div class="d-flex align-items-center">
+                      <div class="btn btn-sm btn-outline-primary me-3" href="javascript:void(0);" data-href="" data-module="add_new" data-ref="">
+                        <i class="me-3 fa fa-plus"></i>New
+                      </div>
+
+
+                <div class="dropdown morphing scale-left ">
+                  <a href="#" class="more-icon dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"><i class="fa fa-ellipsis-h"></i></a>
+                  <ul class="dropdown-menu dropdown-animation dropdown-menu-end shadow border-0">
+
                     <li>
-                      <a class="dropdown-item" href="javascript:void(0);" onclick="phxApp.Functions.reinit()">
+                      <a class="dropdown-item" href="javascript:void(0);" onclick="phxApp.reinit()">
                         <i class="me-3 fa fa-circle-notch"></i>Reload
                       </a>
                     </li>
                     <li>
                       <a class="dropdown-item" href="javascript:void(0);" data-href="" data-module="add_new" data-ref="">
-                        
                         <i class="me-3 fa fa-arrow-right"></i>New
                       </a>
                     </li>
@@ -105,7 +112,9 @@ export class phoenixModel {
                 </div>
               </div>
 
-                `)
+                `
+        // <---- this function used to populate the grid view button ---->
+        $(this.tableSelector).closest(".table-responsive").find(".module_buttons").html(dfault_btns)
 
         var nbutton = $(this.tableSelector).closest(".table-responsive").find(".module_buttons [data-module='add_new']");
         try {
@@ -113,7 +122,7 @@ export class phoenixModel {
             var ts = this.tableSelector
             nbutton[0].onclick = function() {
               window.currentSelector = ts
-              form_new(ts, phxData)
+              phxApp_.form_new(ts, phxData)
             }
           }
         } catch (e) {}
@@ -165,18 +174,22 @@ export class phoenixModel {
       try {
         this.table.on('draw', () => {
 
+                var toggleView = `<li><a class="dropdown-item" href="javascript:void(0);" onclick="toggleView('` + this.tableSelector + `')">Grid View<i class="fa fa-th-large"></i></a></li>`
 
           // <---- this function used to populate the grid view button ---->
           $(this.tableSelector).closest(".table-responsive").find(".module_buttons").html(`
         <div class="d-flex align-items-center">
+                      <div class="btn btn-sm btn-outline-primary me-3" href="javascript:void(0);" data-href="" data-module="add_new" data-ref="">
+                        <i class="me-3 fa fa-plus"></i>New
+                      </div>
+
           <div class="dropdown morphing scale-left ">
-                     <a href="#" class="more-icon dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"><i class="fa fa-ellipsis-h"></i></a>
-                      <ul class="dropdown-menu dropdown-animation dropdown-menu-end shadow border-0">
-                        <li><a class="dropdown-item" href="javascript:void(0);" onclick="toggleView('` + this.tableSelector + `')">Grid View<i class="fa fa-th-large"></i></a></li>
-                        <li><a class="dropdown-item" href="javascript:void(0);" onclick="App.Functions.reinit()">Reload<i class="fa fa-repeat"></i></a></li>
-                        <li><a class="dropdown-item" href="javascript:void(0);" data-href="" data-module="add_new" data-ref="">New<i class="fa fa-arrow-right"></i></a></li>
-                      </ul>
-                    </div>
+             <a href="#" class="more-icon dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"><i class="fa fa-ellipsis-h"></i></a>
+              <ul class="dropdown-menu dropdown-animation dropdown-menu-end shadow border-0">
+                <li><a class="dropdown-item" href="javascript:void(0);" onclick="phxApp.reinit()">Reload<i class="fa fa-repeat"></i></a></li>
+                <li><a class="dropdown-item" href="javascript:void(0);" data-href="" data-module="add_new" data-ref="">New<i class="fa fa-arrow-right"></i></a></li>
+              </ul>
+            </div>
         </div>
 
            `)
@@ -190,7 +203,7 @@ export class phoenixModel {
               var ts = this.tableSelector
               nbutton[0].onclick = function() {
                 window.currentSelector = ts
-                form_new(ts, phxData)
+                phxApp.form_new(ts, phxData)
               }
             }
           } catch (e) {}

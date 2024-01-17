@@ -15,7 +15,7 @@ export const MENUS = [
         ]
     },
     { path: '/announcements', title: 'Announcements', icon: 'book-solid' },
-
+    { path: '/slides', title: 'Slides', icon: 'book-solid' },
     {
         path: '#', title: 'Commission', icon: null, children: [
             { path: '/rewards/summary', title: 'Commission Summary', icon: 'camera-foto-solid' },
@@ -36,6 +36,7 @@ export const MENUS = [
         ]
     },
     { path: '/deliveries', title: 'Deliveries', icon: 'book-solid' },
+    { path: '/merchants', title: 'Merchants', icon: 'book-solid' },
     { path: '/sales', title: 'Sales', icon: 'book-solid' },
     {
         path: '#', title: 'Stocks', icon: null, children: [

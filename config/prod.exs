@@ -17,7 +17,7 @@ config :commerce_front, CommerceFrontWeb.Endpoint,
   url: [host: "haho2u.com", port: 2578],
   http: [port: 2578]
 
-# Do not print debug messages in production
+# Do not print debug messages in production 
 config :logger, level: :debug
 
 # ## SSL Support

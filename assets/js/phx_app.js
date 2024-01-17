@@ -59,6 +59,9 @@ export let phxApp_ = {
     console.log(commerceApp_.hasCartItems())
     return commerceApp_.hasCartItems() > 0
   },
+  merchantCheckout(dom) {
+    memberApp_.merchantCheckout(dom)
+  },
   redeem(dom) {
     memberApp_.redeem(dom)
   },
@@ -77,6 +80,23 @@ export let phxApp_ = {
   ping() {
 
     console.log("tell ping o")
+  },
+  reinit() {
+    // var t = $(".dataTable").DataTable()
+    // t.ajax.reload();
+
+    $(".dataTable").each((i, v) => {
+      if (v.offsetParent != null) {
+        var phxModel = window.phoenixModels.filter((dv, di) => {
+          return dv.tableSelector == "#" + v.id
+
+        })[0]
+
+        phxModel.reload();
+      }
+    })
+
+
   },
   evalTitle(label) {
 
@@ -671,6 +691,8 @@ export let phxApp_ = {
 
     memberApp_.restoreUser();
     commerceApp_.restoreCart();
+
+    commerceApp_.restoreCart(true);
     this.user = memberApp_.user
     if (this.user != null) {
 
@@ -1112,15 +1134,20 @@ export let phxApp_ = {
       }
       if (qv.editor) {
         input2 =
-          '<div class="col-sm-12"><div class="form-group bmd-form-group"><label class="bmd-label-floating">' +
+          `<div class="` + alt_class + `">
+              <div class="form-group bmd-form-group">
+              <label class="bmd-label-floating my-2">` +
           label_title +
-          '</label><textarea id="editor1" rows=10 cols=12 aria-label="' +
+          `</label>
+                  <textarea id="editor1" rows=10 cols=12 aria-label="` +
           v +
-          '" name="' +
+          `" name="` +
           object +
           "[" +
           v +
-          ']" class="form-control" ></textarea></div></div>';
+          `]" class="form-control" ></textarea>
+              </div>
+          </div>`;
 
         // var editor = new EditorJS('editorjs');
       }
@@ -1390,7 +1417,7 @@ export let phxApp_ = {
   createForm(dtdata, table, customCols, postFn, onDrawFn) {
     $(".with_mod").each(function(i, xv) {
       // var xv = form ;
-      $(xv).customHtml(``);
+      $(xv).html(``);
 
       var mod = $(this).attr("module");
       var object = $(this).attr("id");
@@ -1430,29 +1457,29 @@ export let phxApp_ = {
                         `)
 
 
-            function formNavClick(index) {
-              $(".form_nav .nav-link").removeClass("active")
-              $(".nav-link[aria-index='" + index + "']").toggleClass("active")
-              $(".fp").addClass("d-none")
-              $("#panel_" + index).toggleClass("d-none")
-            }
+            // function formNavClick(index) {
+            //   $(".form_nav .nav-link").removeClass("active")
+            //   $(".nav-link[aria-index='" + index + "']").toggleClass("active")
+            //   $(".fp").addClass("d-none")
+            //   $("#panel_" + index).toggleClass("d-none")
+            // }
             $(customCols).each((i, v) => {
               if (i == 0) {
-                $(".form_nav").customAppend(`
+                $(xv).find(".form_nav").customAppend(`
                                    <li class="nav-item">
                                       <a class="active nav-link fnc" aria-index="` + i + `" href="javascript:void(0);"  >` + v.name + `</a>
                                     </li>
                           `)
               } else {
 
-                $(".form_nav").customAppend(`
+                $(xv).find(".form_nav").customAppend(`
                                    <li class="nav-item">
                                       <a class="nav-link fnc" aria-index="` + i + `" href="javascript:void(0);"  >` + v.name + `</a>
                                     </li>
                           `)
               }
 
-              $(".fnc").each((i, v) => {
+              $(xv).find(".fnc").each((i, v) => {
 
                 v.onclick = () => {
                   var index = $(v).attr("aria-index")
@@ -1465,14 +1492,14 @@ export let phxApp_ = {
               })
               // insert the panels
               if (i == 0) {
-                $("#form_panels").customAppend(`<div class="fp row" id="panel_` + i + `"></div>`)
+                $(xv).find("#form_panels").customAppend(`<div class="fp row" id="panel_` + i + `"></div>`)
 
               } else {
-                $("#form_panels").customAppend(`<div class="fp row d-none"  id="panel_` + i + `"></div>`)
+                $(xv).find("#form_panels").customAppend(`<div class="fp row d-none"  id="panel_` + i + `"></div>`)
 
               }
-              $("#panel_" + i).customAppend(`<div class="col-lg-12"><b class="pb-4">` + v.name + `</b></div>`);
-              phxApp_.appendInputs($("#panel_" + i), v.list, j, object)
+              $(xv).find("#panel_" + i).customAppend(`<div class="col-lg-12"><b class="pb-4">` + v.name + `</b></div>`);
+              phxApp_.appendInputs($(xv).find("#panel_" + i), v.list, j, object)
             })
 
 
@@ -1684,7 +1711,7 @@ export let phxApp_ = {
           $(xv).append(row);
         }
 
-
+        console.info(dtdata)
         phxApp_.repopulateFormInput(dtdata, xv);
 
 
@@ -1759,7 +1786,7 @@ export let phxApp_ = {
         });
 
         try {
-          App.Functions.reinit();
+          phxApp_.reinit();
           $("#myModal").modal('hide')
         } catch (e) {
 
@@ -1950,7 +1977,7 @@ export let phxApp_ = {
     $(table_selector).closest(parent_container_selector).find(".module_buttons").customHtml(`
                 <button type="submit" onclick="toggleView('` + table_selector + `')" class="btn btn-fill btn-round btn-primary" data-href="" data-module="" data-ref="">
                 <i class="fa fa-th-large"></i></button>
-                <button type="submit" onclick="phxApp.Functions.reinit()" class="btn btn-fill btn-round btn-primary" data-href="" data-module="" data-ref="">
+                <button type="submit" onclick="phxApp.reinit()" class="btn btn-fill btn-round btn-primary" data-href="" data-module="" data-ref="">
                 <i class="fa fa-circle-notch
 "></i></button>
                 <button type="submit" class="btn btn-fill btn-round btn-primary"  data-href="" data-module="add_new" data-ref=""><i class="fa fa-plus"></i></button>

@@ -8,6 +8,11 @@ defmodule CommerceFront.Calculation do
   alias CommerceFront.Settings
   alias CommerceFront.Settings.{User, Reward}
 
+  def mp_sales_level_bonus(sales_id, form_mp, sale, date) do
+    params = [sales_id, form_mp, sale, date]
+    IO.inspect(params)
+  end
+
   def royalty_bonus(sale, user, date) do
     {y, m, d} =
       date
@@ -1169,30 +1174,37 @@ defmodule CommerceFront.Calculation do
 
       allocated = month_pv * 0.05
 
-      all_member_travel_fund =
+      check =
         CommerceFront.Settings.today_bonus("travel fund", end_date)
         |> List.first()
-        |> Map.get(:sum)
 
-      per_share_value = (allocated / all_member_travel_fund) |> Float.round(2)
+      if check != nil do
+        all_member_travel_fund =
+          check
+          |> Map.get(:sum)
 
-      rewards =
-        calculation
-        |> Enum.filter(&(&1 |> elem(0) > 0))
-        |> Enum.map(&(&1 |> elem(1)))
-        |> List.flatten()
+        per_share_value = (allocated / all_member_travel_fund) |> Float.round(2)
 
-      for reward <- rewards do
-        amount = per_share_value * reward.amount
+        rewards =
+          calculation
+          |> Enum.filter(&(&1 |> elem(0) > 0))
+          |> Enum.map(&(&1 |> elem(1)))
+          |> List.flatten()
 
-        params = %{
-          amount: amount,
-          remarks:
-            reward.remarks <>
-              "|no shares: #{reward.amount}|month allocated: #{allocated}|per share: #{per_share_value}"
-        }
+        for reward <- rewards do
+          amount = per_share_value * reward.amount
 
-        CommerceFront.Settings.update_reward(reward, params)
+          params = %{
+            amount: amount,
+            remarks:
+              reward.remarks <>
+                "|no shares: #{reward.amount}|month allocated: #{allocated}|per share: #{per_share_value}"
+          }
+
+          CommerceFront.Settings.update_reward(reward, params)
+        end
+      else
+        0
       end
 
       {:ok, nil}
