@@ -2168,7 +2168,7 @@ export let commerceApp_ = {
 
         if ($(v)[0].checked == true) {
 
-          if ($(v).val() == "register_point") {
+          if (["register_point", "merchant_point"].includes($(v).val()) ) {
             $("#coupon-detail").removeClass("d-none")
 
             drpChanged()

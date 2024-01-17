@@ -92,6 +92,7 @@ window.phoenixModel = phoenixModel;
 window.phoenixModels = []
 window.phxApp = phxApp_
 phxApp_.api("countries", {}, null, (e) => {
+  window.countries = e
   phxApp_.countries_ = e
 })
 if (isDev) {
