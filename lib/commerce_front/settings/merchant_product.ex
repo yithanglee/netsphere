@@ -14,7 +14,7 @@ defmodule CommerceFront.Settings.MerchantProduct do
     field(:retail_price, :float)
     field(:short_desc, :string)
 
-    field(:commission_perc, :float, default: 0.1)
+    # field(:commission_perc, :float, default: 0.1)
     timestamps()
   end
 
@@ -22,7 +22,7 @@ defmodule CommerceFront.Settings.MerchantProduct do
   def changeset(merchant_product, attrs) do
     merchant_product
     |> cast(attrs, [
-      :commission_perc,
+      # :commission_perc,
       :name,
       :retail_price,
       :point_value,
@@ -36,7 +36,7 @@ defmodule CommerceFront.Settings.MerchantProduct do
     |> validate_required([
       :name,
       :retail_price,
-      :point_value,
+      # :point_value,
       # :img_url,
       :description,
       :short_desc,

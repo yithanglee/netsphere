@@ -1,13 +1,10 @@
-
 <!--
   <div id="old_content" class="position-absolute w-100" style="min-height: 100vh;">
     
   </div>
 -->
 <div id="content" style="">
-
 </div>
-
 <div class="py-4 text-white d-flex flex-column justify-content-center align-items-center bg-dark" style="">
   <div class="w-75 row gx-0">
     <div class="col-12 col-lg-4">
@@ -25,6 +22,10 @@
       </div>
     </div>
     <div class="col-12 col-lg-4 ">
+      <div class="d-flex flex-column ms-2" style="margin-top: 32px;">
+        <a href="/refund_policy" class="text-white navi">Refund Policy</a>
+        <a href="/terms_condition" class="text-white navi">Terms and Condition</a>
+      </div>
     </div>
     <div class="col-12 col-lg-4 ">
     </div>

@@ -48,6 +48,8 @@ defmodule CommerceFront.Settings.Sale do
     belongs_to(:sales_person, CommerceFront.Settings.User)
     field(:year, :integer)
 
+    # field(:merchant_id, :integer)
+    belongs_to(:merchant, CommerceFront.Settings.Merchant)
     timestamps()
   end
 
@@ -55,6 +57,7 @@ defmodule CommerceFront.Settings.Sale do
   def changeset(sale, attrs) do
     sale
     |> cast(attrs, [
+      :merchant_id,
       :shipping_method,
       :shipping_company,
       :pick_up_point_id,

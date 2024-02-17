@@ -45,6 +45,13 @@ config :blue_potion,
     username: "ubuntu",
     key: System.get_env("SERVER_KEY"),
     domain_name: "localhost"
+  },
+  stag_server: %{
+    url: "192.53.172.101",
+    db_url: "127.0.0.1",
+    username: "ubuntu",
+    key: System.get_env("STAG_SERVER_KEY"),
+    domain_name: "localhost"
   }
 
 config :commerce_front, CommerceFront.Scheduler,

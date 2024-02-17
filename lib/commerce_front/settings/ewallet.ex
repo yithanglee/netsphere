@@ -13,6 +13,7 @@ defmodule CommerceFront.Settings.Ewallet do
      reserve
      travel
      merchant
+     merchant_bonus
     )
   )
 

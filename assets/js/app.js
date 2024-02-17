@@ -14,6 +14,8 @@ import { MENUS } from './menu.js';
 
 
 $("html").attr("data-bs-theme", localStorage.getItem("data-bs-theme"))
+window.showRP = false
+window.toggleMcart = false
 var useSw = false,
   isDev = window.location.hostname == "localhost";
 
@@ -133,6 +135,8 @@ window.addEventListener(
 );
 
 const route_list = [
+ { html: "merchant_withdrawal.html", title: "Merchant Withdrawal ", route: "/merchant_withdrawals"},
+ 
  { html: "merchant_application.html", title: "Merchant Application ", route: "/merchant_application"},
  { html: "merchant_profile.html", title: "Merchant Profile ", route: "/merchant_profile"},
  { html: "merchant_checkout.html", title: "Merchant Checkout ", route: "/merchant_checkout"},
@@ -142,6 +146,8 @@ const route_list = [
   { html: "merchant_products.html", title: "Merchant Products", route: "/merchant_products"},
    { html: "mproduct.html", title: "Merchant Product", route: "/mproducts/:id/:name" },
 
+  { html: "refund_policy.html", title: "Refund Policy ", route: "/refund_policy", public: true, skipNav: true },
+  { html: "terms_condition.html", title: "Terms Condition ", route: "/terms_condition", public: true, skipNav: true },
   { html: "code_register.html", title: "Register ", route: "/code_register/:share_code", public: true, skipNav: true },
   { html: "register_wallet.html", title: "Register Wallet ", route: "/register_wallet" },
   { html: "bonus_wallet.html", title: "Bonus Wallet ", route: "/bonus_wallet" },

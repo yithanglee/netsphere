@@ -14,6 +14,13 @@ defmodule CommerceFront.Settings.Merchant do
     field(:bank_name, :string)
     field(:bank_account_holder, :string)
     field(:bank_account_no, :string)
+
+    field(:company_address, :string)
+    field(:company_email, :string)
+    field(:company_phone, :string)
+    field(:company_reg_no, :string)
+    field(:company_ssm_image_url, :string)
+    field(:commission_perc, :float, default: 0.1)
     timestamps()
   end
 
@@ -21,6 +28,12 @@ defmodule CommerceFront.Settings.Merchant do
   def changeset(merchant, attrs) do
     merchant
     |> cast(attrs, [
+      :company_address,
+      :company_email,
+      :company_phone,
+      :company_reg_no,
+      :company_ssm_image_url,
+      :commission_perc,
       :description,
       :img_url,
       :bank_name,

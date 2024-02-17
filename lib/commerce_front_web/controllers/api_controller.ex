@@ -281,6 +281,10 @@ defmodule CommerceFrontWeb.ApiController do
           {:ok, ww} = Settings.delete_wallet_withdrawal_by_id(params["id"])
           ww |> BluePotion.sanitize_struct()
 
+        "delete_merchant_request" ->
+          {:ok, ww} = Settings.delete_merchant_withdrawal_by_id(params["id"])
+          ww |> BluePotion.sanitize_struct()
+
         "get_reward_summary" ->
           Settings.user_monthly_reward_summary(params["user_id"], params["is_prev"])
 
@@ -475,6 +479,10 @@ defmodule CommerceFrontWeb.ApiController do
           Settings.approve_merchant(params)
           %{status: "ok"}
 
+        "disable_merchant" ->
+          Settings.disable_merchant(params)
+          %{status: "ok"}
+
         "do_adjustment" ->
           Settings.approve_adjustment(params)
           %{status: "ok"}
@@ -591,6 +599,20 @@ defmodule CommerceFrontWeb.ApiController do
             params["convert"]["user_id"],
             Float.parse(params["convert"]["amount"]) |> elem(0)
           )
+
+        "approve_merchant_withdrawal" ->
+          params["id"]
+          |> Settings.approve_merchant_withdrawal()
+          |> case do
+            {:ok, _res} ->
+              %{status: "ok"}
+
+            {:error, "already paid"} ->
+              %{status: "error", reason: "already paid"}
+
+            _ ->
+              %{status: "error"}
+          end
 
         "approve_withdrawal_batch" ->
           params["id"]
@@ -735,6 +757,9 @@ defmodule CommerceFrontWeb.ApiController do
                 {:error, "Please check cart items."} ->
                   %{status: "error", reason: "Please check cart items."}
 
+                {:error, "Too much drp used."} ->
+                  %{status: "error", reason: "Too much drp used."}
+
                 {:error, :payment, "not sufficient", passed_cg} ->
                   %{status: "error", reason: "wallet balance not sufficient"}
 
@@ -753,6 +778,9 @@ defmodule CommerceFrontWeb.ApiController do
 
             {:error, :payment, "not sufficient", passed_cg} ->
               %{status: "error", reason: "wallet balance not sufficient"}
+
+            {:error, "Too much drp used."} ->
+              %{status: "error", reason: "Too much drp used."}
 
             {:error, "Please enter a password."} ->
               %{status: "error", reason: "Please enter a password."}
@@ -777,6 +805,9 @@ defmodule CommerceFrontWeb.ApiController do
 
             {:error, :payment, "not sufficient", passed_cg} ->
               %{status: "error", reason: "wallet balance not sufficient"}
+
+            {:error, "Too much drp used."} ->
+              %{status: "error", reason: "Too much drp used."}
 
             {:error, "Please enter a password."} ->
               %{status: "error", reason: "Please enter a password."}
@@ -1159,6 +1190,11 @@ defmodule CommerceFrontWeb.ApiController do
                 a.#{Atom.to_string(key)}==#{int} 
               """
 
+            val == "null" ->
+              """
+                is_nil(a.#{Atom.to_string(key)}) 
+              """
+
             Atom.to_string(key) |> String.contains?("_id") ->
               """
                 a.#{Atom.to_string(key)}==#{val} 
@@ -1235,7 +1271,7 @@ defmodule CommerceFrontWeb.ApiController do
               [i, val] = item |> String.split("!=")
 
               """
-              |> where([a,b,c,d], a.#{i} != "#{val}") 
+              |> where([a,b,c,d], a.#{i} != #{val}) 
               """
 
             item |> String.contains?("_id^") ->
@@ -1365,7 +1401,7 @@ defmodule CommerceFrontWeb.ApiController do
 
                         if ss == "true" || ss == "false" do
                           """
-                          a.#{i} == ^#{ss}  #{addon_search}
+                          #{prefix}.#{i} == ^#{ss}  #{addon_search}
                           """
                         else
                           if ss == nil do

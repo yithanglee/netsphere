@@ -8,9 +8,78 @@ defmodule CommerceFront.Calculation do
   alias CommerceFront.Settings
   alias CommerceFront.Settings.{User, Reward}
 
-  def mp_sales_level_bonus(sales_id, form_mp, sale, date) do
+  def mp_sales_level_bonus(sales_id, form_mp, sale, date, merchant) do
     params = [sales_id, form_mp, sale, date]
-    IO.inspect(params)
+
+    {y, m, d} =
+      date
+      |> Date.to_erl()
+
+    # need to check if the sales item comission settings...
+    # need to pay based on their ranking
+    # compress upline
+    uplines =
+      CommerceFront.Settings.check_uplines(sale.user.username, :referal)
+      |> Enum.reverse()
+      |> List.insert_at(0, unpaid_node)
+      |> List.insert_at(0, unpaid_node)
+      |> List.insert_at(0, unpaid_node)
+      |> List.insert_at(0, unpaid_node)
+      |> List.insert_at(0, unpaid_node)
+      |> Enum.reverse()
+
+    calc = fn upline, index ->
+      if index < 5 do
+        IO.inspect("current index at #{index}")
+
+        matrix = [
+          %{rank: "铜级套餐", max: 1},
+          %{rank: "银级套餐", max: 3},
+          %{rank: "金级套餐", max: 5}
+        ]
+
+        max = matrix |> Enum.filter(&(&1.rank == upline.rank)) |> List.first() |> Map.get(:max)
+        perc = (merchant.commission_perc / 5) |> Float.round(2)
+
+        if index < max do
+          amount = (perc * sale.total_point_value) |> Float.round(2)
+
+          CommerceFront.Settings.create_reward(%{
+            sales_id: sale.id,
+            is_paid: false,
+            remarks:
+              "sales-#{sale.id} on #{y}-#{m}-#{d}|commission perc: #{perc}|level: #{index + 1}|upline rank: #{upline.rank} | #{perc} * #{sale.total_point_value} ",
+            name: "merchant sales level bonus",
+            amount: amount,
+            user_id: upline.parent_id,
+            day: d,
+            month: m,
+            year: y
+          })
+        else
+          IO.inspect("not qualify, will pay to unpaid")
+
+          amount = (perc * sale.total_point_value) |> Float.round(2)
+
+          CommerceFront.Settings.create_reward(%{
+            sales_id: sale.id,
+            is_paid: false,
+            remarks:
+              "sales-#{sale.id} on #{y}-#{m}-#{d}|commission perc: #{perc}|level: #{index + 1}| #{perc} * #{sale.total_point_value} ",
+            name: "merchant sales level bonus",
+            amount: amount,
+            user_id: unpaid_node.parent_id,
+            day: d,
+            month: m,
+            year: y
+          })
+        end
+      end
+
+      index + 1
+    end
+
+    Enum.reduce(uplines, 0, &calc.(&1, &2))
   end
 
   def royalty_bonus(sale, user, date) do
@@ -90,12 +159,15 @@ defmodule CommerceFront.Calculation do
   #DRP only for registering new shared entries, PV not included.
   When choosing DRP at registration, you only need to pay the balance of RP 50%.
 
+  --
+  28 jan 24'
+  every 100 RP shared, received 50 DRP
   """
 
   def special_share_reward(user_id, pv, sale) do
     if pv != 0 do
       Settings.create_wallet_transaction(%{
-        user_id: sale.sales_person_id,
+        user_id: user_id,
         amount: (pv / 2) |> Float.round(2),
         remarks: "sale-#{sale.id}",
         wallet_type: "direct_recruitment"

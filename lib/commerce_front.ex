@@ -9,6 +9,49 @@ defmodule CommerceFront do
   Contexts are also responsible for managing your data, regardless
   if it comes from the database, an external API or others.
   """
+  def encode_params(params) do
+    encode_value = fn tuple ->
+      case tuple do
+        {key, value} when is_map(value) ->
+          {key, URI.encode_query(value)}
+
+        {key, value} ->
+          {key, value}
+      end
+    end
+
+    params
+    |> Enum.map(&encode_value.(&1))
+    |> URI.encode_query()
+  end
+
+  def _send_sqs(map \\ %{"scope" => "register", "name" => "John", "age" => 30}) do
+    params =
+      %{
+        "Action" => "SendMessage",
+        "MessageBody" => Jason.encode!(map)
+      }
+      |> IO.inspect()
+
+    query_string =
+      encode_params(params)
+      |> IO.inspect()
+
+    case HTTPoison.post(
+           "http://localhost:9324/queue/queue1",
+           query_string,
+           [{"Content-Type", "application/x-www-form-urlencoded"}]
+         ) do
+      {:ok,
+       %HTTPoison.Response{
+         body: body
+       } = _res} ->
+        body |> IO.puts()
+
+      _ ->
+        nil
+    end
+  end
 
   @doc """
 

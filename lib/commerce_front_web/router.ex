@@ -31,10 +31,13 @@ defmodule CommerceFrontWeb.Router do
 
     plug CORSPlug,
       origin: [
-        "f770-115-164-46-61.ngrok-free.app",
         "https://fonts.gstatic.com",
         "https://svt.damienslab.com",
+        "https://test_svt.damienslab.com",
         "http://svt.damienslab.com",
+        "https://admin.haho2u.com",
+        "http://admin.haho2u.com",
+        "http://test_svt.damienslab.com",
         "http://localhost:5173"
       ]
 
@@ -48,11 +51,13 @@ defmodule CommerceFrontWeb.Router do
 
     plug CORSPlug,
       origin: [
-        "2cb0-115-164-216-41.ngrok-free.app",
-        "f770-115-164-46-61.ngrok-free.app",
         "https://fonts.gstatic.com",
         "https://svt.damienslab.com",
         "http://svt.damienslab.com",
+        "https://admin.haho2u.com",
+        "http://admin.haho2u.com",
+        "https://test_svt.damienslab.com",
+        "http://test_svt.damienslab.com",
         "http://localhost:5173"
       ]
 

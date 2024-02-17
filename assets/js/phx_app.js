@@ -34,6 +34,9 @@ export let phxApp_ = {
 
 
   ],
+  render(componentName) {
+    commerceApp_.components[componentName]()
+  },
   rowData(params) {
 
 
@@ -686,6 +689,13 @@ export let phxApp_ = {
       $("input[name='_csrf_token']").val($("input[name='_csrf_token_ori']").val())
     }
   },
+  evalCart() {
+    if (window.location.pathname.includes("merchant")) {
+      
+    $(".showMcart").toggleClass("d-none")
+    $(".showCart").toggleClass("d-none")
+    }
+  },
   async navigateCallback() {
 
 
@@ -708,6 +718,7 @@ export let phxApp_ = {
     this.toTop();
     this.hide();
     this.putToken();
+    this.evalCart();
 
 
 
@@ -1979,7 +1990,7 @@ export let phxApp_ = {
                 <i class="fa fa-th-large"></i></button>
                 <button type="submit" onclick="phxApp.reinit()" class="btn btn-fill btn-round btn-primary" data-href="" data-module="" data-ref="">
                 <i class="fa fa-circle-notch
-"></i></button>
+      "></i></button>
                 <button type="submit" class="btn btn-fill btn-round btn-primary"  data-href="" data-module="add_new" data-ref=""><i class="fa fa-plus"></i></button>
                 `);
 
@@ -2001,6 +2012,10 @@ export let phxApp_ = {
 
 
     $(dataSource.buttons).each((i, params) => {
+
+
+
+
       if (params.buttonType != null) {
         if (params.buttonType == "grouped") {
           console.log("creating grouped...button...")
@@ -2034,7 +2049,7 @@ export let phxApp_ = {
         }
       } else {
 
-        console.log("appending rw dt")
+        console.log("appending gd buttons : " + i)
         params.fnParams.dataSource = dataSource;
         params.fnParams.aParams = dataSource.data;
         var buttonz = phxApp_.formButton({
@@ -2048,7 +2063,7 @@ export let phxApp_ = {
 
         // convert them into a 
 
-        // $(dataSource.tableSelector).closest(".table-responsive").find(".gd[aria-index='" + index + "']").removeClass("d-none")
+        $(dataSource.tableSelector).closest(".table-responsive").find(".gd[aria-index='" + index + "']").removeClass("d-none")
         $(dataSource.tableSelector).closest(".table-responsive").find(".gd[aria-index='" + index + "']").append(buttonz);
 
       }
@@ -2167,13 +2182,13 @@ export let phxApp_ = {
       // here can start do the formating
 
     })
-    setTimeout(() => {
-      $(dataSource.tableSelector).closest(".table-responsive").find(" .gd").each((i, v) => {
-        var id = $(v).attr("aria-index")
-        console.log("there is index...")
-        phxApp_.appendRowDtButtons(dataSource, id)
-      })
-    }, 200)
+
+    $(dataSource.tableSelector).closest(".table-responsive").find(" .gd").each((i, v) => {
+      var id = $(v).attr("aria-index")
+      console.log("there is index... d" + i)
+
+      phxApp_.appendRowDtButtons(dataSource, id)
+    })
 
   },
   populateTable(dataSource) {
@@ -2456,7 +2471,76 @@ export let phxApp_ = {
       gParent = this;
       call();
     }
+  },
+  deleteData(params) {
+    console.log("editing data...")
+    var dt = params.dataSource;
+    window.currentSelector = dt.tableSelector
+    var table = dt.table;
+    var r = table.row(params.row);
+    var rowData = table.data()[params.index]
+
+    $("#myModal").find(".modal-title").html("Confirm delete this data?");
+    var confirm_button = phxApp_.formButton("fa fa-check", "outline-danger");
+    var csrfToken = this.csrf_()
+    confirm_button.onclick = function() {
+
+      console.log(dt)
+      $("#myModal").modal("hide");
+
+      $.ajax({
+        url: "/api/" + dt.link + "/" + rowData.id,
+        dataType: "json",
+        headers: {
+          "Authorization": "Basic " + (phxApp_.user != null ? phxApp_.user.token : null),
+          'x-csrf-token': csrfToken
+        },
+        method: "DELETE"
+      }).done(function(j) {
+        $("#myModal").modal("hide");
+
+        phxApp_.notify("Deleted!", {
+          type: "info"
+        });
+
+        if (table != null) {
+          console.log("redrawing table.. " + window.currentSelector);
+          console.log(dt.link)
+          console.log(window.currentSelector)
+          var tarMods = window.phoenixModels.filter((v, i) => {
+            return v.moduleName == dt.link && v.tableSelector == window.currentSelector
+          })
+
+          tarMods.forEach((tarMod, i) => {
+
+            try {
+              window.prev_page = tarMod.table.page()
+              tarMod.reload();
+            } catch (e) {
+              console.log("cant find the table")
+
+            }
+          })
+
+        }
+
+      }).fail(function(e) {
+        console.log(e.responseJSON.status);
+
+
+        phxApp_.notify("Not Added! reason: " + e.responseJSON.status, {
+          type: "warning"
+        });
+
+
+      });
+    };
+    var center = document.createElement("center");
+    center.append(confirm_button);
+    $("#myModal").find(".modal-body").html(center);
+    $("#myModal").modal('show');
   }
+
 
 
 

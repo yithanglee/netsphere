@@ -330,3 +330,12 @@ delviery method : send to addres
 foreigners need deduct 10% as foregiener income tax
 
 when  update rp remarks, ensure the is_approved mark is checked [v]
+
+
+---
+
+todo
+[v] merchant mall add merchant label
+[] modify the customer order into invoice
+[] update the merchant application TnC
+[v] add commission perc

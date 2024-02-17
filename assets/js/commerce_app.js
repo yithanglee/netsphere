@@ -212,17 +212,46 @@ export let commerceApp_ = {
 
         function addToMCart() {
 
-          commerceApp_.addItem_(data, true)
-          commerceApp_.components["updateMCart"]()
+          // check current cart if they have other merchant' items
 
-          phxApp_.notify("Added " + data.name, {
-            delay: 2000,
-            type: "success",
-            placement: {
-              from: "top",
-              align: "center"
-            }
+
+          var check = commerceApp_.mcart_.filter((v, i) => {
+            return v.merchant_id == data.merchant_id
           })
+
+
+          if (check.length > 0) {
+            commerceApp_.addItem_(data, true)
+            commerceApp_.components["updateMCart"]()
+
+            phxApp_.notify("Added " + data.name, {
+              delay: 2000,
+              type: "success",
+              placement: {
+                from: "top",
+                align: "center"
+              }
+            })
+
+          } else {
+            if (commerceApp_.mcart_.length == 0) {
+              commerceApp_.addItem_(data, true)
+              commerceApp_.components["updateMCart"]()
+
+              phxApp_.notify("Added " + data.name, {
+                delay: 2000,
+                type: "success",
+                placement: {
+                  from: "top",
+                  align: "center"
+                }
+              })
+            } else {
+
+              alert("cant add due to different merchants, empty it first.")
+            }
+          }
+
 
         }
 
@@ -274,8 +303,7 @@ export let commerceApp_ = {
               </div>
             </div>
           <div style="margin-top: 50px;">` + data.description + `</div>
-          <div class="font-sm fw-light text-secondary text-center format-float">` + data.retail_price + `</div>
-          <div class="font-sm fw-light text-info text-center ">PV <span class="format-float">` + data.point_value + `</span></div>
+          <div class="font-sm fw-light text-secondary text-center "><span class="format-float">` + data.retail_price + ` </span> RP</div>
           <div class="btn btn-outline-primary mt-4" mproduct-id="` + data.id + `">Add</div>
         </div>
 
@@ -369,8 +397,10 @@ export let commerceApp_ = {
                     img = '/images/placeholder.png'
                   }
                 }
+
+                var merchant = data.merchant
                 var card = `
-                    <div  class="m-2 d-flex flex-column gap-2" ` + onclickAttr + `>
+                    <div  class="position-relative m-2 d-flex flex-column gap-2" ` + onclickAttr + `>
                       <div  class="d-flex justify-content-center mb-4 py-4 background-p" 
                             style="
                               cursor: pointer;   
@@ -399,11 +429,13 @@ export let commerceApp_ = {
                               ">
                         </div>
                       </div>
+                      <div class="d-flex position-absolute" style="left: 10px; top: 12px;z-index: 10;">
+                        <div class="bg-primary badge">` + merchant.name + `</div>
+                      </div>
                       <div class="d-flex flex-column justify-content-center gap-2 mt-4">
                         <div class="font-sm fw-bold text-center">` + data.name + `</div>
                          <div class="d-flex flex-column justify-content-center ">
-                            <div class="font-sm fw-light text-secondary text-center format-float">` + data.retail_price + `</div>
-                            <div class="font-sm fw-light text-info text-center ">PV <span class="format-float">` + data.point_value + `</span></div>
+                            <div class="font-sm fw-light text-secondary text-center "><span class="format-float">` + data.retail_price + `</span> RP</div>
                          </div>
                          ` + showBtn + `
 
@@ -418,17 +450,15 @@ export let commerceApp_ = {
                   [1, "asc"]
                 ],
 
-                // additional_join_statements: [{
-                //   // product: "product"
-                //   // product_country: "product_country",
+                additional_join_statements: [{
+                  merchant: "merchant"
 
-                // }],
-                // additional_search_queries: [
-                //   "b.country_id=" + phxApp_.chosen_country_id_.id
-                // ],
+                }],
+                additional_search_queries: [
+                  "b.is_approved=true"
+                ],
 
-                // country_id: phxApp_.chosen_country_id_.id,
-                preloads: [],
+                preloads: ["merchant"],
                 grid_class: "col-4 col-lg-3",
                 dom: `
 
@@ -499,11 +529,38 @@ export let commerceApp_ = {
               'id',
               'user_id',
               'name',
-              'description',
               {
+                alt_name: 'Merchant Logo',
                 label: 'img_url',
                 upload: true
-              }
+              },
+              { label: 'description', binary: true, alt_class: "col-12" },
+              {
+                label: 'commission_perc',
+                alt_name: 'Percentage Contribution',
+                selection: [
+                  { id: 0.1, name: "10%" },
+                  { id: 0.2, name: "20%" },
+                  { id: 0.3, name: "30%" },
+                  { id: 0.4, name: "40%" },
+                  { id: 0.5, name: "50%" }
+                ]
+              },
+
+            ]
+          }, {
+            name: 'CompanyDetails',
+            list: [
+
+              { label: 'company_address', alt_name: "Address", alt_class: "col-12", binary: true },
+              { label: 'company_email', alt_name: "Email", alt_class: "col-12" },
+              { label: 'company_phone', alt_name: "Phone", alt_class: "col-12" },
+
+
+
+              { label: 'company_reg_no', alt_name: "Reg No", alt_class: "col-12" },
+              { label: 'company_ssm_image_url', alt_name: "SSM Image", alt_class: "col-12", upload: true },
+
 
             ]
           }, {
@@ -531,11 +588,11 @@ export let commerceApp_ = {
     },
 
     merchant() {
-      var cta = ` <div class="btn btn-primary btn-lg merchant-apply">Apply</div>`
+      var cta = ` <div class="btn btn-primary btn-lg merchant-apply mb-4 disabled">Apply</div>`
 
       if (phxApp_.user.merchant != null) {
         if (phxApp_.user.merchant.is_approved == false) {
-          cta = ` <div class="btn btn-primary btn-lg merchant-apply">Pending Approval</div>`
+          cta = ` <div class="btn btn-primary btn-lg merchant-apply ">Pending Approval</div>`
 
         } else {
           phxApp_.navigateTo("/merchant_profile")
@@ -543,13 +600,37 @@ export let commerceApp_ = {
 
       }
 
+      function agree() {
+        console.log("agree")
+
+        $(".merchant-apply ").toggleClass("disabled")
+      }
+
+      window.agree = agree
+
 
       $("merchant").html(`
-
-          <h2>Merchant Application</h2> 
-          <div class="p-4 m-4">
+          <h2 class="mt-2">Merchant Application</h2> 
+          <div class="px-4 m-4">
             Terms and condition
           </div>
+          <center class="w-100 d-lg-none d-block">
+            <iframe class="my-4" style="width:100%; height: 600px;"  src="https://docs.google.com/document/d/e/2PACX-1vShkzZ2LaszYkpcKw82giaYPqzRhB8odK54rkrJLwc6YMiUNp7HLaHYFTYN0hNPngJvJ_XR36_T8b5Z/pub?embedded=true"></iframe>
+          </center>
+          
+          <center class="w-100 d-lg-block d-none">
+            <iframe class="my-4" style="width: 60%; height: 600px;"  src="https://docs.google.com/document/d/e/2PACX-1vShkzZ2LaszYkpcKw82giaYPqzRhB8odK54rkrJLwc6YMiUNp7HLaHYFTYN0hNPngJvJ_XR36_T8b5Z/pub?embedded=true"></iframe>
+          </center>
+          <center>
+
+          <div class="form-check m-4">
+            <input class="form-check-input" onchange="agree()" type="checkbox" value="" id="flexCheckDefault">
+            <label class="form-check-label" for="flexCheckDefault">
+            I agree to above terms and condition
+            </label>
+          </div>
+
+          </center>
           <div>
            ` + cta + `
           </div>
@@ -828,8 +909,33 @@ export let commerceApp_ = {
         columns: [
 
           { label: 'id', data: 'id' },
-          { label: 'Date', data: 'inserted_at' },
-          { label: 'Approved?', data: 'is_approved', showBoolean: true },
+          {
+            label: 'Date',
+            data: 'inserted_at',
+            formatDateTime: true,
+            offset: 0
+          },
+
+
+
+          {
+            customized: true,
+
+            label: 'Approved?',
+            data: 'is_approved',
+            xdata: {
+              formatFn: (d, index) => {
+                if (d.is_approved) {
+                  html = `<div  ><i class="fa fa-check text-success"></i><span  class="ms-2">Approved</span></div>`
+                } else {
+                  html = `<div  ><i class="fa fa-hourglass text-warning"></i><span class="ms-2">Pending</span></div>`
+
+                }
+                return html
+              }
+            }
+          },
+
           {
             label: "Payment",
             data: "id",
@@ -1147,6 +1253,12 @@ export let commerceApp_ = {
 
       })
 
+      var tpv = 'Total PV'
+
+      if (is_merchant) {
+        tpv = 'RP Received'
+      }
+
 
       var payment_info = `
 
@@ -1159,7 +1271,7 @@ export let commerceApp_ = {
                   <span class=" me-4">RP <span class="format-float">` + shipping_fee + `</span></span>
                 </div>
                 <div class="d-flex justify-content-between align-items-center">
-                  <span class="fs-5">Total PV</span>
+                  <span class="fs-5">` + tpv + `</span>
                   <span class="text-info me-4"><span class="format-integer">` + total_pv + ` PV</span></span>
                 </div>
                 <div class="d-flex justify-content-between align-items-center">
@@ -1171,6 +1283,7 @@ export let commerceApp_ = {
 
 
       shipping = reg_dets.user.shipping
+      console.info(shipping)
       payment = sale.payment
 
       var drp_details = {};
@@ -1188,7 +1301,7 @@ export let commerceApp_ = {
                     <span class=" me-4">RP <span class="format-float">` + shipping_fee + `</span></span>
                   </div>
                   <div class="d-flex justify-content-between align-items-center">
-                    <span class="fs-5">Total PV</span>
+                    <span class="fs-5">` + tpv + `</span>
                     <span class="text-info "><span class="format-integer">` + total_pv + ` PV</span></span>
                   </div>
                   <div class="d-flex justify-content-between align-items-center">
@@ -1271,7 +1384,7 @@ export let commerceApp_ = {
                   </div>
 
                   <div class="d-flex justify-content-between align-items-center">
-                    <span class="fs-5">Total PV</span>
+                    <span class="fs-5">` + tpv + `</span>
                     <span class="text-info "><span class="format-integer">` + tt4 + ` PV</span></span>
                   </div>
                   <div class="d-flex justify-content-between align-items-center">
@@ -1319,9 +1432,13 @@ export let commerceApp_ = {
 
 
 
-
       if (sale.payment == null && sale.status == "pending_payment") {
         print_or_check = `<div class="btn btn-success approve-sale" aria-id="` + sale.id + `">Approve</div>`
+      }
+
+
+      if (sale.merchant_id != null) {
+        print_or_check = `   <a class="btn btn-primary" href="/pdf?type=merchant&id=` + sale.id + `" target="_blank">Print</a>  <a class="d-none mdo btn btn-primary" href="/pdf?type=merchant_do&id=` + sale.id + `" target="_blank">Print DO</a>`
       }
 
 
@@ -1329,6 +1446,11 @@ export let commerceApp_ = {
         <div class="d-flex align-items-center justify-content-between gap-2">
           <h2>Sales Details</h2><small class="badge bg-primary">` + sale.status + `</small>
         </div>
+                <div class="d-flex flex-column mb-4 ">
+                   <span class="text-secondary">Sold To:</span> 
+                   <span>` + (sale.user.fullname) + `, ` + (sale.user.phone) + `</span>
+                   
+                </div>
                 <div class="d-flex flex-column mb-4 ">
                    <span class="text-secondary">Recipient:</span> 
                    <span>` + (shipping.fullname || phxApp_.user.fullname) + `, ` + (shipping.phone || phxApp_.user.phone) + `</span>
@@ -1456,6 +1578,7 @@ export let commerceApp_ = {
 
     },
     evalShipping(subtotal) {
+      var is_merchant = $("cartItems").attr("merchant") == "" ? true : false;
       var s = 0
 
       var malaysia = phxApp_.countries_.filter((v, i) => {
@@ -1473,10 +1596,15 @@ export let commerceApp_ = {
           if (["Sabah", "Sarawak", "Labuan"].includes(window.selectedState)) {
             s = Math.ceil(subtotal / 200) * 4
           } else {
-            if (subtotal >= 100) {
-              s = 0
+            if (is_merchant) {
+              s = Math.ceil(subtotal / 200) * 2
             } else {
-              s = 2
+
+              if (subtotal >= 100) {
+                s = 0
+              } else {
+                s = 2
+              }
             }
           }
         }
@@ -1485,6 +1613,10 @@ export let commerceApp_ = {
         s = subtotal * 0.10
         if (singapore.id == phxApp_.chosen_country_id_.id) {
           s = subtotal * 0.05
+
+          if (is_merchant) {
+            s = subtotal * 0.10
+          }
         }
       }
 
@@ -1800,8 +1932,14 @@ export let commerceApp_ = {
           
             `)
         } else {
-
+          console.info(phxApp_.chosen_country_id_.conversion)
           console.log(linePassed)
+
+          var rp = `RP <span class="format-float">` + (v.retail_price * v.qty).toFixed(2) + ``
+          if (showRP == false) {
+
+            rp = `MYR <span class="format-float">` + (v.retail_price * v.qty * phxApp_.chosen_country_id_.conversion).toFixed(2) + ``
+          }
           list.push(`
 
               <div class="d-flex align-items-center justify-content-between gap-2 ` + linePassed + ` rounded p-2 me-3">
@@ -1817,7 +1955,7 @@ export let commerceApp_ = {
                                     height: 60px;">
                     <div class="rounded py-2" style="
                                     height: 50px;
-                                    width: 72%;
+                                   width: 72%;
                                     filter: blur(4px);
                                     position: absolute;
                                     background-repeat: no-repeat;
@@ -1843,7 +1981,7 @@ export let commerceApp_ = {
                 </div>
                 <div class="d-flex flex-column flex-lg-row justify-content-between align-items-center">
                   <div class="d-flex flex-column align-items-end">
-                    <span class="font-sm ">RP <span class="format-float">` + (v.retail_price * v.qty).toFixed(2) + `</span></span>
+                    <span class="font-sm ">` + rp + `</span></span>
                     ` + lpv + `
                   </div>
                   <div class="text-center">
@@ -1862,17 +2000,33 @@ export let commerceApp_ = {
 
       })
 
-      var elr = `
+      var currency = `RP`,
+        srp = (subtotal + shipping_fee),
+        cshipping_fee = shipping_fee,
+        elr = `
 
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="fw-bold text-secondary">Eligible Rank</span>
                     <span class="text-info me-4"><span class="format-integer">` + eligible_rank + `</span></span>
                   </div>
 
-    `
+    `,
+        tpv = `
+
+      Total PV
+
+    `,
+        crp = `RP <span class="format-float">` + subtotal + ``
 
       if (is_merchant) {
         elr = ''
+        tpv = `RP received`
+      }
+      if (!showRP) {
+        crp = `MYR <span class="format-float">` + (subtotal * phxApp_.chosen_country_id_.conversion) + ``
+        cshipping_fee = shipping_fee * phxApp_.chosen_country_id_.conversion
+        srp = (subtotal + shipping_fee) * phxApp_.chosen_country_id_.conversion
+        currency = `MYR`
       }
 
       $("cartItems").customHtml(`
@@ -1880,19 +2034,19 @@ export let commerceApp_ = {
                   <div class="d-flex flex-column gap-1">` + list.join("") + `
                     <div class="d-flex justify-content-between align-items-center">
                       <span class="fw-bold">Subtotal</span>
-                      <span class=" me-4">RP <span class="format-float">` + subtotal + `</span></span>
+                      <span class=" me-4">` + crp + `</span></span>
                     </div>
                     <div class="d-flex justify-content-between align-items-center">
                       <span class="fw-bold">Shipping</span>
-                      <span class=" me-4">RP <span class="format-float">` + shipping_fee + `</span></span>
+                      <span class=" me-4">` + currency + ` <span class="format-float">` + cshipping_fee + `</span></span>
                     </div>
 
                     <div class="d-flex justify-content-between align-items-center">
                       <span class="fs-4">Grand Total</span>
-                      <span class=" me-4">RP <span class="format-float fs-4">` + (subtotal + shipping_fee) + `</span></span>
+                      <span class=" me-4">` + currency + ` <span class="format-float fs-4">` + srp + `</span></span>
                     </div>
-                  <div class="d-flex justify-content-between align-items-center">
-                    <span class="fs-5">Total PV</span>
+                  <div class="d-flex justify-content-between align-items-center pv_label d-none">
+                    <span class="fs-5">` + tpv + `</span>
                     <span class="text-info me-4"><span class="format-integer">` + total_pv + ` PV</span></span>
                   </div>
                   ` + elr + `
@@ -1996,7 +2150,7 @@ export let commerceApp_ = {
 
           drp_amount = $("#drp_payment").val()
         }
-
+        shipping_fee = commerceApp_.components.evalShipping(subtotal)
         tt3 = (subtotal + shipping_fee - drp_amount);
         tt4 = (total_pv - drp_amount)
         if (is_merchant) {
@@ -2005,6 +2159,7 @@ export let commerceApp_ = {
         } else {
 
         }
+
 
         var drpa = `
 
@@ -2021,7 +2176,6 @@ export let commerceApp_ = {
 
 
 
-        shipping_fee = commerceApp_.components.evalShipping(subtotal)
         $("cartItems").customHtml(`
 
                   <div class="d-flex flex-column gap-1">` + list.join("") + `
@@ -2039,8 +2193,8 @@ export let commerceApp_ = {
                       <span class=" me-4">RP <span class="format-float fs-4">` + tt3 + `</span></span>
                     </div>
 
-                    <div class="d-flex justify-content-between align-items-center">
-                      <span class="fs-5">Total PV</span>
+                    <div class="d-flex justify-content-between align-items-center pv_label d-none">
+                      <span class="fs-5">` + tpv + `</span>
                       <span class="text-info me-4"><span class="format-integer">` + tt4 + ` PV</span></span>
                     </div>
                    ` + elr + `
@@ -2048,6 +2202,7 @@ export let commerceApp_ = {
 
 
           `)
+        ColumnFormater.formatDate();
         $("[add-product-id]").each((i, v) => {
           var id = $(v).attr("add-product-id")
 
@@ -2168,7 +2323,7 @@ export let commerceApp_ = {
 
         if ($(v)[0].checked == true) {
 
-          if (["register_point", "merchant_point"].includes($(v).val()) ) {
+          if (["register_point", "merchant_point"].includes($(v).val())) {
             $("#coupon-detail").removeClass("d-none")
 
             drpChanged()
@@ -2235,13 +2390,18 @@ export let commerceApp_ = {
 
       commerceApp_.cart_.forEach((v, i) => {
 
+        var frp = `<div class="font-sm">RP <span class="font-sm format-float">` + (v.retail_price * v.qty).toFixed(2) + `</span></div>`
+        if (!showRP) {
+           frp = `<div class="font-sm">MYR <span class="font-sm format-float">` + (v.retail_price * v.qty * phxApp_.chosen_country_id_.conversion).toFixed(2) + `</span></div>`
+        
+        }
         list.push(`
 
           <li><a class="dropdown-item" href="javascript:void(0);">
             <div style="width: 240px;" class="d-flex justify-content-between align-items-center">
               <span>` + v.name + ` <small>(x` + v.qty + `)</small></span>
               <div class="d-flex align-items-center justify-content-between gap-2">
-                <span class="font-sm format-float">` + (v.retail_price * v.qty).toFixed(2) + `</span>
+                `+frp+`
 
                 <div class="d-lg-block d-none">
                   <div class="btn btn-sm" minus-product-id="` + v.id + `"><i class="text-danger fa fa-minus"></i></div>
@@ -2519,14 +2679,18 @@ export let commerceApp_ = {
       }, 0)
 
       commerceApp_.cart_.forEach((v, i) => {
-
+        var frp = `<div class="font-sm">RP <span class="font-sm format-float">` + (v.retail_price * v.qty).toFixed(2) + `</span></div>`
+        if (!showRP) {
+           frp = `<div class="font-sm">MYR <span class="font-sm format-float">` + (v.retail_price * v.qty * phxApp_.chosen_country_id_.conversion).toFixed(2) + `</span></div>`
+        
+        }
         list.push(`
 
           <li><a class="dropdown-item" href="javascript:void(0);">
             <div style="width: 240px;" class="d-flex justify-content-between align-items-center">
               <span>` + v.name + ` <small>(x` + v.qty + `)</small></span>
               <div class="d-flex align-items-center justify-content-between gap-2">
-                <span class="font-sm format-float">` + (v.retail_price * v.qty).toFixed(2) + `</span>
+               `+frp+`
 
 
                 <div class="d-lg-block d-none">
@@ -2864,6 +3028,19 @@ export let commerceApp_ = {
             img = '/images/placeholder.png'
           }
         }
+
+
+
+        var rp = `<div class="font-sm fw-light text-secondary text-center ">RP <span class="format-float">` + data.retail_price + `</span></div>`
+
+        console.info(phxApp_.chosen_country_id_.conversion)
+        if (!showRP) {
+
+          rp = `<div class="font-sm fw-light text-secondary text-center ">MYR <span class="format-float">` + (data.retail_price * phxApp_.chosen_country_id_.conversion) + `</span></div>`
+        }
+
+
+
         $("#pcontent").customHtml(`
 
         <div class="d-flex flex-column justify-content-center align-items-center ">
@@ -2899,8 +3076,8 @@ export let commerceApp_ = {
               </div>
             </div>
           <div style="margin-top: 50px;">` + data.desc + `</div>
-          <div class="font-sm fw-light text-secondary text-center format-float">` + data.retail_price + `</div>
-          <div class="font-sm fw-light text-info text-center ">PV <span class="format-float">` + data.point_value + `</span></div>
+          ` + rp + `
+          <div class="font-sm fw-light text-info text-center pv_label d-none">PV <span class="format-float">` + data.point_value + `</span></div>
           <div class="btn btn-outline-primary mt-4" product-id="` + data.id + `">Add</div>
         </div>
 
@@ -3099,6 +3276,15 @@ export let commerceApp_ = {
                       img = '/images/placeholder.png'
                     }
                   }
+
+
+                  var rp = `<div class="font-sm fw-light text-secondary text-center ">RP <span class="format-float">` + data.retail_price + `</span></div>`
+                  if (!showRP) {
+
+                    rp = `<div class="font-sm fw-light text-secondary text-center ">MYR <span class="format-float">` + (data.retail_price * phxApp_.chosen_country_id_.conversion) + `</span></div>`
+                  }
+
+
                   var card = `
             <div  class="m-2 d-flex flex-column gap-2" ` + onclickAttr + `>
               <div  class="d-flex justify-content-center mb-4 py-4 background-p" 
@@ -3132,8 +3318,8 @@ export let commerceApp_ = {
               <div class="d-flex flex-column justify-content-center gap-2 mt-4">
                 <div class="font-sm fw-bold text-center">` + data.name + `</div>
                  <div class="d-flex flex-column justify-content-center ">
-                    <div class="font-sm fw-light text-secondary text-center format-float">` + data.retail_price + `</div>
-                    <div class="font-sm fw-light text-info text-center ">PV <span class="format-float">` + data.point_value + `</span></div>
+                    ` + rp + `
+                    <div class="font-sm fw-light text-info text-center pv_label d-none">PV <span class="format-float">` + data.point_value + `</span></div>
                  </div>
                  ` + showBtn + `
 
@@ -3322,7 +3508,7 @@ export let commerceApp_ = {
 
           $(".spinner-border.loading").parent().remove()
           $(".loading").removeClass("d-none")
-          var rewards = ["sharing bonus", "team bonus", "matching bonus", "elite leader", "travel fund", "repurchase bonus", "drp sales level bonus", "stockist register bonus",
+          var rewards = ["sharing bonus", "team bonus", "matching bonus", "elite leader", "travel fund", "repurchase bonus", "drp sales level bonus", "stockist register bonus", "merchant sales level bonus"
               // "royalty bonus"
             ],
             list = []
