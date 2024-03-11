@@ -678,6 +678,7 @@ defmodule CommerceFrontWeb.ApiController do
                 id: user.id,
                 status: "ok",
                 res: token,
+                country_id: user.country_id,
                 role_app_routes:
                   user.role.app_routes |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
               }
@@ -820,6 +821,26 @@ defmodule CommerceFrontWeb.ApiController do
 
             _ ->
               %{status: "error", reason: "Please contact admin."}
+          end
+
+        "override" ->
+          auth = Settings.override_user(params["user"]) |> IO.inspect()
+
+          case auth do
+            {:ok, user} ->
+              token = Settings.member_token(user.id)
+              Settings.create_session_user(%{"cookie" => token, "user_id" => user.id})
+
+              %{
+                status: "ok",
+                res:
+                  user
+                  |> BluePotion.sanitize_struct()
+                  |> Map.put(:token, token)
+              }
+
+            _ ->
+              %{status: "error"}
           end
 
         "login" ->

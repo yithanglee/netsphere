@@ -39,14 +39,14 @@ config :blue_potion,
   repo: CommerceFront.Repo,
   contexts: ["Settings"],
   project: %{name: "CommerceFront", alias_name: "commerce_front", vsn: "0.1.0"},
-  server: %{
+  stag_server: %{
     url: "139.162.60.209",
     db_url: "127.0.0.1",
     username: "ubuntu",
     key: System.get_env("SERVER_KEY"),
     domain_name: "localhost"
   },
-  stag_server: %{
+  server: %{
     url: "192.53.172.101",
     db_url: "127.0.0.1",
     username: "ubuntu",

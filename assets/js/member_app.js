@@ -19,6 +19,19 @@ export let memberApp_ = {
       }
     }
   },
+  override(j) {
+    // supposing j is the temp token 
+
+
+    phxApp_.form($(j).closest("form"), "override", (j) => {
+      memberApp_.user = j
+      memberApp_.save(j)
+      $("[aria-label='login']").addClass("d-none")
+      $("[aria-label='logout']").removeClass("d-none")
+      // phxApp_.navigateTo("/home")
+      window.location = "/home"
+    })
+  },
   extendUser() {
     phxApp_.api("extend_user", { token: this.user.token }, null, (j) => {
 

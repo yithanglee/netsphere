@@ -69,7 +69,7 @@ $.fn.extend({
     var v2 = translation_map.reduce((acc, key) => {
 
       var regex = new RegExp(key, "g");
-    
+
       return acc.replace(regex, translationRes[key]);
     }, newHtml);
 
@@ -135,16 +135,16 @@ window.addEventListener(
 );
 
 const route_list = [
- { html: "merchant_withdrawal.html", title: "Merchant Withdrawal ", route: "/merchant_withdrawals"},
- 
- { html: "merchant_application.html", title: "Merchant Application ", route: "/merchant_application"},
- { html: "merchant_profile.html", title: "Merchant Profile ", route: "/merchant_profile"},
- { html: "merchant_checkout.html", title: "Merchant Checkout ", route: "/merchant_checkout"},
- { html: "merchant_purchases.html", title: "Merchant Purchases", route: "/merchant_purchases"},
- { html: "merchant_sales.html", title: "Merchant Sales", route: "/merchant_sales"},
- { html: "merchant_mall.html", title: "Merchant Mall", route: "/merchant_mall"},
-  { html: "merchant_products.html", title: "Merchant Products", route: "/merchant_products"},
-   { html: "mproduct.html", title: "Merchant Product", route: "/mproducts/:id/:name" },
+  { html: "merchant_withdrawal.html", title: "Merchant Withdrawal ", route: "/merchant_withdrawals" },
+
+  { html: "merchant_application.html", title: "Merchant Application ", route: "/merchant_application" },
+  { html: "merchant_profile.html", title: "Merchant Profile ", route: "/merchant_profile" },
+  { html: "merchant_checkout.html", title: "Merchant Checkout ", route: "/merchant_checkout" },
+  { html: "merchant_purchases.html", title: "Merchant Purchases", route: "/merchant_purchases" },
+  { html: "merchant_sales.html", title: "Merchant Sales", route: "/merchant_sales" },
+  { html: "merchant_mall.html", title: "Merchant Mall", route: "/merchant_mall" },
+  { html: "merchant_products.html", title: "Merchant Products", route: "/merchant_products" },
+  { html: "mproduct.html", title: "Merchant Product", route: "/mproducts/:id/:name" },
 
   { html: "refund_policy.html", title: "Refund Policy ", route: "/refund_policy", public: true, skipNav: true },
   { html: "terms_condition.html", title: "Terms Condition ", route: "/terms_condition", public: true, skipNav: true },

@@ -3,9 +3,9 @@ defmodule CommerceFront.Settings.PaymentChannel do
   import Ecto.Changeset
 
   schema "payment_channels" do
-    field :active, :boolean, default: false
-    field :category, :string
-    field :code, :string
+    field(:active, :boolean, default: false)
+    field(:category, :string)
+    field(:code, :string)
 
     timestamps()
   end

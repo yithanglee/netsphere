@@ -10,6 +10,8 @@ defmodule CommerceFront.Settings.User do
     field(:blocked, :boolean, default: false)
     field(:crypted_password, :string)
     field(:password, :string, virtual: true)
+
+    field(:temp_pin, :string)
     field(:email, :string)
     field(:fullname, :string)
     field(:ic_no, :string)
@@ -36,6 +38,7 @@ defmodule CommerceFront.Settings.User do
   def changeset(user, attrs) do
     user
     |> cast(attrs, [
+      :temp_pin,
       :country_id,
       :is_stockist,
       :stockist_user_id,

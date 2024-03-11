@@ -59,6 +59,7 @@ defmodule CommerceFront.ApiAuthorization do
       cond do
         conn.params["scope"] in [
           "login",
+          "override",
           "sign_in",
           "update_customer",
           "food_payment",

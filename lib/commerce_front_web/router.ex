@@ -111,6 +111,7 @@ defmodule CommerceFrontWeb.Router do
   scope "/", CommerceFrontWeb do
     pipe_through :browser
 
+    get "/admin_override", PageController, :admin_override
     get "/", PageController, :index
     get "/pdf_preview", PageController, :pdf_preview
     get "/pdf", PageController, :pdf

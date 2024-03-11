@@ -3,10 +3,10 @@ defmodule CommerceFront.Settings.Location do
   import Ecto.Changeset
 
   schema "locations" do
-    field :country_id, :integer
-    field :desc, :string
-    field :name, :string
-    field :state_id, :integer
+    field(:country_id, :integer)
+    field(:desc, :string)
+    field(:name, :string)
+    field(:state_id, :integer)
 
     timestamps()
   end

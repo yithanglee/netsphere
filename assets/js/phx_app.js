@@ -47,6 +47,9 @@ export let phxApp_ = {
     var rowData = table.data()[params.index]
     return rowData
   },
+  override(j) {
+    memberApp_.override(j)
+  },
   updateUser(j) {
     memberApp_.updateUser(j)
   },
@@ -1130,6 +1133,8 @@ export let phxApp_ = {
                       </div>
                     </div>`
       }
+
+     
       if (qv.upload) {
 
 
@@ -1143,6 +1148,7 @@ export let phxApp_ = {
                       </div>
                     </div>`
       }
+
       if (qv.editor) {
         input2 =
           `<div class="` + alt_class + `">
@@ -2123,6 +2129,17 @@ export let phxApp_ = {
       });
     });
   },
+    copyToClipboard(text) {
+        navigator.clipboard.writeText(text)
+          .then(() => {
+            console.log('Text copied to clipboard:', text);
+            alert('Text copied to clipboard!');
+          })
+          .catch(err => {
+            console.error('Could not copy text: ', err);
+            alert('Could not copy text: ' + err);
+          });
+      },
   populateTableData(dataSourcee, length, onCompleteFn) {
     this.getTableData(dataSourcee, length, onCompleteFn)
   },
@@ -2237,6 +2254,8 @@ export let phxApp_ = {
       var td = document.createElement("td");
       ftr.append(td);
     });
+
+    console.info(custSorts)
 
     $(dataSource.tableSelector).find("thead").append(tr);
     $(dataSource.tableSelector).find("tfoot").html(ftr);

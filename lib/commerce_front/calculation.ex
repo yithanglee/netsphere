@@ -656,7 +656,7 @@ defmodule CommerceFront.Calculation do
 
           final_pay =
             if bonus <= user_cap do
-              bonus
+              bonus |> Float.round(2)
             else
               user_cap
             end
@@ -996,7 +996,7 @@ defmodule CommerceFront.Calculation do
 
     subquery = """
 
-    select sum(s.total_point_value) from sales s where s.month = $1 and s.year = $2 group by s.month , s.year;
+    select sum(s.total_point_value) from sales s where s.status not in ('cancelled', 'refund', 'pending_payment')  and s.month = $1 and s.year = $2 group by s.month , s.year;
     """
 
     {:ok, %Postgrex.Result{columns: columns, rows: rows} = res} =
@@ -1359,6 +1359,7 @@ defmodule CommerceFront.Calculation do
         left_join: u in CommerceFront.Settings.User,
         on: u.id == ew.user_id,
         where: ew.wallet_type == ^:product,
+        where: u.username != "haho_unpaid",
         where: wt.amount > 0.0,
         where: wt.inserted_at > ^datetime and wt.inserted_at < ^end_datetime,
         group_by: [ew.user_id, u.username],

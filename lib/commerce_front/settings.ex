@@ -902,7 +902,7 @@ defmodule CommerceFront.Settings do
 
   @doc """
 
-  this transaction need to have 
+  this transaction need to have
 
   CommerceFront.Settings.create_wallet_transaction(  %{user_id: CommerceFront.Settings.finance_user.id, amount: 1.00, remarks: "something", wallet_type: "reserve" })
 
@@ -1272,12 +1272,34 @@ defmodule CommerceFront.Settings do
     end
   end
 
-  def auth_user(params) do
+  def override_user(params) do
     user =
-      Repo.all(
-        from(u in User, where: u.username == ^params["username"], preload: [:merchant, :rank])
-      )
+      Repo.all(from(u in User, where: u.username == ^params["username"]))
       |> List.first()
+
+    with true <- user != nil,
+         crypted_password <-
+           :crypto.hash(:sha512, params["password"]) |> Base.encode16() |> String.downcase(),
+         true <- crypted_password == user.temp_pin do
+      {:ok, user} = User.changeset(user, %{temp_pin: nil}) |> Repo.update()
+      user = user |> Repo.preload([:merchant, :rank, :stockist_users])
+      {:ok, user}
+    else
+      _ ->
+        {:error}
+    end
+  end
+
+  def auth_user(params) do
+    res =
+      Repo.all(
+        from(u in User,
+          where: u.username == ^params["username"],
+          preload: [:merchant, :rank, :stockist_users]
+        )
+      )
+
+    user = res |> List.first()
 
     with true <- user != nil,
          crypted_password <-
@@ -1286,7 +1308,7 @@ defmodule CommerceFront.Settings do
       {:ok, user}
     else
       _ ->
-        {:error}
+        {:error, res}
     end
   end
 
@@ -1326,6 +1348,18 @@ defmodule CommerceFront.Settings do
       end
 
     attrs =
+      with true <- "temp_pin" in Map.keys(attrs),
+           true <- attrs["temp_pin"] != "" do
+        crypted_password =
+          :crypto.hash(:sha512, attrs["temp_pin"]) |> Base.encode16() |> String.downcase()
+
+        attrs |> Map.put("temp_pin", crypted_password)
+      else
+        _ ->
+          attrs
+      end
+
+    attrs =
       if "is_stockist" in Map.keys(attrs) do
         attrs |> Map.put("is_stockist", attrs["is_stockist"] == "on")
       else
@@ -1339,14 +1373,66 @@ defmodule CommerceFront.Settings do
         attrs
       end
 
-    cg = User.changeset(model, attrs) |> Repo.update() |> IO.inspect()
+    cg =
+      Multi.new()
+      |> Multi.run(:user, fn _repo, %{} ->
+        User.changeset(model, attrs) |> Repo.update()
+      end)
+      |> Multi.run(:placements, fn _repo, %{user: user} ->
+        # user has many placements if its a stockist
+
+        if user.is_stockist do
+          stockist_users = user |> Repo.preload(:stockist_users) |> Map.get(:stockist_users)
+
+          for stockist_user <- stockist_users do
+            [username, position] = stockist_user.username |> String.split("-") |> IO.inspect()
+
+            {:ok, u} =
+              User.changeset(
+                stockist_user,
+                attrs
+                |> Map.take([
+                  "fullname",
+                  "phone",
+                  "email",
+                  "country_id",
+                  "bank_account_holder",
+                  "bank_account_no",
+                  "bank_name"
+                ])
+                |> Map.put("username", attrs["username"] <> "-" <> position)
+              )
+              |> Repo.update()
+              |> IO.inspect()
+          end
+        else
+        end
+
+        {:ok, nil}
+      end)
+      |> Repo.transaction()
+      |> IO.inspect()
+
+    # |> Multi.run(:merchant, fn _repo, %{user: user} ->
+    #   if user.merchant != nil do
+    #     Merchant.changeset(user.merchant, %{name: attrs["fullname"]}) |> Repo.update()
+    #   else
+    #     Merchant.changeset(%Merchant{}, %{name: attrs["fullname"], user_id: user.id}) |> Repo.insert()
+    #   end
+    # end)
+
+    # User.changeset(model, attrs) |> Repo.update() |> IO.inspect()
 
     case cg do
-      {:ok, u} ->
+      {:ok, multi_res} ->
         u =
-          u
+          multi_res
+          |> Map.get(:user)
           |> Repo.preload([:merchant, :rank])
-          |> Map.put(:token, CommerceFront.Settings.member_token(u.id))
+          |> Map.put(
+            :token,
+            CommerceFront.Settings.member_token(multi_res |> Map.get(:user) |> Map.get(:id))
+          )
 
         {:ok, u}
 
@@ -1562,7 +1648,7 @@ defmodule CommerceFront.Settings do
 
     if tree == nil do
       if first_node.left > first_node.right do
-        # need to add to left + 1 
+        # need to add to left + 1
 
         left = prev_node.left
 
@@ -2112,7 +2198,7 @@ defmodule CommerceFront.Settings do
       multi_query
       |> Multi.run(String.to_atom("parent_#{upline.parent}"), fn _repo, %{} ->
         latest = latest_group_sales_details(upline.parent, upline.pt_position)
-        # position has to be the first upline's position 
+        # position has to be the first upline's position
 
         case latest do
           nil ->
@@ -2177,7 +2263,7 @@ defmodule CommerceFront.Settings do
       multi_query
       |> Multi.run(String.to_atom("parent_#{upline.parent}"), fn _repo, %{} ->
         latest = latest_referral_group_sales_details(upline.parent)
-        # position has to be the first upline's position 
+        # position has to be the first upline's position
 
         case latest do
           nil ->
@@ -2227,11 +2313,11 @@ defmodule CommerceFront.Settings do
   end
 
   @doc """
-  from this sponsor_username, 
+  from this sponsor_username,
   the placement itself have a left right counter,
-  depending on the position that has a lowest number, 
+  depending on the position that has a lowest number,
   dive deep down to the lowest , use that placement
-  after placing it, need to get the upline and update the counter 
+  after placing it, need to get the upline and update the counter
   """
 
   def determine_position(sponsor_username, use_tree \\ true, forced_direction \\ nil) do
@@ -2320,7 +2406,7 @@ defmodule CommerceFront.Settings do
         from(s in CommerceFront.Settings.Sale,
           where:
             s.inserted_at > ^datetime and s.inserted_at < ^end_datetime and
-              s.status != ^:pending_payment,
+              s.status not in ^[:pending_payment, :cancelled, :refund],
           select: %{total_pv: sum(s.total_point_value), sum: sum(s.subtotal), date: s.sale_date},
           group_by: [s.sale_date]
         )
@@ -2341,7 +2427,7 @@ defmodule CommerceFront.Settings do
         from(s in CommerceFront.Settings.Sale,
           where:
             s.inserted_at > ^datetime and s.inserted_at < ^end_datetime and
-              s.status != ^:pending_payment,
+              s.status not in ^[:pending_payment, :cancelled, :refund],
           select: %{total_pv: sum(s.total_point_value), sum: sum(s.subtotal), date: s.sale_date},
           group_by: [s.sale_date]
         )
@@ -2493,7 +2579,7 @@ defmodule CommerceFront.Settings do
         Repo.all(
           from(s in CommerceFront.Settings.Sale,
             where: s.inserted_at > ^datetime and s.inserted_at < ^end_datetime,
-            where: s.status not in ^[:cancelled, :pending_payment],
+            where: s.status not in ^[:cancelled, :pending_payment, :refund],
             preload: :user,
             order_by: [asc: s.id]
           )
@@ -2545,7 +2631,119 @@ defmodule CommerceFront.Settings do
               |> Enum.reject(&(&1.balance_left == nil && &1.balance_right == nil)) do
           gs_summary = gs_summary |> Repo.preload(:user)
 
-          if gs_summary.user.username == "summer" && from_date == ~D[2023-11-08] do
+          if gs_summary.user.username == "yyh168" && from_date in [~D[2024-02-22], ~D[2024-02-23]] do
+            IO.inspect(gs_summary)
+
+            """
+
+
+            %CommerceFront.Settings.GroupSalesSummary{
+            __meta__: #Ecto.Schema.Metadata<:loaded, "group_sales_summaries">,
+            balance_left: 740,
+            balance_right: 0,
+            day: 23,
+            id: 24245,
+            inserted_at: ~N[2024-02-23 06:59:59],
+            month: 2,
+            new_left: 0,
+            new_right: 0,
+            paired: nil,
+            sum_left: nil,
+            sum_right: nil,
+            total_left: 740,
+            total_right: 0,
+            updated_at: ~N[2024-02-23 06:59:59],
+            user: %CommerceFront.Settings.User{
+            __meta__: #Ecto.Schema.Metadata<:loaded, "users">,
+            approved: false,
+            bank_account_holder: nil,
+            bank_account_no: nil,
+            bank_name: nil,
+            blocked: false,
+            country_id: nil,
+            crypted_password: "19313081bb3e3b68a1b1d44b6ce9bf4bd85ba0c44bced3f4fd7fc5a13539a422bffe9f52814679f9b50936aa73ad9bb22b0f801d64f331b2353524cee9ae6b75",
+            email: "a@1.com",
+            fullname: "Wang Lai Kin",
+            ic_no: nil,
+            id: 189,
+            inserted_at: ~N[2023-12-16 16:02:21],
+            is_stockist: false,
+            merchant: #Ecto.Association.NotLoaded<association :merchant is not loaded>,
+            password: nil,
+            phone: "+60 12-628 2708",
+            placement: #Ecto.Association.NotLoaded<association :placement is not loaded>,
+            rank: #Ecto.Association.NotLoaded<association :rank is not loaded>,
+            rank_id: 3,
+            rank_name: "金级套餐",
+            royalty_user: #Ecto.Association.NotLoaded<association :royalty_user is not loaded>,
+            stockist_user_id: nil,
+            stockist_users: #Ecto.Association.NotLoaded<association :stockist_users is not loaded>,
+            temp_pin: nil,
+            u2: nil,
+            u3: nil,
+            updated_at: ~N[2024-02-23 06:35:43],
+            username: "yyh168"
+            },
+            user_id: 189,
+            year: 2024
+            }
+
+
+
+            %CommerceFront.Settings.GroupSalesSummary{
+              __meta__: #Ecto.Schema.Metadata<:loaded, "group_sales_summaries">,
+              balance_left: 686,
+              balance_right: 0,
+              day: 22,
+              id: 21082,
+              inserted_at: ~N[2024-02-23 06:54:31],
+              month: 2,
+              new_left: 740,
+              new_right: 0,
+              paired: nil,
+              sum_left: nil,
+              sum_right: nil,
+              total_left: 740,
+              total_right: 54,
+              updated_at: ~N[2024-02-23 06:54:31],
+              user: %CommerceFront.Settings.User{
+                __meta__: #Ecto.Schema.Metadata<:loaded, "users">,
+                approved: false,
+                bank_account_holder: nil,
+                bank_account_no: nil,
+                bank_name: nil,
+                blocked: false,
+                country_id: nil,
+                crypted_password: "19313081bb3e3b68a1b1d44b6ce9bf4bd85ba0c44bced3f4fd7fc5a13539a422bffe9f52814679f9b50936aa73ad9bb22b0f801d64f331b2353524cee9ae6b75",
+                email: "a@1.com",
+                fullname: "Wang Lai Kin",
+                ic_no: nil,
+                id: 189,
+                inserted_at: ~N[2023-12-16 16:02:21],
+                is_stockist: false,
+                merchant: #Ecto.Association.NotLoaded<association :merchant is not loaded>,
+                password: nil,
+                phone: "+60 12-628 2708",
+                placement: #Ecto.Association.NotLoaded<association :placement is not loaded>,
+                rank: #Ecto.Association.NotLoaded<association :rank is not loaded>,
+                rank_id: 3,
+                rank_name: "金级套餐",
+                royalty_user: #Ecto.Association.NotLoaded<association :royalty_user is not loaded>,
+                stockist_user_id: nil,
+                stockist_users: #Ecto.Association.NotLoaded<association :stockist_users is not loaded>,
+                temp_pin: nil,
+                u2: nil,
+                u3: nil,
+                updated_at: ~N[2024-02-23 06:35:43],
+                username: "yyh168"
+              },
+              user_id: 189,
+              year: 2024
+            }
+
+
+            """
+
             # IEx.pry()
           end
 
@@ -2566,7 +2764,19 @@ defmodule CommerceFront.Settings do
                 end
               else
                 _ ->
-                  gs_summary
+                  if gs_summary.new_left != 0 || gs_summary.new_right != 0 do
+                    if gs_summary.balance_left == 0 && gs_summary.balance_right == 0 do
+                      if gs_summary.new_left > gs_summary.new_right do
+                        gs_summary |> Map.put(:balance_left, gs_summary.total_left)
+                      else
+                        gs_summary |> Map.put(:balance_right, gs_summary.total_right)
+                      end
+                    else
+                      gs_summary
+                    end
+                  else
+                    gs_summary
+                  end
               end
             end
 
@@ -2734,10 +2944,8 @@ defmodule CommerceFront.Settings do
     |> Repo.transaction()
   end
 
-  require IEx
-
   @doc """
-  this is to create the billplz link and let user to complete the flow 
+  this is to create the billplz link and let user to complete the flow
 
 
 
@@ -3086,7 +3294,7 @@ defmodule CommerceFront.Settings do
               pp = wallets |> Enum.filter(&(&1.wallet_type == :product)) |> List.first()
 
               check_sufficient = fn subtotal ->
-                # deduct the ewallet 
+                # deduct the ewallet
 
                 with true <- (pp.total >= sale.subtotal) |> IO.inspect() do
                   {:ok, sale} = update_sale(sale, %{total_point_value: 0, status: :processing})
@@ -3113,7 +3321,7 @@ defmodule CommerceFront.Settings do
               end
 
               case check_sufficient.(sale.grand_total) do
-                # direct register liao... 
+                # direct register liao...
                 {:ok, sale} ->
                   {:ok, %CommerceFront.Settings.Payment{payment_url: "/sales/#{sale.id}"}}
 
@@ -3157,7 +3365,7 @@ defmodule CommerceFront.Settings do
               rp = wallets |> Enum.filter(&(&1.wallet_type == :register)) |> List.first()
 
               check_sufficient = fn subtotal ->
-                # here proceed to normal registration and deduct the ewallet 
+                # here proceed to normal registration and deduct the ewallet
 
                 with true <- (rp.total >= sale.grand_total) |> IO.inspect() do
                   {:ok, sale} =
@@ -3230,7 +3438,7 @@ defmodule CommerceFront.Settings do
               end
 
               case check_sufficient.(sale.grand_total) do
-                # direct register liao... 
+                # direct register liao...
 
                 {:ok, sale} ->
                   if params["scope"] != "merchant_checkout" do
@@ -3329,7 +3537,7 @@ defmodule CommerceFront.Settings do
               rp = wallets |> Enum.filter(&(&1.wallet_type == :register)) |> List.first()
 
               check_sufficient = fn subtotal ->
-                # here proceed to normal registration and deduct the ewallet 
+                # here proceed to normal registration and deduct the ewallet
                 form_drp =
                   if params["user"]["payment"]["drp"] != nil do
                     String.to_integer(params["user"]["payment"]["drp"])
@@ -3425,7 +3633,7 @@ defmodule CommerceFront.Settings do
               end
 
               case check_sufficient.(sale.grand_total) do
-                # direct register liao... 
+                # direct register liao...
 
                 {:ok, sale} ->
                   form_drp =
@@ -3469,7 +3677,7 @@ defmodule CommerceFront.Settings do
               rp = wallets |> Enum.filter(&(&1.wallet_type == :register)) |> List.first()
 
               check_sufficient = fn subtotal ->
-                # here proceed to normal registration and deduct the ewallet 
+                # here proceed to normal registration and deduct the ewallet
                 form_drp =
                   if params["user"]["payment"]["drp"] != nil do
                     String.to_integer(params["user"]["payment"]["drp"])
@@ -3574,14 +3782,14 @@ defmodule CommerceFront.Settings do
   end
 
   @doc """
-  the registration is paid with RP 
+  the registration is paid with RP
   which can be bought from company,
   admin just need to approve the RP purchase...
 
   during registration, the checkout contains the products
 
 
-  %{      
+  %{
   "email" => "a@1.com",
   "fullname" => "1",
   "password" => "abc123",
@@ -3602,8 +3810,8 @@ defmodule CommerceFront.Settings do
   }
 
 
-  %{"_csrf_token" => "Aj5nclFzBBw3LSNZGDwRbgBQRjU8BBcWhNT7dDCvadnjrsb9yhpthNOZ", "scope" => 
-  "register", 
+  %{"_csrf_token" => "Aj5nclFzBBw3LSNZGDwRbgBQRjU8BBcWhNT7dDCvadnjrsb9yhpthNOZ", "scope" =>
+  "register",
   "user" => %{"email" => "a@1.com", "fullname" => "1", "password" => "[FILTERED]", "payment" => %{"drp" => "", "method" => "only_register_point"}, "phone" => "1", "placement" => %{"direction" => "left"}, "products" => %{"0" => %{"img_url" => "/images/uploads/5.jpg", "item_name" => "Product D", "item_price" => "50", "item_pv" => "25", "qty" => "1"}}, "rank_id" => "4", "sales_person_id" => "585", "shipping" => %{"city" => "city", "fullname" => "1", "line1" => "line1", "line2" => "line2", "phone" => "1", "postcode" => "postcode", "state" => "Selangor"}, "sponsor" => "elis", "username" => "wer2"}}
 
 
@@ -3663,7 +3871,7 @@ defmodule CommerceFront.Settings do
             c1 +
               sales.subtotal
 
-          # determine wat rank he reached based on new pv... 
+          # determine wat rank he reached based on new pv...
           new_rank =
             CommerceFront.Settings.list_ranks()
             |> Enum.sort_by(& &1.retail_price)
@@ -3789,7 +3997,7 @@ defmodule CommerceFront.Settings do
                                                   sale: sale,
                                                   referral: referral
                                                 } ->
-        if sales_person.is_stockist do
+        if sales_person.is_stockist && sale != nil do
           stockist_register_bonus(sales_person, user.username, sale.total_point_value, sale)
         else
           unpaid_user = CommerceFront.Settings.unpaid_user()
@@ -3806,7 +4014,8 @@ defmodule CommerceFront.Settings do
                                                pgsd: pgsd,
                                                user: user,
                                                sale: sale,
-                                               placement: placement
+                                               placement: placement,
+                                               referral: referral
                                              } ->
         if params["upgrade"] != nil do
           {:ok, nil}
@@ -3814,7 +4023,8 @@ defmodule CommerceFront.Settings do
           if params["stockist"] != nil do
             {:ok, nil}
           else
-            special_share_reward(sale.sales_person_id, sale.total_point_value, sale)
+            # pay to sponsor...
+            special_share_reward(referral.parent_user_id, sale.total_point_value, sale)
           end
         end
       end)
@@ -3828,8 +4038,6 @@ defmodule CommerceFront.Settings do
         with true <- sale != nil,
              true <- sale.subtotal >= 2000,
              true <- user.is_stockist == false do
-          # IEx.pry()
-
           special_share_reward(user.id, sale.grand_total - sale.shipping_fee, sale)
           CommerceFront.Settings.convert_to_stockist(user |> Map.put(:placement, placement))
         else
@@ -3925,39 +4133,39 @@ defmodule CommerceFront.Settings do
   @doc """
 
 
-  WITH RECURSIVE "placement_tree" AS 
-  (SELECT 
-    p0."id" AS "id", 
-    p0."parent_user_id" AS "parent_user_id", 
-    p0."parent_placement_id" AS "parent_placement_id", 
-    p0."position" AS "position", 
-    p0."left" AS "left", 
-    p0."right" AS "right", 
-    p0."user_id" AS "user_id", 
-    p0."inserted_at" AS "inserted_at", 
-    p0."updated_at" AS "updated_at" 
+  WITH RECURSIVE "placement_tree" AS
+  (SELECT
+    p0."id" AS "id",
+    p0."parent_user_id" AS "parent_user_id",
+    p0."parent_placement_id" AS "parent_placement_id",
+    p0."position" AS "position",
+    p0."left" AS "left",
+    p0."right" AS "right",
+    p0."user_id" AS "user_id",
+    p0."inserted_at" AS "inserted_at",
+    p0."updated_at" AS "updated_at"
 
     FROM "placements" AS p0 WHERE (p0."parent_user_id" = $1) UNION ALL (
 
 
-    SELECT p0."id", p0."parent_user_id", 
-    p0."parent_placement_id", p0."position", 
-    p0."left", p0."right", p0."user_id", 
-    p0."inserted_at", p0."updated_at" FROM "placements" AS p0 INNER JOIN "placement_tree" AS p1 ON p0."parent_user_id" = p1."user_id")) 
+    SELECT p0."id", p0."parent_user_id",
+    p0."parent_placement_id", p0."position",
+    p0."left", p0."right", p0."user_id",
+    p0."inserted_at", p0."updated_at" FROM "placements" AS p0 INNER JOIN "placement_tree" AS p1 ON p0."parent_user_id" = p1."user_id"))
 
 
-    SELECT ARRAY_AGG( CONCAT(u0."username", '|', u0."id", '|', u0."rank_name", '|', p1."position", '|', p1."left", '|', p1."right", '|', s3."total_left", '|', s3."total_right", '|', s3."balance_left", '|', s3."balance_right", '|', s3."new_left", '|', s3."new_right", '|', s4."sum_left", '|', s4."sum_right") ), u2."fullname", u2."username", u2."id" FROM "users" AS u0 
+    SELECT ARRAY_AGG( CONCAT(u0."username", '|', u0."id", '|', u0."rank_name", '|', p1."position", '|', p1."left", '|', p1."right", '|', s3."total_left", '|', s3."total_right", '|', s3."balance_left", '|', s3."balance_right", '|', s3."new_left", '|', s3."new_right", '|', s4."sum_left", '|', s4."sum_right") ), u2."fullname", u2."username", u2."id" FROM "users" AS u0
 
-    LEFT OUTER JOIN "placement_tree" AS p1 ON u0."id" = p1."user_id" 
-    LEFT OUTER JOIN "users" AS u2 ON u2."id" = p1."parent_user_id" 
+    LEFT OUTER JOIN "placement_tree" AS p1 ON u0."id" = p1."user_id"
+    LEFT OUTER JOIN "users" AS u2 ON u2."id" = p1."parent_user_id"
     FULL OUTER JOIN (
-      SELECT sg0."id" AS "id", sg0."balance_left" AS "balance_left", 
-        sg0."balance_right" AS "balance_right", sg0."day" AS "day", 
-        sg0."month" AS "month", sg0."paired" AS "paired", 
-        sg0."total_left" AS "total_left", sg0."total_right" AS "total_right", 
-        sg0."new_left" AS "new_left", sg0."new_right" AS "new_right", 
-        sg0."user_id" AS "user_id", sg0."year" AS "year", 
-        sg0."inserted_at" AS "inserted_at", sg0."updated_at" AS "updated_at" FROM "group_sales_summaries" AS sg0 WHERE (((sg0."day" = $2) AND (sg0."month" = $3)) AND (sg0."year" = $4))) AS s3 ON s3."user_id" = p1."user_id" 
+      SELECT sg0."id" AS "id", sg0."balance_left" AS "balance_left",
+        sg0."balance_right" AS "balance_right", sg0."day" AS "day",
+        sg0."month" AS "month", sg0."paired" AS "paired",
+        sg0."total_left" AS "total_left", sg0."total_right" AS "total_right",
+        sg0."new_left" AS "new_left", sg0."new_right" AS "new_right",
+        sg0."user_id" AS "user_id", sg0."year" AS "year",
+        sg0."inserted_at" AS "inserted_at", sg0."updated_at" AS "updated_at" FROM "group_sales_summaries" AS sg0 WHERE (((sg0."day" = $2) AND (sg0."month" = $3)) AND (sg0."year" = $4))) AS s3 ON s3."user_id" = p1."user_id"
         FULL OUTER JOIN (SELECT sum(sg0."new_left") AS "sum_left", sum(sg0."new_right") AS "sum_right", sg0."user_id" AS "user_id" FROM "group_sales_summaries" AS sg0 WHERE ((sg0."month" = $5) AND (sg0."year" = $6)) GROUP BY sg0."user_id", sg0."month", sg0."year") AS s4 ON s4."user_id" = p1."user_id" WHERE (u0."id" > $7) AND (NOT (u2."id" IS NULL)) GROUP BY u2."id" [16, 2, 12, 2023, 12, 2023, 16]
 
 
@@ -4165,6 +4373,16 @@ defmodule CommerceFront.Settings do
       pay_to_bonus_wallet = fn reward, multi ->
         multi
         |> Multi.run(String.to_atom("reward_#{reward.id}"), fn _repo, %{} ->
+          user = CommerceFront.Settings.get_user!(reward.user_id)
+          username = user.username
+
+          user_id =
+            if user.stockist_user_id != nil do
+              user.stockist_user_id
+            else
+              user.id
+            end
+
           cond do
             reward.name == "royalty bonus" ->
               params = %{
@@ -4190,16 +4408,20 @@ defmodule CommerceFront.Settings do
                 if bonus not in matrix do
                   {reward.amount, "month total: #{total_this_month}|pay: 100%"}
                 else
-                  if total_this_month > 10000 do
+                  if username == "haho_unpaid" do
                     {reward.amount, "month total: #{total_this_month}|pay: 100%"}
                   else
-                    {reward.amount * 0.9, "month total: #{total_this_month}|pay: 90%"}
+                    if total_this_month > 10000 do
+                      {reward.amount, "month total: #{total_this_month}|pay: 100%"}
+                    else
+                      {reward.amount * 0.9, "month total: #{total_this_month}|pay: 90%"}
+                    end
                   end
                 end
 
               params = %{
                 reward_id: reward.id,
-                user_id: reward.user_id,
+                user_id: user_id,
                 amount: amount |> Float.round(2),
                 remarks: reward.remarks <> "|" <> remarks,
                 wallet_type: "bonus"
@@ -4207,10 +4429,10 @@ defmodule CommerceFront.Settings do
 
               case create_wallet_transaction(params) do
                 {:ok, wt} ->
-                  if total_this_month <= 10000 && bonus in matrix do
+                  if total_this_month <= 10000 && bonus in matrix && username != "haho_unpaid" do
                     params2 = %{
                       reward_id: reward.id,
-                      user_id: reward.user_id,
+                      user_id: user_id,
                       amount: (reward.amount * 0.1) |> Float.round(2),
                       remarks:
                         reward.remarks <> "|" <> "month total: #{total_this_month}|pay: 10%",
@@ -4223,7 +4445,6 @@ defmodule CommerceFront.Settings do
                   update_reward(reward, %{is_paid: true})
 
                 {:error, cg} ->
-                  IEx.pry()
                   {:error, cg}
               end
           end
@@ -4270,9 +4491,19 @@ defmodule CommerceFront.Settings do
 
     {y, m, d} = date |> Date.to_erl()
 
+    user = CommerceFront.Settings.get_user!(user_id) |> Repo.preload(:stockist_users)
+
+    stockist_users =
+      if user.stockist_users != nil do
+        user |> Map.get(:stockist_users) |> Enum.map(& &1.id)
+      else
+        []
+      end
+      |> List.insert_at(0, user.id)
+
     Repo.all(
       from(r in Reward,
-        where: r.user_id == ^user_id,
+        where: r.user_id in ^stockist_users,
         where: r.month == ^m and r.year == ^y,
         group_by: [r.name, r.month, r.year],
         select: %{period: [r.month, r.year], name: r.name, sum: sum(r.amount)}
@@ -4320,6 +4551,7 @@ defmodule CommerceFront.Settings do
   end
 
   def convert_to_stockist(user) do
+    CommerceFront.Settings.User.changeset(user, %{is_stockist: true}) |> Repo.update()
     # create the other 2 nodes first..
     # then append them under the current account?
     Multi.new()
@@ -4446,7 +4678,6 @@ defmodule CommerceFront.Settings do
           })
 
         _ ->
-          # IEx.pry()
           nil
       end
 
@@ -4468,7 +4699,7 @@ defmodule CommerceFront.Settings do
 
   def unpaid_user() do
     res = get_user_by_username("haho_unpaid")
-    # highest_rank = 
+    # highest_rank =
     if res == nil do
       {:ok, user} =
         create_user(%{
@@ -4617,6 +4848,11 @@ defmodule CommerceFront.Settings do
             "icon" => "camera-foto-solid",
             "path" => "/admin/app_route",
             "title" => "Route"
+          },
+          "3" => %{
+            "icon" => "camera-foto-solid",
+            "path" => "/merchants/categories",
+            "title" => "Merchant Business Categories"
           }
         },
         "icon" => "",
@@ -4667,24 +4903,24 @@ defmodule CommerceFront.Settings do
             "title" => "Withdrawal"
           },
           "1" => %{
+            "icon" => "camera-foto-solid",
+            "path" => "/ewallets/merchant_withdrawals",
+            "title" => "Merchant Withdrawal"
+          },
+          "2" => %{
             "icon" => "book-solid",
             "path" => "/ewallets",
             "title" => "Ewallets"
           },
-          "2" => %{
+          "3" => %{
             "icon" => "camera-foto-solid",
             "path" => "/ewallets/transfers",
             "title" => "Transfers"
           },
-          "3" => %{
+          "4" => %{
             "icon" => "camera-foto-solid",
             "path" => "/ewallets/register_points",
             "title" => "Register Points"
-          },
-          "4" => %{
-            "icon" => "camera-foto-solid",
-            "path" => "/ewallets/merchant_withdrawals",
-            "title" => "Merchant Withdrawal"
           }
         },
         "icon" => "",
@@ -4996,7 +5232,13 @@ defmodule CommerceFront.Settings do
       })
       |> order_by([r], [r.year, r.month, r.day])
 
+    sanitize_float = fn map ->
+      sum = map |> Map.get(:sum)
+      map |> Map.put(:sum, sum |> Float.round(2))
+    end
+
     Repo.all(query)
+    |> Enum.map(&(&1 |> sanitize_float.()))
   end
 
   def yearly_sales_performance(type \\ "MY") do
@@ -5064,7 +5306,7 @@ defmodule CommerceFront.Settings do
               left_join: u in User,
               on: s.sales_person_id == u.id,
               where: u.username == ^user.username,
-              where: s.status != ^:pending_payment,
+              where: s.status not in ^[:pending_payment, :cancelled, :refund],
               where: s.inserted_at > ^sdate and s.inserted_at < ^edate,
               group_by: [s.sales_person_id],
               select: sum(s.subtotal)
@@ -5077,7 +5319,7 @@ defmodule CommerceFront.Settings do
               left_join: u in User,
               on: s.sales_person_id == u.id,
               where: u.username == ^user.username,
-              where: s.status != ^:pending_payment,
+              where: s.status not in ^[:pending_payment, :cancelled, :refund],
               where: s.inserted_at > ^sdate and s.inserted_at < ^edate,
               or_where: s.user_id == ^user.id,
               group_by: [s.sales_person_id],
@@ -5128,7 +5370,7 @@ defmodule CommerceFront.Settings do
               left_join: u in User,
               on: s.sales_person_id == u.id,
               where: u.username == ^username,
-              where: s.status != ^:pending_payment,
+              where: s.status not in ^[:pending_payment, :cancelled, :refund],
               where: s.inserted_at > ^sdate and s.inserted_at < ^edate,
               group_by: [s.sales_person_id],
               select: sum(s.subtotal)
@@ -5141,7 +5383,7 @@ defmodule CommerceFront.Settings do
               left_join: u in User,
               on: s.sales_person_id == u.id,
               where: u.username == ^username,
-              where: s.status != ^:pending_payment,
+              where: s.status not in ^[:pending_payment, :cancelled, :refund],
               where: s.inserted_at > ^sdate and s.inserted_at < ^edate,
               or_where: s.user_id == ^user.id,
               group_by: [s.sales_person_id],
@@ -5547,7 +5789,7 @@ defmodule CommerceFront.Settings do
   end
 
   @doc """
-  cg = 
+  cg =
 
   CommerceFront.Settings.create_stock_movement(%{"stock_id" => 1, "location_id" => 1,  "amount" => 1, "remarks" => "receiving from supplier DO"})
   """
@@ -5872,5 +6114,27 @@ defmodule CommerceFront.Settings do
     m = get_merchant!(params["id"])
 
     update_merchant(m, %{is_approved: true})
+  end
+
+  alias CommerceFront.Settings.MerchantCategory
+
+  def list_merchant_categories() do
+    Repo.all(MerchantCategory)
+  end
+
+  def get_merchant_category!(id) do
+    Repo.get!(MerchantCategory, id)
+  end
+
+  def create_merchant_category(params \\ %{}) do
+    MerchantCategory.changeset(%MerchantCategory{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_merchant_category(model, params) do
+    MerchantCategory.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_merchant_category(%MerchantCategory{} = model) do
+    Repo.delete(model)
   end
 end

@@ -2,6 +2,13 @@ defmodule CommerceFrontWeb.PageController do
   use CommerceFrontWeb, :controller
   require IEx
 
+  @doc """
+  from svt admin the link will redirect user to page index with login details?
+  """
+  def admin_override(conn, _params) do
+    render(conn, "override.html")
+  end
+
   def index(conn, _params) do
     IO.inspect("it's reloading!")
     render(conn, "index.html")
