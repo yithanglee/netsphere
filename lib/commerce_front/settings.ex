@@ -4736,7 +4736,7 @@ defmodule CommerceFront.Settings do
     end
   end
 
-  def transfer_wallet(user_id, username, amount) do
+  def transfer_wallet(user_id, username, amount, remarks \\ "") do
     wallet =
       list_ewallets_by_user_id(user_id)
       |> Enum.filter(&(&1.wallet_type == :register))
@@ -4752,14 +4752,14 @@ defmodule CommerceFront.Settings do
         CommerceFront.Settings.create_wallet_transaction(%{
           user_id: user_id,
           amount: amount * -1,
-          remarks: "Transfer to #{username}",
+          remarks: "Transfer to #{username} - #{remarks}",
           wallet_type: "register"
         })
 
         CommerceFront.Settings.create_wallet_transaction(%{
           user_id: receiver.id,
           amount: amount,
-          remarks: "Transfer received from #{user.username}",
+          remarks: "Transfer received from #{user.username} - #{remarks}",
           wallet_type: "register"
         })
 

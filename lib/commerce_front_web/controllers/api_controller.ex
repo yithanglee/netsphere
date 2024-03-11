@@ -591,7 +591,8 @@ defmodule CommerceFrontWeb.ApiController do
           Settings.transfer_wallet(
             params["transfer"]["user_id"],
             params["transfer"]["username"],
-            Float.parse(params["transfer"]["amount"]) |> elem(0)
+            Float.parse(params["transfer"]["amount"]) |> elem(0),
+            params["transfer"]["remarks"]
           )
 
         "convert_wallet" ->
