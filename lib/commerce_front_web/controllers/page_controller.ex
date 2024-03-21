@@ -18,6 +18,34 @@ defmodule CommerceFrontWeb.PageController do
     render(conn, "login.html")
   end
 
+  def notification(conn, params) do
+    IO.inspect(params)
+
+    json(conn, %{})
+  end
+
+  def razer_payment(conn, %{"chan" => chan, "amt" => amt, "ref_no" => ref} = params) do
+    # case Razer.init(chan, amt, ref) |> IO.inspect() do
+    #   %{status: :ok, url: url, params: params} ->
+    #     encoded_params = URI.encode_query(params)
+    #     redirect_to = "#{url}?" <> encoded_params
+
+    #     conn
+    #     |> redirect(external: redirect_to)
+
+    #   %{status: :error, reason: reason} ->
+    #     conn
+    #     |> redirect(external: Razer.payment_page(chan, amt, ref))
+
+    #   _ ->
+    #     conn
+    #     |> redirect(to: "/")
+    # end
+
+    conn
+    |> redirect(external: Razer.payment_page(chan, amt, ref))
+  end
+
   def html(conn, params) do
     app_dir = Application.app_dir(:commerce_front)
     path = app_dir <> "/priv/static/html/v2/#{params["path"] |> Enum.join("/")}"
@@ -408,7 +436,47 @@ defmodule CommerceFrontWeb.PageController do
   end
 
   def thank_you(conn, params) do
-    IO.inspect("it's reloading!")
+    IO.inspect(params)
+
+    %{
+      "amount" => "2.50",
+      "appcode" => "",
+      "channel" => "FPX_MB2U",
+      "currency" => "RM",
+      "domain" => "MGhaho2u",
+      "error_code" => "",
+      "error_desc" => "",
+      "extraP" => "{\"fpx_buyer_name\":\"LEE%20YIT%20HANG\",\"fpx_txn_id\":\"2403170834530847\"}",
+      "orderid" => "HAHOTOPUP42",
+      "paydate" => "2024-03-17 08:34:51",
+      "skey" => "87a101336941e8a097cc03d19e14a9e2",
+      "status" => "00",
+      "tranID" => "2065317565"
+    }
+
+    payment = CommerceFront.Settings.get_payment_by_billplz_code(params["orderid"])
+    payment |> CommerceFront.Settings.update_payment(%{webhook_details: Jason.encode!(params)})
+
+    case params["status"] do
+      "00" ->
+        with true <- payment.wallet_topup != nil do
+          case CommerceFront.Settings.approve_topup(%{"id" => payment.wallet_topup.id}) do
+            {:ok, tp} ->
+              %{status: "ok", res: tp |> BluePotion.sanitize_struct()}
+
+            _ ->
+              %{status: "error"}
+          end
+        else
+          _ ->
+            %{status: "ok"}
+        end
+
+      _ ->
+        %{status: "error"}
+    end
+
+    IO.inspect("it's thank you-ing!")
     render(conn, "thank_you.html", params)
   end
 end

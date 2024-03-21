@@ -56,4 +56,5 @@ config :logger, level: :debug
 
 # Finally import the config/prod.secret.exs which loads secrets
 # and configuration from environment variables.
+config :commerce_front, release: :prod
 import_config "prod.secret.exs"

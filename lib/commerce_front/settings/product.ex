@@ -14,6 +14,9 @@ defmodule CommerceFront.Settings.Product do
     field(:retail_price, :float)
     # field(:country_id, :integer)
 
+    field(:override_pv, :boolean)
+    field(:override_pv_amount, :integer)
+    field(:override_perc, :float, default: 0.5)
     has_many(:product_stock, CommerceFront.Settings.ProductStock)
 
     has_many(:stocks, through: [:product_stock, :stock])
@@ -28,6 +31,9 @@ defmodule CommerceFront.Settings.Product do
   def changeset(product, attrs) do
     product
     |> cast(attrs, [
+      :override_perc,
+      :override_pv,
+      :override_pv_amount,
       :img_url,
       :name,
       :cname,

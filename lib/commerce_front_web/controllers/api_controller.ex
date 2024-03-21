@@ -74,6 +74,26 @@ defmodule CommerceFrontWeb.ApiController do
 
     res =
       case params["scope"] do
+        "razer_pay" ->
+          server_url = Application.get_env(:commerce_front, :endpoint)[:url]
+
+          "#{server_url}/test_razer?chan=#{params["channel"]}&amt=#{params["amt"]}&ref_no=#{params["id"]}"
+
+        "razer_list" ->
+          case Application.get_env(:commerce_front, :release) do
+            :prod ->
+              Razer.get_channels()
+              |> Kernel.get_in(["result"])
+              |> Enum.group_by(& &1["channel_type"])
+
+            _ ->
+              Razer.channel_results()
+
+              Razer.get_channels()
+              |> Kernel.get_in(["result"])
+              |> Enum.group_by(& &1["channel_type"])
+          end
+
         "extend_user" ->
           res = Settings.get_member_by_cookie(params["token"]) |> BluePotion.sanitize_struct()
 
@@ -242,7 +262,7 @@ defmodule CommerceFrontWeb.ApiController do
           Settings.yearly_sales_performance()
 
         "royalty_bonus" ->
-          Settings.royalty_bonus(params["date"])
+          Settings.royalty_bonus(params["date"]) |> IO.inspect()
 
         "get_accumulated_sales" ->
           user = Settings.get_user_by_username(params["username"])
@@ -312,45 +332,74 @@ defmodule CommerceFrontWeb.ApiController do
           Settings.list_announcements() |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
 
         "check_bill" ->
-          res =
-            Billplz.get_bill(params["id"])
-            |> IO.inspect()
+          # res =
+          #   Billplz.get_bill(params["id"])
+          #   |> IO.inspect()
 
-          payment =
-            Settings.get_payment_by_billplz_code(params["id"])
-            |> IO.inspect()
+          payment = Settings.get_payment_by_billplz_code(params["id"])
 
-          with true <- Map.get(res, "paid", false) == true,
-               true <- payment != nil,
-               true <- payment.sales != nil,
-               sales <- payment.sales |> IO.inspect(),
-               {:ok, register_params} <-
-                 sales.registration_details |> Jason.decode() |> IO.inspect() do
-            case Settings.register(register_params["user"], sales) do
-              {:ok, multi_res} ->
-                %{status: "ok", res: multi_res |> BluePotion.sanitize_struct()}
+          if payment.webhook_details == nil do
+            %{
+              status: "error",
+              reason: "Payment havent process by bank, please check again at a later time."
+            }
+          else
+            tranID =
+              payment.webhook_details |> Jason.decode!() |> Map.get("tranID") |> IO.inspect()
 
+            res =
+              Razer.enquire_transaction(
+                tranID,
+                payment.amount |> :erlang.float_to_binary(decimals: 2)
+              )
+
+            with true <- res["StatCode"] == "00",
+                 true <- payment != nil,
+                 true <- payment.wallet_topup != nil do
+              case Settings.approve_topup(%{"id" => payment.wallet_topup.id}) |> IO.inspect() do
+                {:ok, tp} ->
+                  %{status: "ok", res: tp |> BluePotion.sanitize_struct()}
+
+                _ ->
+                  %{status: "error", reason: "Already Approved!"}
+              end
+            else
               _ ->
                 %{status: "error"}
             end
-          else
-            _ ->
-              with true <- payment != nil,
-                   true <- payment.wallet_topup != nil do
-                case Settings.approve_topup(%{"id" => payment.wallet_topup.id}) do
-                  {:ok, tp} ->
-                    %{status: "ok", res: tp |> BluePotion.sanitize_struct()}
-
-                  _ ->
-                    %{status: "error"}
-                end
-              else
-                _ ->
-                  %{status: "error"}
-              end
           end
 
-          res
+        # with true <- Map.get(res, "paid", false) == true,
+        #      true <- payment != nil,
+        #      true <- payment.sales != nil,
+        #      sales <- payment.sales |> IO.inspect(),
+        #      {:ok, register_params} <-
+        #        sales.registration_details |> Jason.decode() |> IO.inspect() do
+        #   case Settings.register(register_params["user"], sales) do
+        #     {:ok, multi_res} ->
+        #       %{status: "ok", res: multi_res |> BluePotion.sanitize_struct()}
+
+        #     _ ->
+        #       %{status: "error"}
+        #   end
+        # else
+        #   _ ->
+        #     with true <- payment != nil,
+        #          true <- payment.wallet_topup != nil do
+        #       case Settings.approve_topup(%{"id" => payment.wallet_topup.id}) do
+        #         {:ok, tp} ->
+        #           %{status: "ok", res: tp |> BluePotion.sanitize_struct()}
+
+        #         _ ->
+        #           %{status: "error"}
+        #       end
+        #     else
+        #       _ ->
+        #         %{status: "error"}
+        #     end
+        # end
+
+        # res
 
         "node" ->
           if params["token"] != nil do
@@ -419,6 +468,67 @@ defmodule CommerceFrontWeb.ApiController do
         |> put_resp_content_type("application/json")
         |> send_resp(200, Jason.encode!(res))
     end
+  end
+
+  def razer_payment(conn, params) do
+    IO.inspect(params)
+
+    sample = %{
+      "amount" => "10.00",
+      "appcode" => "",
+      "channel" => "maybank2u",
+      "currency" => "RM",
+      "domain" => "SB_MGhaho2u",
+      "error_code" => "FPX_",
+      "error_desc" => "",
+      "nbcb" => "1",
+      "orderid" => "76",
+      "paydate" => "2024-03-16 14:09:48",
+      "skey" => "598323fe40714e5fa03b7d903da7df2e",
+      "status" => "11",
+      "tranID" => "30775069"
+    }
+
+    %{
+      "amount" => "10.00",
+      "appcode" => "",
+      "channel" => "maybank2u",
+      "currency" => "RM",
+      "domain" => "SB_MGhaho2u",
+      "error_code" => "",
+      "error_desc" => "",
+      "nbcb" => "1",
+      "orderid" => "TOPUP76",
+      "paydate" => "2024-03-16 14:11:49",
+      "skey" => "079b4431229d22f46f0ae3e50a2ebd75",
+      "status" => "00",
+      "tranID" => "30775070"
+    }
+
+    payment = Settings.get_payment_by_billplz_code(params["orderid"])
+
+    payment |> Settings.update_payment(%{webhook_details: Jason.encode!(params)})
+
+    case params["status"] do
+      "00" ->
+        with true <- payment.wallet_topup != nil do
+          case Settings.approve_topup(%{"id" => payment.wallet_topup.id}) do
+            {:ok, tp} ->
+              %{status: "ok", res: tp |> BluePotion.sanitize_struct()}
+
+            _ ->
+              %{status: "error"}
+          end
+        else
+          _ ->
+            %{status: "ok"}
+        end
+
+      _ ->
+        %{status: "error"}
+    end
+
+    json(conn, %{})
   end
 
   def payment(conn, params) do
@@ -639,6 +749,22 @@ defmodule CommerceFrontWeb.ApiController do
 
             _ ->
               %{status: "error", reason: "unknown"}
+          end
+
+        "manual_approve_admin" ->
+          with sales <- Settings.get_sale!(params["id"]),
+               true <- sales != nil,
+               {:ok, register_params} <- sales.registration_details |> Jason.decode() do
+            case Settings.register(register_params["user"], sales) do
+              {:ok, multi_res} ->
+                %{status: "ok", res: multi_res |> BluePotion.sanitize_struct()}
+
+              _ ->
+                %{status: "error"}
+            end
+          else
+            _ ->
+              %{status: "ok"}
           end
 
         "manual_approve_fpx" ->
@@ -890,7 +1016,7 @@ defmodule CommerceFrontWeb.ApiController do
         File.cwd!() <> "/media"
       end
 
-    server_url = Application.get_env(:commerce_front, :endpoint)[:url]
+    server_url = Application.get_env(:commerce_front, :url)
     IO.inspect(server_url)
 
     {:ok, html} = File.read("#{path}/#{filename}.html")

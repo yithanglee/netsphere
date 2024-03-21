@@ -48,6 +48,11 @@ config :commerce_front, :billplz,
   endpoint: System.get_env("BILLPLZ_API_ENDPOINT_PROD"),
   callback: System.get_env("BILLPLZ_API_CALLBACK_URL_PROD")
 
+config :commerce_front, :razer,
+  vkey: System.get_env("RAZER_VKEY_PROD"),
+  mid: System.get_env("RAZER_MID_PROD"),
+  endpoint: System.get_env("RAZER_ENDPOINT_PROD")
+
 config :commerce_front, CommerceFront.Mailer,
   adapter: Bamboo.SMTPAdapter,
   server: "smtp.zoho.com",

@@ -22,6 +22,10 @@ defmodule CommerceFrontWeb.Router do
     # plug :put_secure_browser_headers, %{"content-security-policy" => @content_security_policy}
   end
 
+  pipeline :browser_blank do
+    plug :accepts, ["html"]
+  end
+
   pipeline :plain_api do
     plug :accepts, ["json"]
   end
@@ -79,8 +83,14 @@ defmodule CommerceFrontWeb.Router do
   end
 
   scope "/api", CommerceFrontWeb do
-    pipe_through :plain_api
+    pipe_through :browser_blank
 
+    post "/notification/razer", PageController, :notification
+  end
+
+  scope "/api", CommerceFrontWeb do
+    pipe_through :plain_api
+    post "/payment/razer", ApiController, :razer_payment
     post "/payment/billplz", ApiController, :payment
   end
 
@@ -109,6 +119,12 @@ defmodule CommerceFrontWeb.Router do
   end
 
   scope "/", CommerceFrontWeb do
+    pipe_through :browser_blank
+    post "/test_razer", PageController, :razer_payment
+    post "/thank_you", PageController, :thank_you
+  end
+
+  scope "/", CommerceFrontWeb do
     pipe_through :browser
 
     get "/admin_override", PageController, :admin_override
@@ -118,6 +134,9 @@ defmodule CommerceFrontWeb.Router do
     get "/log2in", PageController, :login
     post "/auth", PageController, :authenticate
     get "/thank_you", PageController, :thank_you
+    post "/thank_you", PageController, :thank_you
+    get "/test_razer", PageController, :razer_payment
+
     get "/*path", PageController, :index
   end
 

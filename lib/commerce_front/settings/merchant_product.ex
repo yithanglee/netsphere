@@ -13,6 +13,7 @@ defmodule CommerceFront.Settings.MerchantProduct do
     field(:point_value, :float)
     field(:retail_price, :float)
     field(:short_desc, :string)
+    field(:override_pv, :boolean, virtual: true)
 
     # field(:commission_perc, :float, default: 0.1)
     timestamps()

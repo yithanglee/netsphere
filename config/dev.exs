@@ -64,11 +64,17 @@ config :phoenix, :stacktrace_depth, 20
 # Initialize plugs at runtime for faster development compilation
 config :phoenix, :plug_init_mode, :runtime
 
+config :commerce_front, release: :dev
 config :commerce_front, url: System.get_env("ENDPOINT")
 
 config :commerce_front, :billplz,
   key: System.get_env("BILLPLZ_API_KEY"),
   endpoint: System.get_env("BILLPLZ_API_ENDPOINT"),
   callback: System.get_env("BILLPLZ_API_CALLBACK_URL")
+
+config :commerce_front, :razer,
+  vkey: System.get_env("RAZER_VKEY"),
+  mid: System.get_env("RAZER_MID"),
+  endpoint: System.get_env("RAZER_ENDPOINT")
 
 config :commerce_front, CommerceFront.Mailer, adapter: Bamboo.LocalAdapter

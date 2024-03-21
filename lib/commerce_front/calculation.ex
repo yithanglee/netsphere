@@ -96,7 +96,7 @@ defmodule CommerceFront.Calculation do
         royalty_user = upline_user |> Map.get(:royalty_user)
         perc = royalty_user.perc
 
-        res = (remainder_perc - perc) |> Float.round(2)
+        res = (remainder_perc - perc) |> Float.round(3)
 
         if res >= 0 do
           CommerceFront.Settings.create_reward(%{
@@ -114,13 +114,22 @@ defmodule CommerceFront.Calculation do
 
           res
         else
+          remm = remainder_perc * sale.total_point_value
+
+          amt =
+            if remm > 0 do
+              remm |> Float.round(2)
+            else
+              remm
+            end
+
           CommerceFront.Settings.create_reward(%{
             sales_id: sale.id,
             is_paid: false,
             remarks:
               "sales-#{sale.id} on #{y}-#{m}-#{d}|royalty perc: #{perc}|calc perc: #{remainder_perc}| #{remainder_perc} * #{sale.total_point_value} ",
             name: "royalty bonus",
-            amount: (remainder_perc * sale.total_point_value) |> Float.round(2),
+            amount: amt,
             user_id: upline_user.id,
             day: d,
             month: m,
@@ -162,16 +171,42 @@ defmodule CommerceFront.Calculation do
   --
   28 jan 24'
   every 100 RP shared, received 50 DRP
+
+
+  22 mar 24'
+  base on override perc to calc
   """
 
-  def special_share_reward(user_id, pv, sale) do
+  def special_share_reward(user_id, pv, sale, scope \\ "register") do
+    override_perc = 0.5
+
     if pv != 0 do
-      Settings.create_wallet_transaction(%{
-        user_id: user_id,
-        amount: (pv / 2) |> Float.round(2),
-        remarks: "sale-#{sale.id}",
-        wallet_type: "direct_recruitment"
-      })
+      sales_items = sale |> Repo.preload(:sales_items) |> Map.get(:sales_items)
+
+      for sales_item <- sales_items do
+        product =
+          if scope == "merchant_checkout" do
+            CommerceFront.Settings.get_merchant_product_by_name(sales_item.item_name)
+          else
+            CommerceFront.Settings.get_product_by_name(sales_item.item_name)
+          end
+
+        if product.override_pv do
+          CommerceFront.Settings.create_wallet_transaction(%{
+            user_id: user_id,
+            amount: (pv * product.override_perc) |> Float.round(2),
+            remarks: "sale-#{sale.id}|#{product.name}",
+            wallet_type: "direct_recruitment"
+          })
+        else
+          CommerceFront.Settings.create_wallet_transaction(%{
+            user_id: user_id,
+            amount: (pv * override_perc) |> Float.round(2),
+            remarks: "sale-#{sale.id}|#{product.name}",
+            wallet_type: "direct_recruitment"
+          })
+        end
+      end
     else
       {:ok, nil}
     end
@@ -214,6 +249,7 @@ defmodule CommerceFront.Calculation do
       |> Enum.with_index(1)
 
     matrix = [
+      # %{rank: "Shopper", l1: 0.0, calculated: false},
       %{rank: "铜级套餐", l1: 0.2, calculated: false},
       %{rank: "银级套餐", l1: 0.2, l2: 0.1, calculated: false},
       %{rank: "金级套餐", l1: 0.2, l2: 0.1, l3: 0.1, calculated: false}
@@ -229,22 +265,27 @@ defmodule CommerceFront.Calculation do
         |> List.first()
 
       perc =
-        case calc_index do
-          1 ->
-            calc_table |> Map.get(:l1, 0)
+        if calc_table != nil do
+          case calc_index do
+            1 ->
+              calc_table |> Map.get(:l1, 0)
 
-          2 ->
-            calc_table |> Map.get(:l2, 0)
+            2 ->
+              calc_table |> Map.get(:l2, 0)
 
-          3 ->
-            calc_table |> Map.get(:l3, 0)
+            3 ->
+              calc_table |> Map.get(:l3, 0)
 
-          _ ->
-            0
+            _ ->
+              0
+          end
+          |> IO.inspect()
+        else
+          0
         end
-        |> IO.inspect()
 
-      with true <- calc_index < 4,
+      with true <- calc_table != nil,
+           true <- calc_index < 4,
            list <-
              eval_matrix
              |> Enum.reject(&(&1.calculated == true))

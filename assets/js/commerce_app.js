@@ -742,15 +742,22 @@ export let commerceApp_ = {
           if (rowData.payment.payment_method == "fpx") {
 
 
+            msg = ''
+
+            if (rowData.is_approved == false) {
+              msg = `<p>You will be redirected to pay this topup.</p>
+              <a target="_blank" href="` + rowData.payment.payment_url + `" class="btn btn-primary">Pay
+              </a>`
+            }
+
+
             phxApp.modal({
               autoClose: false,
               selector: "#mySubModal",
               header: "FPX",
               content: `
 
-              <p>You will be redirected to pay this topup.</p>
-              <a target="_blank" href="` + rowData.payment.payment_url + `" class="btn btn-primary">Pay
-              </a>
+              ` + msg + `
               <div class="btn btn-primary check">Recheck
               </div>
 
@@ -822,6 +829,51 @@ export let commerceApp_ = {
         var valu = $("input[name='WalletTopup[bank]']").val(bank)
       }
 
+
+      var razerList = phxApp.api("razer_list", {}),
+        channels =
+        Object.keys(razerList),
+        sections = [];
+
+
+
+      channels.forEach((channel, i) => {
+        var subSections = []
+
+        razerList[channel].forEach((child, ii) => {
+
+          var div = `
+
+            <div class="py-1 col-6 col-lg-4 use-channel" aria-channel-label='` + child.channel_map.direct.request + `' >
+              <img class="w-100 m-2 m-lg-0" src="` + child.logo_url_120x43 + `"></img>
+            </div>
+            `
+          if (child.currency.includes("MYR")) {
+
+            if (child.status == 1) {
+
+              if (child.channel_map.direct.request != "") {
+
+                subSections.push(div)
+              }
+            }
+          }
+        })
+
+
+        sections.push(`
+
+            <div class="row mt-2 pb-1 border-success border-bottom">
+           
+            ` + subSections.join("") + `
+            </div>
+
+
+            `)
+
+      })
+
+
       $("#new_topup").click(() => {
 
         phxApp.modal({
@@ -830,28 +882,59 @@ export let commerceApp_ = {
           header: 'New Register Point Topup',
           content: `
             <div class="row ">
-              <div class="px-4">
-                Kindly bank in to this account.
+              <div class="col-12 col-lg-6">
+                <form class="with_mod col-12 row p-4" module="WalletTopup" id="WalletTopup">
+                </form>
               </div>
-              <div class="p-4 fs-5">
-                HAHO LIFE SDN. BHD.<br>
-                <span>
-                  <div> MBB </div>
-                  <div>5642 4949 7131  <div class="btn btn-primary" onclick="phxApp.copyToClipboard('564249497131');selectedBank('MBB')">Copy</div></div>
-                </span><br>
-                <span>
-                  <div> CIMB </div>
-                  <div>8011 2277 45 <div class="btn btn-primary" onclick="phxApp.copyToClipboard('8011227745');selectedBank('CIMB')">Copy</div></div>
-                </span><br>
-                <span>
-                  <div> PUBLIC BANK </div>
-                  <div>3237 7779 07 <div class="btn btn-primary" onclick="phxApp.copyToClipboard('3237777907');selectedBank('PBB')">Copy</div></div>
-                </span><br>
+              <div class="col-12 col-lg-6">
+              <section class="p-4 razer-display">
+                <h3>Choose 1 channel</h3>
+              ` + sections.join("") + `
+              </section>
+              <section class="d-none upload-display">
+                <div class="px-4">
+                  Kindly bank in to either 1 of these account.
+                </div>
+                <div class="p-4 fs-5">
+                  HAHO LIFE SDN. BHD.<br>
+                  <span>
+                    <div> MBB </div>
+                    <div>5642 4949 7131  <div class="btn btn-primary" onclick="phxApp.copyToClipboard('564249497131');selectedBank('MBB')">Copy</div></div>
+                  </span><br>
+                  <span>
+                    <div> CIMB </div>
+                    <div>8011 2277 45 <div class="btn btn-primary" onclick="phxApp.copyToClipboard('8011227745');selectedBank('CIMB')">Copy</div></div>
+                  </span><br>
+                  <span>
+                    <div> PUBLIC BANK </div>
+                    <div>3237 7779 07 <div class="btn btn-primary" onclick="phxApp.copyToClipboard('3237777907');selectedBank('PBB')">Copy</div></div>
+                  </span><br>
+                </div>
+              </section>
+              <div class="btn-group" role="group" aria-label="PaymentGroup">
+                <input type="radio" class="btn-check show-upload" name="btnradio" id="btnradio1z" autocomplete="off" >
+                <label class="btn btn-outline-primary" for="btnradio1z">Upload Bank In Slip</label>
+
+                <input type="radio" class="btn-check show-razer" name="btnradio" id="btnradio2z" autocomplete="off" checked="">
+                <label class="btn btn-outline-primary" for="btnradio2z">Online Banking/CC</label>
+     
               </div>
-              <form class="with_mod col-12 row p-4" module="WalletTopup" id="WalletTopup">
-              </form>
+
+              </div>
+
             </div>
         `
+        })
+
+        $(".show-upload").click(() => {
+          $(".upload-display").removeClass("d-none")
+          $(".razer-display").addClass("d-none")
+          $("select[name='WalletTopup[payment_method]']").val('bank in slip')
+        })
+        $(".show-razer").click(() => {
+          $(".upload-display").addClass("d-none")
+          $(".razer-display").removeClass("d-none")
+          $("select[name='WalletTopup[payment_method]']").val('fpx')
         })
 
 
@@ -861,33 +944,74 @@ export let commerceApp_ = {
           },
           null,
           ['id',
-            { label: 'amount', alt_name: 'Amount (RP)' },
-            'remarks',
+            { label: 'amount', alt_name: 'Amount (RP)', alt_class: "col-12" },
+            { label: 'remarks', alt_name: 'Description', alt_class: "col-12" },
+
             {
               label: 'payment_method',
               selection: [
-                // { id: 'fpx', name: 'FPX' }, 
+                { id: 'fpx', name: 'FPX' },
                 { id: 'bank in slip', name: 'BANK IN SLIP' }
-              ]
+              ],
+              alt_class: "d-none"
             },
-            { label: 'img_url', upload: true },
+            { label: 'img_url', upload: true, alt_class: "d-none upload-display" },
             { label: 'bank', data: 'bank', hidden: true },
             'user_id'
 
           ],
 
           (j) => {
-            phxApp.navigateTo("/topup_register_point")
+            console.info(j)
+            if (j.payment_method == "fpx") {
+              // alert("You will be redirected to make payment...")
+              // window.location = j.payment.payment_url
+
+              function postRedirect(url, data) {
+                // Create a form element
+                var form = $('<form>', {
+                  'method': 'POST',
+                  'action': url
+                });
+
+                // Append input elements for each data key-value pair to the form
+                $.each(data, function(key, value) {
+                  $('<input>', {
+                    'type': 'hidden',
+                    'name': key,
+                    'value': value
+                  }).appendTo(form);
+                });
+
+                // Append the form to the body and submit it
+                form.appendTo('body').submit();
+              }
+
+              // Example usage
+              postRedirect(j.payment.payment_url, JSON.parse(j.payment.webhook_details));
+
+            } else {
+
+              phxApp.navigateTo("/topup_register_point")
+            }
 
           }
 
         )
 
-
         $("input[name='WalletTopup[amount]']").on("change", () => {
           var valu = $("input[name='WalletTopup[amount]']").val()
           $("input[name='WalletTopup[remarks]']").val("MYR " + valu * 5)
         })
+
+        $(".use-channel").click(function() {
+          var channel = $(this).attr("aria-channel-label")
+          $(".use-channel").removeClass("border border-primary rounded")
+          $(this).addClass("border border-primary rounded")
+          console.info("use channel: " + channel)
+          $("input[name='WalletTopup[bank]']").val(channel)
+        })
+
 
       })
 
@@ -1853,7 +1977,8 @@ export let commerceApp_ = {
 
 
       const cart = is_merchant ? commerceApp_.mcart_ : commerceApp_.cart_;
-      var count = 0,
+      var hasOverride = false,
+        count = 0,
         shipping_fee = 2,
         list = [],
         total_pv = 0,
@@ -1876,20 +2001,20 @@ export let commerceApp_ = {
       }).reduce((a, b) => {
         return a + b
       }, 0)
-      console.log("start eval shipping")
+
       this.evalShippingAddresses()
-      console.log("end eval shipping")
+
       this.evalStates()
 
       if ($("cartItems").attr("upgrade") != null) {
         if (window.upgradeTarget != null) {
           accumulated_sales = phxApp_.api("get_accumulated_sales", { username: window.upgradeTarget })
           subtotal = subtotal
-          console.log(subtotal)
+
           eligible_rank = this.evalRank(subtotal + accumulated_sales)
         } else {
           subtotal = subtotal
-          console.log(subtotal)
+
           eligible_rank = this.evalRank(subtotal + memberApp_.user.rank.retail_price)
         }
 
@@ -1922,13 +2047,12 @@ export let commerceApp_ = {
           }
         }
 
-        var linePassed = ''
+        var linePassed = '';
 
         if (cart == commerceApp_.cart && parseInt(localStorage.first_cart_country_id) != phxApp_.chosen_country_id_.id) {
 
           linePassed = `border border-danger`
 
-          console.log(linePassed)
           list.push(`
 
             <div class="d-flex align-items-center justify-content-between gap-2 ` + linePassed + ` rounded p-2 me-3">
@@ -1975,8 +2099,10 @@ export let commerceApp_ = {
           
             `)
         } else {
-          console.info(phxApp_.chosen_country_id_.conversion)
-          console.log(linePassed)
+
+          if (v.override_pv) {
+            hasOverride = true
+          }
 
           var rp = `RP <span class="format-float">` + (v.retail_price * v.qty).toFixed(2) + ``
           if (showRP == false) {
@@ -2130,20 +2256,39 @@ export let commerceApp_ = {
 
             }
 
-
+            // DRP use
             if (check.length > 0) {
               var wallet = check[0]
 
               if (is_merchant) {
-                $("#drp_payment").attr("max", subtotal / 2)
+                $("#drp_payment").attr("max", subtotal * 0.5)
                 $("#drp_payment").attr("min", 0)
-                $("#drp_payment").attr("value", subtotal / 2)
+                $("#drp_payment").attr("value", subtotal * 0.5)
 
               } else {
 
-                $("#drp_payment").attr("max", wallet.total)
-                $("#drp_payment").attr("min", subtotal / 2)
-                $("#drp_payment").attr("value", subtotal / 2)
+                // check if the cart has item that's override_pv 
+                if (hasOverride) {
+                  var reg_pv = subtotal * 0.7; 
+
+                  console.info("here ovier")
+                  var subtotal2 = cart.map((v, i) => {
+                    return (v.qty * v.retail_price * v.override_perc)
+                  }).reduce((a, b) => {
+                    return a + b
+                  }, 0)
+
+
+
+                  $("#drp_payment").attr("min", Math.round(subtotal2))
+                  $("#drp_payment").attr("value", Math.round(subtotal2))
+                } else {
+                  $("#drp_payment").attr("max", wallet.total)
+                  $("#drp_payment").attr("min", Math.round(subtotal * 0.5))
+                  $("#drp_payment").attr("value", Math.round(subtotal * 0.5))
+
+                }
+
               }
             } else {}
           })
@@ -3373,6 +3518,7 @@ export let commerceApp_ = {
                   return card
                 },
                 data: {
+                  pageLength: 12,
                   sorts: [
                     [2, "desc"]
                   ],

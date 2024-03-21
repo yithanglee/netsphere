@@ -349,3 +349,8 @@ todo 22/feb
 [v] when pay reward, pay to U1
 admin sales filter by country
 merchant product filter by business category
+
+----
+
+http://staging.haho2u.com/
+http://test_svt.damienslab.com/

@@ -10,7 +10,13 @@ defmodule CommerceFront.Settings do
   alias Ecto.Multi
 
   import CommerceFront.Calculation,
-    only: [special_share_reward: 3, sharing_bonus: 4, team_bonus: 5, stockist_register_bonus: 4]
+    only: [
+      special_share_reward: 3,
+      special_share_reward: 4,
+      sharing_bonus: 4,
+      team_bonus: 5,
+      stockist_register_bonus: 4
+    ]
 
   alias CommerceFront.Settings.Slide
 
@@ -609,25 +615,38 @@ defmodule CommerceFront.Settings do
     |> Multi.run(:payment, fn _repo, %{wallet_topup: wallet_topup} ->
       if wallet_topup.payment_method == "fpx" do
         wallet_topup = wallet_topup |> Repo.preload(:user)
-        res = Billplz.create_collection("Topup Order: #{wallet_topup.id}")
-        collection_id = Map.get(res, "id")
+        # res = Billplz.create_collection("Topup Order: #{wallet_topup.id}")
+        # collection_id = Map.get(res, "id")
 
-        bill_res =
-          Billplz.create_bill(collection_id, %{
-            description: "Topup Order: #{wallet_topup.id}",
-            email: wallet_topup.user.email,
-            name: wallet_topup.user.fullname,
-            amount: wallet_topup.amount * 5,
-            phone: wallet_topup.user.phone
-          })
+        # bill_res =
+        #   Billplz.create_bill(collection_id, %{
+        #     description: "Topup Order: #{wallet_topup.id}",
+        #     email: wallet_topup.user.email,
+        #     name: wallet_topup.user.fullname,
+        #     amount: wallet_topup.amount * 5,
+        #     phone: wallet_topup.user.phone
+        #   })
+
+        server_url = Application.get_env(:commerce_front, :url)
+
+        payment_url =
+          "#{server_url}/test_razer?chan=#{wallet_topup.bank}&amt=#{(wallet_topup.amount * 5) |> :erlang.float_to_binary(decimals: 2)}&ref_no=HAHOTOPUP#{wallet_topup.id}"
 
         create_payment(%{
-          payment_method: "fpx",
           amount: wallet_topup.amount,
           wallet_topup_id: wallet_topup.id,
-          billplz_code: Map.get(bill_res, "id"),
-          payment_url: Map.get(bill_res, "url")
+          billplz_code: "HAHOTOPUP#{wallet_topup.id}",
+          payment_url: payment_url
+          # webhook_details: params |> Jason.encode!()
         })
+
+        # create_payment(%{
+        #   payment_method: "fpx",
+        #   amount: wallet_topup.amount,
+        #   wallet_topup_id: wallet_topup.id,
+        #   billplz_code: Map.get(bill_res, "id"),
+        #   payment_url: Map.get(bill_res, "url")
+        # })
       else
         create_payment(%{
           payment_method: wallet_topup.payment_method,
@@ -639,7 +658,28 @@ defmodule CommerceFront.Settings do
     |> Repo.transaction()
     |> case do
       {:ok, multi_res} ->
-        {:ok, multi_res |> Map.get(:wallet_topup)}
+        payment =
+          case Razer.init(
+                 multi_res.wallet_topup.bank,
+                 (multi_res.wallet_topup.amount * 5) |> :erlang.float_to_binary(decimals: 2),
+                 "HAHOTOPUP#{multi_res.wallet_topup.id}"
+               ) do
+            %{status: :ok, url: url, params: params} ->
+              payment_url = url
+
+              {:ok, payment} =
+                update_payment(multi_res.payment, %{
+                  payment_url: payment_url,
+                  webhook_details: params |> Jason.encode!()
+                })
+
+              payment
+
+            _ ->
+              multi_res.payment
+          end
+
+        {:ok, multi_res |> Map.get(:wallet_topup) |> Map.put(:payment, payment)}
 
       _ ->
         {:error, []}
@@ -664,7 +704,7 @@ defmodule CommerceFront.Settings do
   end
 
   def get_payment_by_billplz_code(code) do
-    Repo.get_by(Payment, billplz_code: code) |> Repo.preload([:sales, :wallet_topup])
+    Repo.get_by(Payment, billplz_code: code) |> Repo.preload([:sales, wallet_topup: [:user]])
   end
 
   def get_payment!(id) do
@@ -1211,6 +1251,8 @@ defmodule CommerceFront.Settings do
   end
 
   def update_product(model, params) do
+    bool_key = "override_pv"
+    params = append_bool_key(params, bool_key)
     Product.changeset(model, params) |> Repo.update() |> IO.inspect()
   end
 
@@ -2923,25 +2965,36 @@ defmodule CommerceFront.Settings do
       create_wallet_topup(params)
     end)
     |> Multi.run(:payment, fn _repo, %{topup: topup} ->
-      res = Billplz.create_collection("Topup Order: #{topup.id}")
-      collection_id = Map.get(res, "id")
+      # change to razer 
+      # res = Billplz.create_collection("Topup Order: #{topup.id}")
+      # collection_id = Map.get(res, "id")
 
-      bill_res =
-        Billplz.create_bill(collection_id, %{
-          description: "Topup Order: #{topup.id}",
-          email: params["user"]["email"],
-          name: params["user"]["fullname"],
-          amount: topup.amount * 5
-        })
+      # bill_res =
+      #   Billplz.create_bill(collection_id, %{
+      #     description: "Topup Order: #{topup.id}",
+      #     email: params["user"]["email"],
+      #     name: params["user"]["fullname"],
+      #     amount: topup.amount * 5
+      #   })
+      server_url = Application.get_env(:commerce_front, :url) |> IO.inspect()
 
       create_payment(%{
         amount: topup.amount,
         wallet_topup_id: topup.id,
-        billplz_code: Map.get(bill_res, "id"),
-        payment_url: Map.get(bill_res, "url")
+        billplz_code: "HAHOTOPUP#{topup.id}",
+        payment_url:
+          "#{server_url}/test_razer?chan=#{topup.bank}&amt=#{topup.amount * 5}&ref_no=HAHOTOPUP#{topup.id}"
       })
+      |> IO.inspect()
     end)
     |> Repo.transaction()
+    |> case do
+      {:ok, multi_res} ->
+        {:ok, multi_res |> Map.get(:topup) |> Map.put(:payment, multi_res.payment)}
+
+      _ ->
+        {:error, []}
+    end
   end
 
   @doc """
@@ -3143,8 +3196,8 @@ defmodule CommerceFront.Settings do
       params |> Kernel.get_in(["user", "products"]) == nil ->
         {:error, "Please check cart items."}
 
-      sponsor.rank.name == "Shopper" ->
-        {:error, "sponsor cannot be Shopper to register new member."}
+      # sponsor.rank.name == "Shopper" ->
+      #   {:error, "sponsor cannot be Shopper to register new member."}
 
       true ->
         Multi.new()
@@ -3926,6 +3979,7 @@ defmodule CommerceFront.Settings do
             user_id: user.id
           })
         end
+        |> IO.inspect()
       end)
       |> Multi.run(:referral, fn _repo, %{user: user} ->
         if params["upgrade"] != nil do
@@ -4023,8 +4077,16 @@ defmodule CommerceFront.Settings do
           if params["stockist"] != nil do
             {:ok, nil}
           else
-            # pay to sponsor...
-            special_share_reward(referral.parent_user_id, sale.total_point_value, sale)
+            # pay to sponsor...   
+
+            special_share_reward(
+              referral.parent_user_id,
+              sale.total_point_value,
+              sale,
+              params["scope"]
+            )
+
+            {:ok, nil}
           end
         end
       end)
@@ -4038,7 +4100,13 @@ defmodule CommerceFront.Settings do
         with true <- sale != nil,
              true <- sale.subtotal >= 2000,
              true <- user.is_stockist == false do
-          special_share_reward(user.id, sale.grand_total - sale.shipping_fee, sale)
+          special_share_reward(
+            user.id,
+            sale.grand_total - sale.shipping_fee,
+            sale,
+            params["scope"]
+          )
+
           CommerceFront.Settings.convert_to_stockist(user |> Map.put(:placement, placement))
         else
           _ ->
@@ -5550,7 +5618,16 @@ defmodule CommerceFront.Settings do
   def royalty_bonus(date_string) do
     [m, y] = String.split(date_string, "-")
 
-    Repo.all(from(rgs in ReferralGroupSalesSummary, where: rgs.month == ^m and rgs.year == ^y))
+    CommerceFront.Settings.reconstruct_monthly_referral_group_sales_summary(
+      Date.from_erl!({y |> String.to_integer(), m |> String.to_integer(), 1})
+    )
+
+    Repo.all(
+      from(rgs in ReferralGroupSalesSummary,
+        where: rgs.month == ^m and rgs.year == ^y,
+        preload: [:user]
+      )
+    )
     |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
   end
 
@@ -6136,5 +6213,9 @@ defmodule CommerceFront.Settings do
 
   def delete_merchant_category(%MerchantCategory{} = model) do
     Repo.delete(model)
+  end
+
+  def clear_zero_rewards() do
+    Repo.delete_all(from(r in Settings.Reward, where: r.amount == ^0 and r.is_paid == ^false))
   end
 end
