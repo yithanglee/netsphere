@@ -659,24 +659,28 @@ defmodule CommerceFront.Settings do
     |> case do
       {:ok, multi_res} ->
         payment =
-          case Razer.init(
-                 multi_res.wallet_topup.bank,
-                 (multi_res.wallet_topup.amount * 5) |> :erlang.float_to_binary(decimals: 2),
-                 "HAHOTOPUP#{multi_res.wallet_topup.id}"
-               ) do
-            %{status: :ok, url: url, params: params} ->
-              payment_url = url
+          if multi_res.wallet_topup.payment_method != "bank in slip" do
+            case Razer.init(
+                   multi_res.wallet_topup.bank,
+                   (multi_res.wallet_topup.amount * 5) |> :erlang.float_to_binary(decimals: 2),
+                   "HAHOTOPUP#{multi_res.wallet_topup.id}"
+                 ) do
+              %{status: :ok, url: url, params: params} ->
+                payment_url = url
 
-              {:ok, payment} =
-                update_payment(multi_res.payment, %{
-                  payment_url: payment_url,
-                  webhook_details: params |> Jason.encode!()
-                })
+                {:ok, payment} =
+                  update_payment(multi_res.payment, %{
+                    payment_url: payment_url,
+                    webhook_details: params |> Jason.encode!()
+                  })
 
-              payment
+                payment
 
-            _ ->
-              multi_res.payment
+              _ ->
+                multi_res.payment
+            end
+          else
+            multi_res.payment
           end
 
         {:ok, multi_res |> Map.get(:wallet_topup) |> Map.put(:payment, payment)}
@@ -704,7 +708,8 @@ defmodule CommerceFront.Settings do
   end
 
   def get_payment_by_billplz_code(code) do
-    Repo.get_by(Payment, billplz_code: code) |> Repo.preload([:sales, wallet_topup: [:user]])
+    Repo.get_by(Payment, billplz_code: code)
+    |> Repo.preload(sales: [:user], wallet_topup: [:user])
   end
 
   def get_payment!(id) do
@@ -3128,13 +3133,13 @@ defmodule CommerceFront.Settings do
           )
           |> elem(1)
 
-        params =
-          params
-          |> Kernel.get_and_update_in(
-            ["user", "payment"],
-            &{&1, %{"method" => "bank_in"}}
-          )
-          |> elem(1)
+        # params =
+        #   params
+        #   |> Kernel.get_and_update_in(
+        #     ["user", "payment"],
+        #     &{&1, %{"method" => "bank_in"}}
+        #   )
+        #   |> elem(1)
 
         params =
           params
@@ -3384,6 +3389,45 @@ defmodule CommerceFront.Settings do
 
             "bank_in" ->
               {:ok, %CommerceFront.Settings.Payment{payment_url: "/thank_you", user: nil}}
+
+            "razer" ->
+              chan = params["user"]["payment"]["channel"]
+              server_url = Application.get_env(:commerce_front, :url)
+
+              payment_url =
+                "#{server_url}/test_razer?chan=#{chan}&amt=#{(sale.grand_total * 5) |> :erlang.float_to_binary(decimals: 2)}&ref_no=HAHOSALE#{sale.id}"
+
+              {:ok, payment} =
+                create_payment(%{
+                  amount: sale.grand_total,
+                  sales_id: sale.id,
+                  billplz_code: "HAHOSALE#{sale.id}",
+                  payment_url: payment_url
+                  # webhook_details: params |> Jason.encode!()
+                })
+
+              payment =
+                case Razer.init(
+                       chan,
+                       (sale.grand_total * 5) |> :erlang.float_to_binary(decimals: 2),
+                       "HAHOSALE#{sale.id}"
+                     ) do
+                  %{status: :ok, url: url, params: params} ->
+                    payment_url = url
+
+                    {:ok, payment} =
+                      update_payment(payment, %{
+                        payment_url: payment_url,
+                        webhook_details: params |> Jason.encode!()
+                      })
+
+                    payment
+
+                  _ ->
+                    payment
+                end
+
+              {:ok, payment}
 
             "fpx" ->
               res = Billplz.create_collection("#{title} Order: #{sale.id}")

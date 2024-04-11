@@ -180,7 +180,7 @@ export let commerceApp_ = {
     // callback function to call this render
     var list = ["merchantProducts", "merchantproduct", "merchantProfile", "merchant", "recruit", "topup", "country",
       "light", "userProfile", "wallet", "announcement", "products", "product",
-      "rewardList", "mcart", "cart", "cartItems", "salesItems", "upgradeTarget"
+      "rewardList", "mcart", "cart", "cartItems", "salesItems", "upgradeTarget", "choosePayment"
     ]
 
     list.forEach((v, i) => {
@@ -734,6 +734,75 @@ export let commerceApp_ = {
 
       })
     },
+    choosePayment() {
+
+
+
+      var razerList = phxApp.api("razer_list", {}),
+        channels =
+        Object.keys(razerList),
+        sections = [];
+
+
+
+      channels.forEach((channel, i) => {
+        var subSections = []
+
+        razerList[channel].forEach((child, ii) => {
+
+          var div = `
+
+            <div class="py-1 col-6 col-lg-4 use-channel" aria-channel-label='` + child.channel_map.direct.request + `' >
+              <img class="w-100 m-2 m-lg-0" src="` + child.logo_url_120x43 + `"></img>
+            </div>
+            `
+          if (child.currency.includes("MYR")) {
+
+            if (child.status == 1) {
+
+              if (child.channel_map.direct.request != "") {
+
+                subSections.push(div)
+              }
+            }
+          }
+        })
+
+
+        sections.push(`
+
+            <div class="row mt-2 pb-1 border-success border-bottom">
+           
+            ` + subSections.join("") + `
+            </div>
+
+
+            `)
+
+      })
+
+      $("choosePayment").html(`<div>
+
+    <section class="ps-0 p-4 razer-display">
+                <h4>Pay with</h4>
+              ` + sections.join("") + `
+              </section>
+      </div>`)
+
+
+
+
+      $(".use-channel").click(function() {
+        var channel = $(this).attr("aria-channel-label")
+        $(".use-channel").removeClass("border border-primary rounded")
+        $(this).addClass("border border-primary rounded")
+        console.info("use channel: " + channel)
+        $("input[name='user[payment][channel]']").val(channel)
+      })
+
+
+
+    },
     topup() {
       function payData(params) {
         var rowData = phxApp.rowData(params)
@@ -964,8 +1033,7 @@ export let commerceApp_ = {
           (j) => {
             console.info(j)
             if (j.payment_method == "fpx") {
-              // alert("You will be redirected to make payment...")
-              // window.location = j.payment.payment_url
+
 
               function postRedirect(url, data) {
                 // Create a form element
@@ -987,7 +1055,7 @@ export let commerceApp_ = {
                 form.appendTo('body').submit();
               }
 
-              // Example usage
+
               postRedirect(j.payment.payment_url, JSON.parse(j.payment.webhook_details));
 
             } else {
@@ -1287,6 +1355,15 @@ export let commerceApp_ = {
               phxApp_.notify("User verified!")
               $(".selectUser").removeClass("disabled")
               $(".pv-info").customHtml(`Accumulated sales PV: ` + res[0] + ` | Rank: ` + res[1])
+
+              if (res[2].is_direct_downline) {
+                $(".to-upgrade").removeClass("disabled")
+              } else {
+                $("label[for='btnradio3']").click()
+                $(".to-upgrade").addClass("disabled")
+              }
+
+
             })
 
 
@@ -1300,6 +1377,9 @@ export let commerceApp_ = {
           $("#upgradeTarget").html($("[name='upgrade[username]']").val())
 
           commerceApp_.components["cartItems"]()
+          console.info("need to check if member is direct sponsor")
+
+
 
 
         })
@@ -1582,6 +1662,8 @@ export let commerceApp_ = {
 
       `
 
+
+
       if (sale.pick_up_point != null) {
         addre =
 
@@ -1592,6 +1674,8 @@ export let commerceApp_ = {
 `
 
       }
+
+
 
 
 
@@ -1607,7 +1691,7 @@ export let commerceApp_ = {
       if (sale.merchant_id != null) {
         print_or_check = `   <a class="btn btn-primary" href="/pdf?type=merchant&id=` + sale.id + `" target="_blank">Print</a>  <a class="d-none mdo btn btn-primary" href="/pdf?type=merchant_do&id=` + sale.id + `" target="_blank">Print DO</a>`
       }
-
+      console.info(sale)
 
       $("salesItems").customHtml(`
         <div class="d-flex align-items-center justify-content-between gap-2">
@@ -1615,7 +1699,7 @@ export let commerceApp_ = {
         </div>
                 <div class="d-flex flex-column mb-4 ">
                    <span class="text-secondary">Sold To:</span> 
-                   <span>` + (sale.user.fullname) + `, ` + (sale.user.phone) + `</span>
+                   <span>` + (reg_dets.user.fullname) + `, ` + (reg_dets.user.phone) + `</span>
                    
                 </div>
                 <div class="d-flex flex-column mb-4 ">
@@ -2269,7 +2353,7 @@ export let commerceApp_ = {
 
                 // check if the cart has item that's override_pv 
                 if (hasOverride) {
-                  var reg_pv = subtotal * 0.7; 
+                  var reg_pv = subtotal * 0.7;
 
                   console.info("here ovier")
                   var subtotal2 = cart.map((v, i) => {
@@ -3280,6 +3364,21 @@ export let commerceApp_ = {
 
     },
     products() {
+      function evalCountry(countryName) {
+        var prefix = "v2"
+
+        if (countryName == "Thailand") {
+          prefix = "th"
+        }
+        if (countryName == "Vietnam") {
+          prefix = "vn"
+        }
+        if (countryName == "China") {
+          prefix = "cn"
+        }
+
+        return prefix;
+      }
 
 
       if (phxApp_.chosen_country_id_ == null) {
@@ -3288,7 +3387,7 @@ export let commerceApp_ = {
 
         phxApp_.countries_.forEach((v, i) => {
           countries.push(`
-            <button type="button" aria-name="` + v.name + `" aria-country="` + v.id + `" class="btn btn-primary ">` + v.name + `</button>
+            <button type="button" aria-name="` + v.name + `" aria-country="` + v.id + `" class="btn btn-primary ">` + v.name + ` ` + (v.alias || "") + `</button>
           `)
         })
         phxApp_.modal({
@@ -3311,6 +3410,13 @@ export let commerceApp_ = {
           phxApp_.chosen_country_id_ = country_id
           phxApp_.notify("Chosen region: " + name)
           localStorage.setItem("region", name)
+
+          if (localStorage.region != null) {
+            langPrefix = evalCountry(name)
+          }
+          translationRes = phxApp_.api("translation", { lang: langPrefix });
+
+
           $("#mySubModal").modal('hide')
           commerceApp_.components["country"]()
           // commerceApp_.components["products"]()
@@ -3320,11 +3426,9 @@ export let commerceApp_ = {
             phxApp_.api("get_share_link_by_code", { code: pageParams.share_code }, null, (sponsor) => {
 
               commerceApp_.components["cartItems"]()
+
               phxApp_.navigateTo(location.pathname)
-              $(".sponsor-name").html("sponsor: " + sponsor["user"]["username"] + " position: " + sponsor.position)
-
-
-
+              $(".sponsor-name").customHtml("_sponsor: " + sponsor["user"]["username"] + " _position: " + sponsor.position)
 
               $(".sponsor-bank").html(`
 
@@ -3375,7 +3479,7 @@ export let commerceApp_ = {
                   align: "center"
                 }
               })
-              phxApp_.toast({ content: `<div class=""><ul class="">` + $(".ac").html() + `</ul></div>` })
+              // phxApp_.toast({ content: `<div class=""><ul class="">` + $(".ac").html() + `</ul></div>` })
             } else if (commerceApp_.first_cart_country_id == null) {
               commerceApp_.addItem_(data)
               commerceApp_.components["updateCart"]()
@@ -3388,7 +3492,7 @@ export let commerceApp_ = {
                   align: "center"
                 }
               })
-              phxApp_.toast({ content: `<div class=""><ul class="">` + $(".ac").html() + `</ul></div>` })
+              // phxApp_.toast({ content: `<div class=""><ul class="">` + $(".ac").html() + `</ul></div>` })
             } else {
               phxApp_.notify("Not Added ! Please choose your region products.", {
                 delay: 2000,

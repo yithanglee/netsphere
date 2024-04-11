@@ -84,13 +84,63 @@ defmodule CommerceFrontWeb.ApiController do
             :prod ->
               Razer.get_channels()
               |> Kernel.get_in(["result"])
+              |> List.insert_at(0, %{
+                "applepay_enabled" => 1,
+                "channel_map" => %{
+                  "direct" => %{"request" => "indexAN", "response" => "indexAN"},
+                  "hosted" => %{"request" => "credit", "response" => "credit"},
+                  "offline" => %{"request" => "", "response" => ""},
+                  "seamless" => %{"request" => "credit16", "response" => "credit"},
+                  "seamlesspayment" => %{"request" => "credit", "response" => "credit"}
+                },
+                "channel_type" => "CC",
+                "currency" => ["MYR", "SGD"],
+                "googlepay_enabled" => 1,
+                "logo_url_120x43" =>
+                  "https://d2x73ruoixi2ei.cloudfront.net/images/logos/channels/120/visa-master.gif",
+                "logo_url_16x16" =>
+                  "https://d2x73ruoixi2ei.cloudfront.net/images/logos/channels/16/visa-master.gif",
+                "logo_url_24x24" =>
+                  "https://d2x73ruoixi2ei.cloudfront.net/images/logos/channels/24/visa-master.gif",
+                "logo_url_32x32" =>
+                  "https://d2x73ruoixi2ei.cloudfront.net/images/logos/channels/32/visa-master.gif",
+                "logo_url_48x48" =>
+                  "https://d2x73ruoixi2ei.cloudfront.net/images/logos/channels/48/visa-master.gif",
+                "status" => 1,
+                "title" => "Visa/Mastercard"
+              })
               |> Enum.group_by(& &1["channel_type"])
 
             _ ->
-              Razer.channel_results()
+              # Razer.channel_results()
 
               Razer.get_channels()
               |> Kernel.get_in(["result"])
+              |> List.insert_at(0, %{
+                "applepay_enabled" => 1,
+                "channel_map" => %{
+                  "direct" => %{"request" => "indexT", "response" => "indexT"},
+                  "hosted" => %{"request" => "credit", "response" => "credit"},
+                  "offline" => %{"request" => "", "response" => ""},
+                  "seamless" => %{"request" => "credit16", "response" => "credit"},
+                  "seamlesspayment" => %{"request" => "credit", "response" => "credit"}
+                },
+                "channel_type" => "CC",
+                "currency" => ["MYR", "SGD"],
+                "googlepay_enabled" => 1,
+                "logo_url_120x43" =>
+                  "https://d2x73ruoixi2ei.cloudfront.net/images/logos/channels/120/visa-master.gif",
+                "logo_url_16x16" =>
+                  "https://d2x73ruoixi2ei.cloudfront.net/images/logos/channels/16/visa-master.gif",
+                "logo_url_24x24" =>
+                  "https://d2x73ruoixi2ei.cloudfront.net/images/logos/channels/24/visa-master.gif",
+                "logo_url_32x32" =>
+                  "https://d2x73ruoixi2ei.cloudfront.net/images/logos/channels/32/visa-master.gif",
+                "logo_url_48x48" =>
+                  "https://d2x73ruoixi2ei.cloudfront.net/images/logos/channels/48/visa-master.gif",
+                "status" => 1,
+                "title" => "Visa/Mastercard"
+              })
               |> Enum.group_by(& &1["channel_type"])
           end
 
@@ -202,6 +252,9 @@ defmodule CommerceFrontWeb.ApiController do
             #   _ ->
             #     %{status: "error"}
             # end
+            %{
+              status: "ok"
+            }
           else
             _ ->
               %{status: "error"}
@@ -268,13 +321,10 @@ defmodule CommerceFrontWeb.ApiController do
           user = Settings.get_user_by_username(params["username"])
 
           if params["parent_id"] != nil do
-            # check = Settings.verify_parent(String.to_integer(params["parent_id"]), user)
+            check = Settings.verify_parent(String.to_integer(params["parent_id"]), user)
 
-            # if check do
-            # else
-            #   %{status: "error", reason: "not your downline"}
-            # end
             Settings.accumulated_sales_by_user(user, params["show_rank"])
+            |> List.insert_at(2, %{"is_direct_downline" => check})
           else
             Settings.accumulated_sales(params["username"])
           end
@@ -355,17 +405,33 @@ defmodule CommerceFrontWeb.ApiController do
 
             with true <- res["StatCode"] == "00",
                  true <- payment != nil,
-                 true <- payment.wallet_topup != nil do
-              case Settings.approve_topup(%{"id" => payment.wallet_topup.id}) |> IO.inspect() do
-                {:ok, tp} ->
-                  %{status: "ok", res: tp |> BluePotion.sanitize_struct()}
+                 true <- payment.sales != nil,
+                 sales <- payment.sales,
+                 {:ok, register_params} <- sales.registration_details |> Jason.decode() do
+              case Settings.register(register_params["user"], sales) do
+                {:ok, multi_res} ->
+                  %{status: "ok", res: multi_res |> BluePotion.sanitize_struct()}
 
                 _ ->
-                  %{status: "error", reason: "Already Approved!"}
+                  %{status: "error"}
               end
             else
               _ ->
-                %{status: "error"}
+                with true <- res["StatCode"] == "00",
+                     true <- payment != nil,
+                     true <- payment.wallet_topup != nil do
+                  case Settings.approve_topup(%{"id" => payment.wallet_topup.id})
+                       |> IO.inspect() do
+                    {:ok, tp} ->
+                      %{status: "ok", res: tp |> BluePotion.sanitize_struct()}
+
+                    _ ->
+                      %{status: "error", reason: "Already Approved!"}
+                  end
+                else
+                  _ ->
+                    %{status: "error"}
+                end
             end
           end
 
@@ -509,23 +575,38 @@ defmodule CommerceFrontWeb.ApiController do
 
     payment |> Settings.update_payment(%{webhook_details: Jason.encode!(params)})
 
-    case params["status"] do
-      "00" ->
-        with true <- payment.wallet_topup != nil do
-          case Settings.approve_topup(%{"id" => payment.wallet_topup.id}) do
-            {:ok, tp} ->
-              %{status: "ok", res: tp |> BluePotion.sanitize_struct()}
+    with true <- params["status"] == "00",
+         true <- payment != nil,
+         true <- payment.sales != nil,
+         sales <- payment.sales,
+         {:ok, register_params} <- sales.registration_details |> Jason.decode() do
+      case Settings.register(register_params["user"], sales) do
+        {:ok, multi_res} ->
+          %{status: "ok", res: multi_res |> BluePotion.sanitize_struct()}
 
-            _ ->
-              %{status: "error"}
-          end
-        else
-          _ ->
-            %{status: "ok"}
-        end
-
+        _ ->
+          %{status: "error"}
+      end
+    else
       _ ->
-        %{status: "error"}
+        case params["status"] do
+          "00" ->
+            with true <- payment.wallet_topup != nil do
+              case Settings.approve_topup(%{"id" => payment.wallet_topup.id}) do
+                {:ok, tp} ->
+                  %{status: "ok", res: tp |> BluePotion.sanitize_struct()}
+
+                _ ->
+                  %{status: "error"}
+              end
+            else
+              _ ->
+                %{status: "ok"}
+            end
+
+          _ ->
+            %{status: "error"}
+        end
     end
 
     json(conn, %{})

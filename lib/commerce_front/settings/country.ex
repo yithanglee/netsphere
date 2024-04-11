@@ -7,6 +7,7 @@ defmodule CommerceFront.Settings.Country do
     field(:currency, :string)
     field(:img_url, :string)
     field(:name, :string)
+    field(:alias, :string)
 
     timestamps()
   end
@@ -14,7 +15,7 @@ defmodule CommerceFront.Settings.Country do
   @doc false
   def changeset(country, attrs) do
     country
-    |> cast(attrs, [:name, :currency, :conversion, :img_url])
+    |> cast(attrs, [:alias, :name, :currency, :conversion, :img_url])
 
     # |> validate_required([:name, :currency, :conversion, :img_url])
   end

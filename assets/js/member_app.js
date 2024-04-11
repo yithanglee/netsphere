@@ -142,7 +142,6 @@ export let memberApp_ = {
       if (this.user != null) {
         $("input[name='user[sales_person_id]']").val(this.user.id)
 
-
       }
       $("input[name='user[share_code]']").val(pageParams.share_code)
       if (phxApp_.chosen_country_id_ != null) {
@@ -153,19 +152,31 @@ export let memberApp_ = {
 
     phxApp_.validateForm("form", () => {
       console.log("validating form...")
-      phxApp_.form($(dom).closest("form"), "link_register", (e) => {
+      phxApp_.form($(dom).closest("form"), "link_register", (j) => {
         console.log("after register form...")
-        console.log(e)
-        if (e != null) {
+        console.log(j)
+        if (j != null) {
           commerceApp_.emptyCart_()
-          if (e.billplz_code != null) {
-
-            window.location = e.payment_url
-          } else {
-
-            phxApp_.navigateTo(e.payment_url)
+          if (j.payment_method == "fpx") {
+            function postRedirect(url, data) {
+              // Create a form element
+              var form = $('<form>', {
+                'method': 'POST',
+                'action': url
+              });
+              // Append input elements for each data key-value pair to the form
+              $.each(data, function(key, value) {
+                $('<input>', {
+                  'type': 'hidden',
+                  'name': key,
+                  'value': value
+                }).appendTo(form);
+              });
+              // Append the form to the body and submit it
+              form.appendTo('body').submit();
+            }
+            postRedirect(j.payment_url, JSON.parse(j.webhook_details));
           }
-
         } else {
           commerceApp_.emptyCart_()
           phxApp_.navigateTo("/login")

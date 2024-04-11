@@ -694,9 +694,9 @@ export let phxApp_ = {
   },
   evalCart() {
     if (window.location.pathname.includes("merchant")) {
-      
-    $(".showMcart").toggleClass("d-none")
-    $(".showCart").toggleClass("d-none")
+
+      $(".showMcart").toggleClass("d-none")
+      $(".showCart").toggleClass("d-none")
     }
   },
   async navigateCallback() {
@@ -1134,7 +1134,7 @@ export let phxApp_ = {
                     </div>`
       }
 
-     
+
       if (qv.upload) {
 
 
@@ -1316,6 +1316,9 @@ export let phxApp_ = {
             ']"  aria-value="' + qv.data + '">';
         }
 
+      }
+      if (qv.required) {
+        input2 = input2.replaceAll("input type", "input required type")
       }
 
     }
@@ -2129,17 +2132,17 @@ export let phxApp_ = {
       });
     });
   },
-    copyToClipboard(text) {
-        navigator.clipboard.writeText(text)
-          .then(() => {
-            console.log('Text copied to clipboard:', text);
-            alert('Text copied to clipboard!');
-          })
-          .catch(err => {
-            console.error('Could not copy text: ', err);
-            alert('Could not copy text: ' + err);
-          });
-      },
+  copyToClipboard(text) {
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        console.log('Text copied to clipboard:', text);
+        alert('Text copied to clipboard!');
+      })
+      .catch(err => {
+        console.error('Could not copy text: ', err);
+        alert('Could not copy text: ' + err);
+      });
+  },
   populateTableData(dataSourcee, length, onCompleteFn) {
     this.getTableData(dataSourcee, length, onCompleteFn)
   },

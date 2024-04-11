@@ -32,6 +32,7 @@ Grand Total,Grand Total,总计,ยอดรวมทั้งหมด,Tổng c�
 IC No/ Company Reg No,IC No/ Company Reg No,身份证号码/商业登记号码,เลขบัตรประชาชน,Số CMND/ Số đăng ký kinh doanh
 Information,Information,信息,รายละเอียด,Thông tin
 Kindly bank in to this account. ,Kindly bank in to this account. ,请将钱转入此账户,โอนเข้าบัญชีนี้,Vui lòng chuyển khoản vào tài khoản này
+Left,Left,左,Left,Left
 Last month,Last month,上个月,เดือนก่อน,Tháng trước
 Line 1,Line 1,1号线,Line 1,Dòng 1
 Line 2,Line 2,2号线,Line 2,Dòng 2
@@ -47,6 +48,7 @@ Placement,Placement,安置,จัดวาง,Bố trí
 Placement Position,Placement Position,安置位置,ตำแหน่งที่จัดวาง,Vị trí bố trí
 Please update your IC No/Company Registration No,Please update your IC No/Company Registration No,请更新您的身份证号码/商业登记号码,โปรดอัพเดทเลขบัตรประชน/เลขนิติบุคคลใหม่,Vui lòng cập nhật số CMND/Số đăng ký kinh doanh của bạn
 Postcode,Postcode,邮政编码,รหัสไปรษณีย์,Mã bưu điện
+_position,Position,位置,Position,Position
 Re-entry,Re-entry,重复消费,สั่งซื้อซ้ำ,Mua hàng lặp lại
 Recipient Details,Recipient Details,收件人信息,ผู้รับ,Thông tin người nhận
 Redeem,Redeem,兑换产品,แลกสินค้า/รางวัล,Đổi sản phẩm
@@ -55,6 +57,7 @@ Referal,Referal,简介,แนะนำ,Giới thiệu
 Register Point,Register Point,注册积分,คะแนน RP,Đăng ký tích điểm
 Register Wallet,Register Wallet,注册钱包,วอลเลทลงทะเบียนใหม่,Đăng ký ví
 Registration Details,Registration Details,注册详情,ข้อมูลผู้ลงทะเบียนใหม่,Chi tiết đăng ký
+Right,Right,右,Right,Right
 Sales History,Sales History,销售历史,ประวัติยอดขาย,Lịch sử bán hàng
 Self Pick Up,Self Pick Up,自提,รับด้วยตัวเอง,Tự nhận hàng
 Shipping Fee,Shipping,运费,จัดส่ง,Chi phí vận chuyển
@@ -62,7 +65,8 @@ Shipping,Shipping,运输,จัดส่ง,Vận chuyển
 Shipping Details,Shipping Details,送货细节,รายละเอียดจัดส่ง,Chi tiết vận chuyển
 Silver,Silver,银级,Silver,Silver
 Sponsor Username,Sponsor Username,推荐人用户名,ยูสเซอร์เนมผู้สปอนเซอร์,Tên người giới thiệu
-State,State,州属,จังหวัด,Trang chủ
+_sponsor,Sponsor,推荐人,Sponsor,Sponsor
+State,State,省,จังหวัด,Trang chủ
 Subtotal,Subtotal,小计,ยอดรวม,Tổng số phụ
 _Summary,Summary,概括,สรุป,Bản tổng hợp
 Team Bonus Summary,Team Bonus Summary,团队奖,สรุปโบนัสบริหารทีม,Tiền thưởng đội nhóm

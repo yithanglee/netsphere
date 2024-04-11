@@ -50,8 +50,8 @@ defmodule CommerceFrontWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
-    # plug :fetch_session
-    # plug :protect_from_forgery
+    plug :fetch_session
+    plug :protect_from_forgery
 
     plug CORSPlug,
       origin: [
