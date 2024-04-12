@@ -1569,16 +1569,20 @@ defmodule CommerceFrontWeb.ApiController do
                         {prefix, i, ss} = tuple
 
                         if i |> String.contains?("_id") do
-                          case Integer.parse(ss) do
-                            {ss, _val} ->
-                              """
-                              #{prefix}.#{i} == ^#{ss} #{addon_search}
-                              """
+                          if ss == nil do
+                            tuple
+                          else
+                            case Integer.parse(ss) do
+                              {ss, _val} ->
+                                """
+                                #{prefix}.#{i} == ^#{ss} #{addon_search}
+                                """
 
-                            _ ->
-                              """
-                              ilike(a.#{i}, ^"%#{ss}%")  #{addon_search}
-                              """
+                              _ ->
+                                """
+                                ilike(a.#{i}, ^"%#{ss}%")  #{addon_search}
+                                """
+                            end
                           end
                         else
                           with true <-

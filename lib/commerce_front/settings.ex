@@ -2577,6 +2577,97 @@ defmodule CommerceFront.Settings do
     Multi.new()
     |> Multi.run(:delete_initial_entries, fn _repo, %{} ->
       if date == ~D[2023-12-16] do
+        # why need delete all?
+        # if recalculate from offset?
+        # mismatch between dates
+
+        Repo.delete_all(GroupSalesSummary)
+        Repo.delete_all(PlacementGroupSalesDetail)
+
+        Repo.delete_all(
+          from(r in Reward,
+            where: r.name == "team bonus"
+          )
+        )
+      end
+
+      {:ok, nil}
+    end)
+    |> Multi.run(:delete_remaining_entries, fn _repo, %{} ->
+      ids =
+        Repo.all(
+          from(gss in GroupSalesSummary,
+            where:
+              gss.day == ^d and gss.month == ^m and
+                gss.year == ^y,
+            select: gss.id
+          )
+        )
+
+      q2 =
+        from(pgsd in PlacementGroupSalesDetail)
+        |> where(
+          [pgsd],
+          not ilike(pgsd.remarks, "bring forward%") and pgsd.gs_summary_id in ^ids
+        )
+
+      # need to exlude those carry forward and bring forward..
+
+      # Repo.delete_all(
+      #   from(gss in GroupSalesSummary,
+      #     where:
+      #       gss.day == ^d and gss.month == ^m and
+      #         gss.year == ^y
+      #   )
+      # )
+
+      Repo.delete_all(q2)
+
+      {:ok, nil}
+    end)
+    |> Multi.run(:sales, fn _repo, %{} ->
+      sales =
+        Repo.all(
+          from(s in CommerceFront.Settings.Sale,
+            where: s.inserted_at > ^datetime and s.inserted_at < ^end_datetime,
+            where: s.status not in ^[:cancelled, :pending_payment, :refund],
+            preload: :user,
+            order_by: [asc: s.id]
+          )
+        )
+
+      for sale <- sales do
+        if sale.user != nil do
+          {:ok, pgsd} =
+            contribute_group_sales(
+              sale.user.username,
+              sale.total_point_value,
+              sale,
+              nil,
+              nil,
+              date
+            )
+        end
+      end
+
+      # team_bonus(sale.user.username, sale.total_point_value, sale, nil, pgsd)
+
+      {:ok, nil}
+    end)
+    |> Repo.transaction()
+  end
+
+  def _reconstruct_daily_group_sales_summary(date \\ Date.utc_today()) do
+    {y, m, d} =
+      date
+      |> Date.to_erl()
+
+    datetime = NaiveDateTime.from_erl!({{y, m, d}, {0, 0, 0}})
+    end_datetime = datetime |> Timex.shift(days: 1)
+
+    Multi.new()
+    |> Multi.run(:delete_initial_entries, fn _repo, %{} ->
+      if date == ~D[2023-12-16] do
         Repo.delete_all(GroupSalesSummary)
         Repo.delete_all(PlacementGroupSalesDetail)
 

@@ -14,7 +14,7 @@ export let memberApp_ = {
     if ($("form#register")) {
       if (this.user != null) {
         $("input[name='user[sales_person_id]']").val(this.user.id)
-        $("input[name='user[sponsor]']").val(this.user.username)
+        // $("input[name='user[sponsor]']").val(this.user.username)
         $("input[name='user[username]']").val("")
       }
     }
