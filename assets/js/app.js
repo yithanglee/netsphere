@@ -24,6 +24,9 @@ if (isDev) {
   // phxApp_.post("admin_menus", { scope: "admin_menus", list: MENUS })
   useSw = false
 }
+
+
+
 if ('serviceWorker' in navigator && useSw) {
   navigator.serviceWorker.register('/sw.js')
     .then(registration => {
@@ -32,7 +35,13 @@ if ('serviceWorker' in navigator && useSw) {
     .catch(error => {
       console.error('Service Worker registration failed:', error);
     });
+
+
+
+
 }
+
+
 var langPrefix = "v2";
 window.translationRes = "";
 

@@ -457,23 +457,47 @@ defmodule CommerceFrontWeb.PageController do
     payment = CommerceFront.Settings.get_payment_by_billplz_code(params["orderid"])
     payment |> CommerceFront.Settings.update_payment(%{webhook_details: Jason.encode!(params)})
 
-    case params["status"] do
-      "00" ->
-        with true <- payment.wallet_topup != nil do
-          case CommerceFront.Settings.approve_topup(%{"id" => payment.wallet_topup.id}) do
+    # case params["status"] do
+    #   "00" ->
+    #     with true <- payment.wallet_topup != nil do
+    #       case CommerceFront.Settings.approve_topup(%{"id" => payment.wallet_topup.id}) do
+    #         {:ok, tp} ->
+    #           %{status: "ok", res: tp |> BluePotion.sanitize_struct()}
+
+    #         _ ->
+    #           %{status: "error"}
+    #       end
+    #     else
+    #       _ ->
+    #         %{status: "ok"}
+    #     end
+
+    #   _ ->
+    #     %{status: "error"}
+    # end
+    with true <- params["status"] == "00",
+         true <- payment != nil,
+         true <- payment.sales != nil,
+         sales <- payment.sales,
+         {:ok, register_params} <- sales.registration_details |> Jason.decode() do
+      Elixir.Task.start_link(CommerceFront.Settings, :register, [register_params["user"], sales])
+    else
+      _ ->
+        with true <- params["status"] == "00",
+             true <- payment != nil,
+             true <- payment.wallet_topup != nil do
+          case CommerceFront.Settings.approve_topup(%{"id" => payment.wallet_topup.id})
+               |> IO.inspect() do
             {:ok, tp} ->
               %{status: "ok", res: tp |> BluePotion.sanitize_struct()}
 
             _ ->
-              %{status: "error"}
+              %{status: "error", reason: "Already Approved!"}
           end
         else
           _ ->
-            %{status: "ok"}
+            %{status: "error"}
         end
-
-      _ ->
-        %{status: "error"}
     end
 
     IO.inspect("it's thank you-ing!")

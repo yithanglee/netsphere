@@ -180,7 +180,7 @@ export let commerceApp_ = {
     // callback function to call this render
     var list = ["merchantProducts", "merchantproduct", "merchantProfile", "merchant", "recruit", "topup", "country",
       "light", "userProfile", "wallet", "announcement", "products", "product",
-      "rewardList", "mcart", "cart", "cartItems", "salesItems", "upgradeTarget", "choosePayment"
+      "rewardList", "mcart", "cart", "cartItems", "salesItems", "upgradeTarget", "sponsorTarget", "choosePayment"
     ]
 
     list.forEach((v, i) => {
@@ -781,13 +781,38 @@ export let commerceApp_ = {
 
       })
 
-      $("choosePayment").html(`<div>
+      $("choosePayment").html(`
+          <div class="my-4 d-flex justify-content-between">
+            <div  class="btn btn-primary" onclick="$('#myPaymentModal').modal('show')">
+              Choose Payment
+            </div>
+            <div class="" id="chosen-payment">
+            </div>
+          </div>
+          <div class="modal" id="myPaymentModal">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title">Choose Payment</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true"></span>
+                  </button>
+                </div>
+                <div class="modal-body">
+               
 
-    <section class="ps-0 p-4 razer-display">
-                <h4>Pay with</h4>
-              ` + sections.join("") + `
-              </section>
-      </div>`)
+                        <section class="ps-0 p-4 razer-display">
+                          <h4>Pay with</h4>
+                        ` + sections.join("") + `
+                        </section>
+               
+                </div>
+                <div class="modal-footer">
+                </div>
+              </div>
+            </div>
+          </div>
+        `)
 
 
 
@@ -798,6 +823,11 @@ export let commerceApp_ = {
         $(this).addClass("border border-primary rounded")
         console.info("use channel: " + channel)
         $("input[name='user[payment][channel]']").val(channel)
+
+
+        var p = $(this).html()
+        $("#chosen-payment").html(p)
+        $('#myPaymentModal').modal('hide')
       })
 
 
@@ -951,60 +981,15 @@ export let commerceApp_ = {
           header: 'New Register Point Topup',
           content: `
             <div class="row ">
-              <div class="col-12 col-lg-6">
-                <form class="with_mod col-12 row p-4" module="WalletTopup" id="WalletTopup">
-                </form>
-              </div>
-              <div class="col-12 col-lg-6">
-              <section class="p-4 razer-display">
-                <h3>Choose 1 channel</h3>
-              ` + sections.join("") + `
-              </section>
-              <section class="d-none upload-display">
-                <div class="px-4">
-                  Kindly bank in to either 1 of these account.
-                </div>
-                <div class="p-4 fs-5">
-                  HAHO LIFE SDN. BHD.<br>
-                  <span>
-                    <div> MBB </div>
-                    <div>5642 4949 7131  <div class="btn btn-primary" onclick="phxApp.copyToClipboard('564249497131');selectedBank('MBB')">Copy</div></div>
-                  </span><br>
-                  <span>
-                    <div> CIMB </div>
-                    <div>8011 2277 45 <div class="btn btn-primary" onclick="phxApp.copyToClipboard('8011227745');selectedBank('CIMB')">Copy</div></div>
-                  </span><br>
-                  <span>
-                    <div> PUBLIC BANK </div>
-                    <div>3237 7779 07 <div class="btn btn-primary" onclick="phxApp.copyToClipboard('3237777907');selectedBank('PBB')">Copy</div></div>
-                  </span><br>
-                </div>
-              </section>
-              <div class="btn-group" role="group" aria-label="PaymentGroup">
-                <input type="radio" class="btn-check show-upload" name="btnradio" id="btnradio1z" autocomplete="off" >
-                <label class="btn btn-outline-primary" for="btnradio1z">Upload Bank In Slip</label>
+              <form class="col-12 offset-lg-1 col-lg-10 with_mod row p-4" module="WalletTopup" id="WalletTopup">
+               
 
-                <input type="radio" class="btn-check show-razer" name="btnradio" id="btnradio2z" autocomplete="off" checked="">
-                <label class="btn btn-outline-primary" for="btnradio2z">Online Banking/CC</label>
-     
-              </div>
-
-              </div>
+              </form>
 
             </div>
         `
         })
 
-        $(".show-upload").click(() => {
-          $(".upload-display").removeClass("d-none")
-          $(".razer-display").addClass("d-none")
-          $("select[name='WalletTopup[payment_method]']").val('bank in slip')
-        })
-        $(".show-razer").click(() => {
-          $(".upload-display").addClass("d-none")
-          $(".razer-display").removeClass("d-none")
-          $("select[name='WalletTopup[payment_method]']").val('fpx')
-        })
 
 
         phxApp.createForm({
@@ -1015,6 +1000,46 @@ export let commerceApp_ = {
           ['id',
             { label: 'amount', alt_name: 'Amount (RP)', alt_class: "col-12" },
             { label: 'remarks', alt_name: 'Description', alt_class: "col-12" },
+            { label: 'payment-placeholder', alt_name: 'Choose Payment', alt_class: "col-12", placeholder: `
+
+
+                <div id="payment-placeholder">
+                  <section class="p-4 razer-display">
+                    <h3>Choose 1 channel</h3>
+                  ` + sections.join("") + `
+                  </section>
+                  <section class="d-none upload-display">
+                    <div class="px-4 pt-4">
+                      Kindly bank in to either 1 of these account.
+                    </div>
+                    <div class="p-4 fs-5">
+                      HAHO LIFE SDN. BHD.<br>
+                      <span>
+                        <div> MBB </div>
+                        <div>5642 4949 7131  <div class="btn btn-primary" onclick="phxApp.copyToClipboard('564249497131');selectedBank('MBB')">Copy</div></div>
+                      </span><br>
+                      <span>
+                        <div> CIMB </div>
+                        <div>8011 2277 45 <div class="btn btn-primary" onclick="phxApp.copyToClipboard('8011227745');selectedBank('CIMB')">Copy</div></div>
+                      </span><br>
+                      <span>
+                        <div> PUBLIC BANK </div>
+                        <div>3237 7779 07 <div class="btn btn-primary" onclick="phxApp.copyToClipboard('3237777907');selectedBank('PBB')">Copy</div></div>
+                      </span><br>
+                    </div>
+                  </section>
+                  <div class="btn-group" role="group" aria-label="PaymentGroup">
+                    <input type="radio" class="btn-check show-upload" name="btnradio" id="btnradio1z" autocomplete="off" >
+                    <label class="btn btn-outline-primary" for="btnradio1z">Upload Bank In Slip</label>
+
+                    <input type="radio" class="btn-check show-razer" name="btnradio" id="btnradio2z" autocomplete="off" checked="">
+                    <label class="btn btn-outline-primary" for="btnradio2z">Online Banking/CC</label>
+         
+                  </div>
+
+                </div>
+
+            ` },
 
             {
               label: 'payment_method',
@@ -1066,6 +1091,19 @@ export let commerceApp_ = {
           }
 
         )
+
+
+        $(".show-upload").click(() => {
+          $(".upload-display").removeClass("d-none")
+          $(".razer-display").addClass("d-none")
+          $("select[name='WalletTopup[payment_method]']").val('bank in slip')
+        })
+        $(".show-razer").click(() => {
+          $(".upload-display").addClass("d-none")
+          $(".razer-display").removeClass("d-none")
+          $("select[name='WalletTopup[payment_method]']").val('fpx')
+        })
+
 
         $("input[name='WalletTopup[amount]']").on("change", () => {
           var valu = $("input[name='WalletTopup[amount]']").val()
@@ -1262,6 +1300,10 @@ export let commerceApp_ = {
           phxApp_.chosen_country_id_ = country_id
           phxApp_.notify("Chosen region: " + name)
           localStorage.setItem("region", name)
+          setTimeout(() => {
+
+            $("#chosen-region").html(name)
+          }, 1000)
           $("#mySubModal").modal('hide')
 
           try {
@@ -1375,6 +1417,98 @@ export let commerceApp_ = {
           $("#mySubModal").modal('hide')
           window.upgradeTarget = $("[name='upgrade[username]']").val()
           $("#upgradeTarget").html($("[name='upgrade[username]']").val())
+
+          commerceApp_.components["cartItems"]()
+          console.info("need to check if member is direct sponsor")
+
+
+
+
+        })
+      })
+
+    },
+    sponsorTarget() {
+
+      window.sponsorTarget
+      if (window.sponsorTarget == null) {
+        window.sponsorTarget = memberApp_.user.username
+      } else {}
+      $("input[name='user[sponsor]']").val('')
+      $("sponsorTarget").customHtml(`<span>for: <span id="sponsorTarget">` + window.sponsorTarget + `</span>
+       <a class="ms-4" href="javascript:void(0);" aria-sponsor=true> <i class="fa fa-edit"></i> Change</a> </span>`)
+
+      $("[aria-sponsor]").click(() => {
+        phxApp_.modal({
+          selector: "#mySubModal",
+          autoClose: false,
+          content: `
+          <div>
+            <div class="form-group">
+              <label>Username</label>
+              <input class="my-2 form-control" value="` + memberApp_.user.username + `" type="text" name='sponsor[username]'></input>
+              
+
+              <button class="mt-4 btn btn-outline-primary checkUser">Check</button>
+              <button class="mt-4 btn btn-primary disabled selectUser">Select this user</button>
+            </div>
+          </div>
+          `,
+          header: 'Change Sponsor User',
+        })
+        $(".checkUser").click(() => {
+
+
+          phxApp_.api("get_accumulated_sales", {
+              parent_id: memberApp_.user.id,
+              show_rank: true,
+              username: $("[name='sponsor[username]']").val(),
+
+            }, () => {
+              window.sponsorTarget = memberApp_.user.username
+              $("input[name='user[sponsor]']").val(window.sponsorTarget)
+              $(".selectUser").addClass("disabled")
+
+            },
+            (res) => {
+
+              $(".selectUser").removeClass("disabled")
+              $(".pv-info").customHtml(`Accumulated sales PV: ` + res[0] + ` | Rank: ` + res[1])
+
+              if (res[2].is_direct_downline) {
+                $(".to-upgrade").removeClass("disabled")
+              } else {
+                $("label[for='btnradio3']").click()
+                $(".to-upgrade").addClass("disabled")
+              }
+
+
+              if (res[3].is_downline) {
+                phxApp_.notify("User verified!")
+                // $(".to-upgrade").removeClass("disabled")
+              } else {
+                if ($("input[name='sponsor[username]']").val() == memberApp_.user.username) {
+                  phxApp_.notify("User verified!")
+                } else {
+                  phxApp_.notify("Not downline!", { type: "warning" })
+                  $(".selectUser").addClass("disabled")
+                }
+              }
+
+
+
+            })
+
+
+        })
+        $(".selectUser").click(() => {
+          $("input[name='user[sponsor]']").val($("[name='sponsor[username]']").val())
+          $("input[name='view[sponsor]']").val($("[name='sponsor[username]']").val())
+          phxApp_.notify("User selected!")
+
+          $("#mySubModal").modal('hide')
+          window.sponsorTarget = $("[name='sponsor[username]']").val()
+          $("#sponsorTarget").html($("[name='sponsor[username]']").val())
 
           commerceApp_.components["cartItems"]()
           console.info("need to check if member is direct sponsor")
@@ -3410,7 +3544,10 @@ export let commerceApp_ = {
           phxApp_.chosen_country_id_ = country_id
           phxApp_.notify("Chosen region: " + name)
           localStorage.setItem("region", name)
+          setTimeout(() => {
 
+            $("#chosen-region").html(name)
+          }, 1000)
           if (localStorage.region != null) {
             langPrefix = evalCountry(name)
           }

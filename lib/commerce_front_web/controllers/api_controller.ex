@@ -319,12 +319,20 @@ defmodule CommerceFrontWeb.ApiController do
 
         "get_accumulated_sales" ->
           user = Settings.get_user_by_username(params["username"])
+          parent = Settings.get_user!(String.to_integer(params["parent_id"]))
+          # todo: from username check uplines, if the upline is you, ok
+          # todo: from self/ parent_id check uplines , if the user is in the upline, then error
 
           if params["parent_id"] != nil do
             check = Settings.verify_parent(String.to_integer(params["parent_id"]), user)
 
+            check2 =
+              CommerceFront.Settings.check_uplines(params["username"])
+              |> Enum.filter(&(&1.parent == parent.username))
+
             Settings.accumulated_sales_by_user(user, params["show_rank"])
             |> List.insert_at(2, %{"is_direct_downline" => check})
+            |> List.insert_at(3, %{"is_downline" => check2 != []})
           else
             Settings.accumulated_sales(params["username"])
           end
@@ -492,7 +500,26 @@ defmodule CommerceFrontWeb.ApiController do
           Settings.list_ranks() |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
 
         "placement" ->
-          Settings.display_place_tree(params["username"], params["full"])
+          # has a starter 
+          starter = Map.get(params, "starter")
+
+          if starter != nil do
+            check =
+              CommerceFront.Settings.check_uplines(params["username"])
+              |> Enum.filter(&(&1.parent == starter))
+
+            if check != [] do
+              Settings.display_place_tree(params["username"], params["full"])
+            else
+              if params["username"] == starter do
+                Settings.display_place_tree(params["username"], params["full"])
+              else
+                []
+              end
+            end
+          else
+            Settings.display_place_tree(params["username"], params["full"])
+          end
 
         "referral" ->
           Settings.display_refer_tree(params["username"])
@@ -1011,6 +1038,9 @@ defmodule CommerceFrontWeb.ApiController do
           case Settings.create_sales_transaction(params) |> IO.inspect() do
             {:ok, multi_res} ->
               %{status: "ok", res: multi_res.payment |> BluePotion.sanitize_struct()}
+
+            {:error, "Sponsor username not matched"} ->
+              %{status: "error", reason: "Sponsor username not matched."}
 
             {:error, :payment, "not sufficient", passed_cg} ->
               %{status: "error", reason: "wallet balance not sufficient"}

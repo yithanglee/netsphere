@@ -1084,6 +1084,14 @@ export let phxApp_ = {
                       </div>
                     </div>`
       }
+      if (qv.placeholder) {
+
+
+
+        input2 = `<div class="` + alt_class + `">
+                      `+ qv.placeholder +`
+                    </div>`
+      }
       if (qv.code) {
 
         input2 = `<div class="row">

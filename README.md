@@ -354,3 +354,15 @@ merchant product filter by business category
 
 http://staging.haho2u.com/
 http://test_svt.damienslab.com/
+
+
+
+
+--
+
+1 register page add the function to search for their downline  
+then insert into the input [v]
+2 when navigate the placement tree, add the function to search by username ( only own tree) [v]
+
+3 the register page, remove the default values. [v]
+4 

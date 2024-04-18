@@ -28,8 +28,13 @@ defmodule CommerceFront.Application do
       File.mkdir(File.cwd!() <> "/media")
     end
 
-    File.rm_rf("./priv/static/images/uploads")
-    File.ln_s("#{File.cwd!()}/media/", "./priv/static/images/uploads")
+    File.rm_rf("#{Application.app_dir(:commerce_front)}/priv/static/images/uploads")
+
+    File.ln_s(
+      "#{File.cwd!()}/media/",
+      "#{Application.app_dir(:commerce_front)}/priv/static/images/uploads"
+    )
+
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: CommerceFront.Supervisor]

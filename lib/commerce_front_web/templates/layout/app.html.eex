@@ -7,7 +7,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="<%= Routes.static_path(@conn, "/css/app.css") %>"/>
   <script type="text/javascript" src="<%= Routes.static_path(@conn, "/js/jquery.min.js") %>"></script>
-  <script defer type="text/javascript" src='/js/app.js?v=0.1.44'></script>
+  <script defer type="text/javascript" src='/js/app.js?v=0.1.63'></script>
   <link rel="stylesheet" href="<%= Routes.static_path(@conn, "/css/themes/default/style.min.css") %>"/>
   <link rel="stylesheet" href="<%= Routes.static_path(@conn, "/css/datatables.min.css") %>"/>
   <script type="text/javascript" src="/js/datatables.min.js"></script>
@@ -23,6 +23,7 @@
   <link rel="stylesheet" href="<%= Routes.static_path(@conn, "/vendor/slick/slick-theme.css") %>"/>
   <script type="text/javascript" src="/vendor/slick/slick.js"></script>
   <script src="/js/jstree.min.js"></script>
+  <link rel="manifest" href="/manifest.json">
   <%= render("_header.html", conn: @conn)%>
   <form>
     <input type="hidden" name="_csrf_token_ori" value="<%= Phoenix.Controller.get_csrf_token() %>">

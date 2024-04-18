@@ -1173,7 +1173,6 @@ defmodule CommerceFront.Settings do
       |> Repo.update()
     end)
     |> Repo.transaction()
-    |> IO.inspect()
     |> case do
       {:ok, multi_res} ->
         gs_summary = multi_res |> Map.get(:gs_summary)
@@ -2565,14 +2564,24 @@ defmodule CommerceFront.Settings do
 
   @doc """
   when the placement group sales details is in place, based on the inserted at date to reconstruct the group sales sumary
+
+  maybe redo from the start of the month?
+
   """
-  def reconstruct_daily_group_sales_summary(date \\ Date.utc_today()) do
+  def reconstruct_daily_group_sales_summary(date \\ Date.utc_today(), period \\ :daily) do
     {y, m, d} =
       date
       |> Date.to_erl()
 
+    beginning_of_month = date |> Timex.beginning_of_month()
+
+    {sy, sm, sd} =
+      beginning_of_month
+      |> Date.to_erl()
+
     datetime = NaiveDateTime.from_erl!({{y, m, d}, {0, 0, 0}})
     end_datetime = datetime |> Timex.shift(days: 1)
+    start_datetime = NaiveDateTime.from_erl!({{sy, sm, sd}, {0, 0, 0}})
 
     Multi.new()
     |> Multi.run(:delete_initial_entries, fn _repo, %{} ->
@@ -2589,64 +2598,139 @@ defmodule CommerceFront.Settings do
             where: r.name == "team bonus"
           )
         )
+      else
+        if period == :monthly do
+          q4 =
+            GroupSalesSummary
+            |> where([gss], gss.day >= ^sd and gss.month == ^sm and gss.year == ^sy)
+
+          r4 = Repo.delete_all(q4)
+
+          Repo.delete_all(
+            from(pgsd in PlacementGroupSalesDetail,
+              where: pgsd.inserted_at > ^start_datetime and pgsd.inserted_at < ^end_datetime
+            )
+          )
+
+          r5 =
+            Repo.delete_all(
+              from(r in Reward,
+                where:
+                  r.name == "team bonus" and r.day >= ^sd and r.month == ^sm and r.year == ^sy
+              )
+            )
+        end
       end
 
       {:ok, nil}
     end)
     |> Multi.run(:delete_remaining_entries, fn _repo, %{} ->
-      ids =
-        Repo.all(
-          from(gss in GroupSalesSummary,
-            where:
-              gss.day == ^d and gss.month == ^m and
-                gss.year == ^y,
-            select: gss.id
+      if period == :monthly do
+        ids =
+          Repo.all(
+            from(gss in GroupSalesSummary,
+              where:
+                gss.day >= ^d and gss.month == ^m and
+                  gss.year == ^y,
+              select: gss.id
+            )
           )
-        )
 
-      q2 =
-        from(pgsd in PlacementGroupSalesDetail)
-        |> where(
-          [pgsd],
-          not ilike(pgsd.remarks, "bring forward%") and pgsd.gs_summary_id in ^ids
-        )
+        q2 =
+          from(pgsd in PlacementGroupSalesDetail)
+          |> where(
+            [pgsd],
+            not ilike(pgsd.remarks, "bring forward%") and pgsd.gs_summary_id in ^ids
+          )
 
-      # need to exlude those carry forward and bring forward..
+        Repo.delete_all(q2)
+      else
+        ids =
+          Repo.all(
+            from(gss in GroupSalesSummary,
+              where:
+                gss.day == ^d and gss.month == ^m and
+                  gss.year == ^y,
+              select: gss.id
+            )
+          )
 
-      # Repo.delete_all(
-      #   from(gss in GroupSalesSummary,
-      #     where:
-      #       gss.day == ^d and gss.month == ^m and
-      #         gss.year == ^y
-      #   )
-      # )
+        q2 =
+          from(pgsd in PlacementGroupSalesDetail)
+          |> where(
+            [pgsd],
+            not ilike(pgsd.remarks, "bring forward%") and pgsd.gs_summary_id in ^ids
+          )
 
-      Repo.delete_all(q2)
+        Repo.delete_all(q2)
+      end
 
       {:ok, nil}
     end)
     |> Multi.run(:sales, fn _repo, %{} ->
       sales =
-        Repo.all(
-          from(s in CommerceFront.Settings.Sale,
-            where: s.inserted_at > ^datetime and s.inserted_at < ^end_datetime,
-            where: s.status not in ^[:cancelled, :pending_payment, :refund],
-            preload: :user,
-            order_by: [asc: s.id]
-          )
-        )
-
-      for sale <- sales do
-        if sale.user != nil do
-          {:ok, pgsd} =
-            contribute_group_sales(
-              sale.user.username,
-              sale.total_point_value,
-              sale,
-              nil,
-              nil,
-              date
+        if period == :monthly do
+          Repo.all(
+            from(s in CommerceFront.Settings.Sale,
+              where: s.inserted_at > ^start_datetime and s.inserted_at < ^end_datetime,
+              where: s.status not in ^[:cancelled, :pending_payment, :refund],
+              preload: :user,
+              order_by: [asc: s.id]
             )
+          )
+        else
+          Repo.all(
+            from(s in CommerceFront.Settings.Sale,
+              where: s.inserted_at > ^datetime and s.inserted_at < ^end_datetime,
+              where: s.status not in ^[:cancelled, :pending_payment, :refund],
+              preload: :user,
+              order_by: [asc: s.id]
+            )
+          )
+        end
+
+      if period == :monthly do
+        group_date_sales = sales |> Enum.group_by(& &1.sale_date)
+
+        # group_date_sales |> Map.keys() |> Enum.sort() |> IO.inspect()
+
+        drange = Date.range(beginning_of_month |> Date.add(-1), date)
+
+        for date_sale <- drange do
+          sales = group_date_sales[date_sale]
+
+          if sales != nil do
+            for sale <- sales do
+              if sale.user != nil do
+                {:ok, pgsd} =
+                  contribute_group_sales(
+                    sale.user.username,
+                    sale.total_point_value,
+                    sale,
+                    nil,
+                    nil,
+                    date_sale
+                  )
+              end
+            end
+          end
+
+          CommerceFront.Calculation.daily_team_bonus(date_sale)
+          CommerceFront.Settings.carry_forward_entry(date_sale)
+        end
+      else
+        for sale <- sales do
+          if sale.user != nil do
+            {:ok, pgsd} =
+              contribute_group_sales(
+                sale.user.username,
+                sale.total_point_value,
+                sale,
+                nil,
+                nil,
+                date
+              )
+          end
         end
       end
 
@@ -2769,121 +2853,10 @@ defmodule CommerceFront.Settings do
               |> Enum.reject(&(&1.balance_left == nil && &1.balance_right == nil)) do
           gs_summary = gs_summary |> Repo.preload(:user)
 
-          if gs_summary.user.username == "yyh168" && from_date in [~D[2024-02-22], ~D[2024-02-23]] do
-            IO.inspect(gs_summary)
-
-            """
-
-
-            %CommerceFront.Settings.GroupSalesSummary{
-            __meta__: #Ecto.Schema.Metadata<:loaded, "group_sales_summaries">,
-            balance_left: 740,
-            balance_right: 0,
-            day: 23,
-            id: 24245,
-            inserted_at: ~N[2024-02-23 06:59:59],
-            month: 2,
-            new_left: 0,
-            new_right: 0,
-            paired: nil,
-            sum_left: nil,
-            sum_right: nil,
-            total_left: 740,
-            total_right: 0,
-            updated_at: ~N[2024-02-23 06:59:59],
-            user: %CommerceFront.Settings.User{
-            __meta__: #Ecto.Schema.Metadata<:loaded, "users">,
-            approved: false,
-            bank_account_holder: nil,
-            bank_account_no: nil,
-            bank_name: nil,
-            blocked: false,
-            country_id: nil,
-            crypted_password: "19313081bb3e3b68a1b1d44b6ce9bf4bd85ba0c44bced3f4fd7fc5a13539a422bffe9f52814679f9b50936aa73ad9bb22b0f801d64f331b2353524cee9ae6b75",
-            email: "a@1.com",
-            fullname: "Wang Lai Kin",
-            ic_no: nil,
-            id: 189,
-            inserted_at: ~N[2023-12-16 16:02:21],
-            is_stockist: false,
-            merchant: #Ecto.Association.NotLoaded<association :merchant is not loaded>,
-            password: nil,
-            phone: "+60 12-628 2708",
-            placement: #Ecto.Association.NotLoaded<association :placement is not loaded>,
-            rank: #Ecto.Association.NotLoaded<association :rank is not loaded>,
-            rank_id: 3,
-            rank_name: "金级套餐",
-            royalty_user: #Ecto.Association.NotLoaded<association :royalty_user is not loaded>,
-            stockist_user_id: nil,
-            stockist_users: #Ecto.Association.NotLoaded<association :stockist_users is not loaded>,
-            temp_pin: nil,
-            u2: nil,
-            u3: nil,
-            updated_at: ~N[2024-02-23 06:35:43],
-            username: "yyh168"
-            },
-            user_id: 189,
-            year: 2024
-            }
-
-
-
-            %CommerceFront.Settings.GroupSalesSummary{
-              __meta__: #Ecto.Schema.Metadata<:loaded, "group_sales_summaries">,
-              balance_left: 686,
-              balance_right: 0,
-              day: 22,
-              id: 21082,
-              inserted_at: ~N[2024-02-23 06:54:31],
-              month: 2,
-              new_left: 740,
-              new_right: 0,
-              paired: nil,
-              sum_left: nil,
-              sum_right: nil,
-              total_left: 740,
-              total_right: 54,
-              updated_at: ~N[2024-02-23 06:54:31],
-              user: %CommerceFront.Settings.User{
-                __meta__: #Ecto.Schema.Metadata<:loaded, "users">,
-                approved: false,
-                bank_account_holder: nil,
-                bank_account_no: nil,
-                bank_name: nil,
-                blocked: false,
-                country_id: nil,
-                crypted_password: "19313081bb3e3b68a1b1d44b6ce9bf4bd85ba0c44bced3f4fd7fc5a13539a422bffe9f52814679f9b50936aa73ad9bb22b0f801d64f331b2353524cee9ae6b75",
-                email: "a@1.com",
-                fullname: "Wang Lai Kin",
-                ic_no: nil,
-                id: 189,
-                inserted_at: ~N[2023-12-16 16:02:21],
-                is_stockist: false,
-                merchant: #Ecto.Association.NotLoaded<association :merchant is not loaded>,
-                password: nil,
-                phone: "+60 12-628 2708",
-                placement: #Ecto.Association.NotLoaded<association :placement is not loaded>,
-                rank: #Ecto.Association.NotLoaded<association :rank is not loaded>,
-                rank_id: 3,
-                rank_name: "金级套餐",
-                royalty_user: #Ecto.Association.NotLoaded<association :royalty_user is not loaded>,
-                stockist_user_id: nil,
-                stockist_users: #Ecto.Association.NotLoaded<association :stockist_users is not loaded>,
-                temp_pin: nil,
-                u2: nil,
-                u3: nil,
-                updated_at: ~N[2024-02-23 06:35:43],
-                username: "yyh168"
-              },
-              user_id: 189,
-              year: 2024
-            }
-
-
-            """
-
-            # IEx.pry()
-          end
+          # if gs_summary.user.username == "yyh168" &&
+          #      from_date in [~D[2024-04-03], ~D[2024-04-04], ~D[2024-04-05]] do
+          #   IO.inspect(gs_summary)
+          # end
 
           gs_summary =
             if gs_summary.new_left == 0 && gs_summary.new_right == 0 &&
@@ -3045,7 +3018,6 @@ defmodule CommerceFront.Settings do
             }
           )
           |> Repo.update()
-          |> IO.inspect()
         end
 
       {:ok, res}
@@ -3292,8 +3264,8 @@ defmodule CommerceFront.Settings do
       params |> Kernel.get_in(["user", "products"]) == nil ->
         {:error, "Please check cart items."}
 
-      # sponsor.rank.name == "Shopper" ->
-      #   {:error, "sponsor cannot be Shopper to register new member."}
+      sponsor == nil && params["scope"] == "register" ->
+        {:error, "Sponsor username not matched"}
 
       true ->
         Multi.new()
