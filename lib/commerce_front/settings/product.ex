@@ -14,9 +14,13 @@ defmodule CommerceFront.Settings.Product do
     field(:retail_price, :float)
     # field(:country_id, :integer)
 
-    field(:override_pv, :boolean)
     field(:override_pv_amount, :integer)
+
+    field(:override_pv, :boolean, default: false)
     field(:override_perc, :float, default: 0.5)
+    field(:override_special_share_payout, :boolean, default: false)
+    field(:override_special_share_payout_perc, :float, default: 0.5)
+
     has_many(:product_stock, CommerceFront.Settings.ProductStock)
 
     has_many(:stocks, through: [:product_stock, :stock])
@@ -34,6 +38,8 @@ defmodule CommerceFront.Settings.Product do
       :override_perc,
       :override_pv,
       :override_pv_amount,
+      :override_special_share_payout_perc,
+      :override_special_share_payout,
       :img_url,
       :name,
       :cname,

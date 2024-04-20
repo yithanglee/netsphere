@@ -356,8 +356,14 @@ defmodule CommerceFrontWeb.ApiController do
           end
 
         "delete_request" ->
-          {:ok, ww} = Settings.delete_wallet_withdrawal_by_id(params["id"])
-          ww |> BluePotion.sanitize_struct()
+          wr = Settings.get_wallet_withdrawal!(params["id"])
+
+          if wr.is_paid do
+            %{status: :error, reason: "Already approved"}
+          else
+            {:ok, ww} = Settings.delete_wallet_withdrawal_by_id(params["id"])
+            ww |> BluePotion.sanitize_struct()
+          end
 
         "delete_merchant_request" ->
           {:ok, ww} = Settings.delete_merchant_withdrawal_by_id(params["id"])

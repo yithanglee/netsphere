@@ -191,10 +191,10 @@ defmodule CommerceFront.Calculation do
             CommerceFront.Settings.get_product_by_name(sales_item.item_name)
           end
 
-        if product.override_pv do
+        if product.override_special_share_payout do
           CommerceFront.Settings.create_wallet_transaction(%{
             user_id: user_id,
-            amount: (pv * product.override_perc) |> Float.round(2),
+            amount: (pv * product.override_special_share_payout_perc) |> Float.round(2),
             remarks: "sale-#{sale.id}|#{product.name}",
             wallet_type: "direct_recruitment"
           })

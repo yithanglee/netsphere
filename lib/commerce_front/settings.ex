@@ -32,7 +32,7 @@ defmodule CommerceFront.Settings do
     if bool_key in Map.keys(params) do
       params |> Map.put(bool_key, Map.get(params, bool_key) == "on")
     else
-      params
+      params |> Map.put(bool_key, false)
     end
   end
 
@@ -481,6 +481,21 @@ defmodule CommerceFront.Settings do
   end
 
   def create_wallet_withdrawal(params \\ %{}) do
+    params =
+      if "amount" in Map.keys(params) do
+        amount = params |> Map.get("amount") |> Float.parse() |> elem(0)
+
+        params =
+          Map.merge(params, %{
+            "final_amount_in_myr" => amount * 0.97 * 5,
+            "amount_in_myr" => amount * 5,
+            "processing_fee" => amount * 0.03,
+            "processing_fee_in_myr" => amount * 0.03 * 5
+          })
+      else
+        params
+      end
+
     cg = WalletWithdrawal.changeset(%WalletWithdrawal{}, params)
 
     wallet =
@@ -506,6 +521,21 @@ defmodule CommerceFront.Settings do
   end
 
   def update_wallet_withdrawal(model, params) do
+    params =
+      if "amount" in Map.keys(params) do
+        amount = params |> Map.get("amount") |> Float.parse() |> elem(0)
+
+        params =
+          Map.merge(params, %{
+            "final_amount_in_myr" => amount * 0.97 * 5,
+            "amount_in_myr" => amount * 5,
+            "processing_fee" => amount * 0.03,
+            "processing_fee_in_myr" => amount * 0.03 * 5
+          })
+      else
+        params
+      end
+
     WalletWithdrawal.changeset(model, params) |> Repo.update() |> IO.inspect()
   end
 
@@ -1257,6 +1287,9 @@ defmodule CommerceFront.Settings do
   def update_product(model, params) do
     bool_key = "override_pv"
     params = append_bool_key(params, bool_key)
+
+    bool_key = "override_special_share_payout"
+    params = append_bool_key(params, bool_key) |> IO.inspect()
     Product.changeset(model, params) |> Repo.update() |> IO.inspect()
   end
 

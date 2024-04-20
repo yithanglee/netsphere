@@ -5,6 +5,11 @@ defmodule CommerceFront.Settings.WalletWithdrawal do
   schema "wallet_withdrawals" do
     field(:amount, :float)
     field(:bank_account_number, :string)
+    field(:amount_in_myr, :float, default: 0.0)
+    field(:processing_fee, :float, default: 0.0)
+    field(:final_amount_in_myr, :float, default: 0.0)
+
+    field(:processing_fee_in_myr, :float, default: 0.0)
     field(:bank_name, :string)
     field(:is_paid, :boolean, default: false)
     field(:paid_date, :date)
@@ -22,6 +27,10 @@ defmodule CommerceFront.Settings.WalletWithdrawal do
   def changeset(wallet_withdrawal, attrs) do
     wallet_withdrawal
     |> cast(attrs, [
+      :amount_in_myr,
+      :processing_fee,
+      :processing_fee_in_myr,
+      :final_amount_in_myr,
       :user_id,
       :amount,
       :remarks,
