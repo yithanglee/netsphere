@@ -350,10 +350,6 @@ defmodule CommerceFront.Calculation do
     calc_for_parent = fn map, multi_query ->
       summary = map.gs_summary |> Repo.preload(:user)
 
-      if summary.user.username == "summer" do
-        # IEx.pry()
-      end
-
       with true <- summary.total_left != nil,
            true <- summary.total_left != 0,
            true <- summary.total_right != nil,
@@ -372,20 +368,12 @@ defmodule CommerceFront.Calculation do
           if constant > 1 do
             # this means, the left is more than right
 
-            if summary.total_left - summary.total_right < 0 do
-              IEx.pry()
-            end
-
             {total_point_value,
              %{
                balance_left: summary.total_left - summary.total_right,
                balance_right: summary.total_right - summary.total_right
              }}
           else
-            if summary.total_right - summary.total_left < 0 do
-              IEx.pry()
-            end
-
             {total_point_value,
              %{
                balance_left: summary.total_left - summary.total_left,
@@ -581,20 +569,31 @@ defmodule CommerceFront.Calculation do
         constant = summary.total_left / summary.total_right
 
         {paired, changeset} =
-          if constant > 1 do
-            # this means, the left is more than right
+          cond do
+            constant > 1 ->
+              # this means, the left is more than right
 
-            {summary.total_right,
-             %{
-               balance_left: summary.total_left - summary.total_right,
-               balance_right: summary.total_right - summary.total_right
-             }}
-          else
-            {summary.total_left,
-             %{
-               balance_left: summary.total_left - summary.total_left,
-               balance_right: summary.total_right - summary.total_left
-             }}
+              {summary.total_right,
+               %{
+                 balance_left: summary.total_left - summary.total_right,
+                 balance_right: summary.total_right - summary.total_right
+               }}
+
+            constant == 1 ->
+              # this means, the left is more than right
+
+              {summary.total_right,
+               %{
+                 balance_left: 0,
+                 balance_right: 0
+               }}
+
+            constant < 1 ->
+              {summary.total_left,
+               %{
+                 balance_left: summary.total_left - summary.total_left,
+                 balance_right: summary.total_right - summary.total_left
+               }}
           end
           |> IO.inspect()
 

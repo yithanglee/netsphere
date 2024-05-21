@@ -25,7 +25,7 @@ config :commerce_front, CommerceFront.Repo,
   hostname: "localhost",
   show_sensitive_data_on_connection_error: true,
   pool_size: 10,
-  timeout: 65_000
+  timeout: 165_000
 
 # Configures Elixir's Logger
 config :logger, :console,

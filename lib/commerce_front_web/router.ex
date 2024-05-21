@@ -42,6 +42,7 @@ defmodule CommerceFrontWeb.Router do
         "https://admin.haho2u.com",
         "http://admin.haho2u.com",
         "http://test_svt.damienslab.com",
+        "http://localhost:5174",
         "http://localhost:5173"
       ]
 
@@ -62,6 +63,7 @@ defmodule CommerceFrontWeb.Router do
         "http://admin.haho2u.com",
         "https://test_svt.damienslab.com",
         "http://test_svt.damienslab.com",
+        "http://localhost:5174",
         "http://localhost:5173"
       ]
 

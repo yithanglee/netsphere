@@ -2424,7 +2424,7 @@ export let commerceApp_ = {
                       <span class=" me-4">` + crp + `</span></span>
                     </div>
                     <div class="d-flex justify-content-between align-items-center">
-                      <span class="fw-bold">Shipping</span>
+                      <span class="fw-bold">Shipping_Tax</span>
                       <span class=" me-4">` + currency + ` <span class="format-float">` + cshipping_fee + `</span></span>
                     </div>
 
@@ -2590,7 +2590,7 @@ export let commerceApp_ = {
                       <span class=" me-4">RP <span class="format-float">` + subtotal + `</span></span>
                     </div>
                     <div class="d-flex justify-content-between align-items-center">
-                      <span class="fw-bold">Shipping</span>
+                      <span class="fw-bold">Shipping_Tax</span>
                       <span class=" me-4">RP <span class="format-float">` + shipping_fee + `</span></span>
                     </div>
                     ` + drpa + `

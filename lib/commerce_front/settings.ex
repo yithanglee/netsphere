@@ -638,6 +638,18 @@ defmodule CommerceFront.Settings do
   end
 
   def create_wallet_topup(params \\ %{}) do
+    IO.inspect(params)
+
+    sample = %{
+      "amount" => "120 ",
+      "bank" => "MB2U",
+      "id" => "0",
+      "remarks" => "MYR 600",
+      "user_id" => "292"
+    }
+
+    params = Map.put(params, "amount", String.replace(params["amount"], " ", ""))
+
     Multi.new()
     |> Multi.run(:wallet_topup, fn _repo, %{} ->
       WalletTopup.changeset(%WalletTopup{}, params) |> Repo.insert() |> IO.inspect()
@@ -2599,6 +2611,7 @@ defmodule CommerceFront.Settings do
   when the placement group sales details is in place, based on the inserted at date to reconstruct the group sales sumary
 
   maybe redo from the start of the month?
+  CommerceFront.Settings.reconstruct_daily_group_sales_summary(~D[2024-04-01], :monthly)
 
   """
   def reconstruct_daily_group_sales_summary(date \\ Date.utc_today(), period \\ :daily) do
@@ -2652,6 +2665,19 @@ defmodule CommerceFront.Settings do
                   r.name == "team bonus" and r.day >= ^sd and r.month == ^sm and r.year == ^sy
               )
             )
+
+          res =
+            Repo.all(
+              from(pgsd in PlacementGroupSalesDetail,
+                full_join: gs in GroupSalesSummary,
+                on: gs.id == pgsd.gs_summary_id,
+                select: %{gs_id: gs.id, pgsd_id: pgsd.id}
+              )
+            )
+
+          ids = res |> Enum.filter(&(&1.gs_id == nil)) |> Enum.map(& &1.pgsd_id)
+
+          Repo.delete_all(from(pgsd in PlacementGroupSalesDetail, where: pgsd.id in ^ids))
         end
       end
 
@@ -2748,7 +2774,9 @@ defmodule CommerceFront.Settings do
             end
           end
 
+          # ~D[2024-04-19]
           CommerceFront.Calculation.daily_team_bonus(date_sale)
+
           CommerceFront.Settings.carry_forward_entry(date_sale)
         end
       else
@@ -2861,6 +2889,8 @@ defmodule CommerceFront.Settings do
     |> Repo.transaction()
   end
 
+  require IEx
+
   @doc """
   end of day, the balance from the summary need to carry forward to next day
   CommerceFront.Settings.carry_forward_entry(Date.utc_today() |> Timex.shift(days: -1))
@@ -2878,6 +2908,25 @@ defmodule CommerceFront.Settings do
 
     gs_summaries = Repo.all(query)
 
+    sample = %CommerceFront.Settings.GroupSalesSummary{
+      balance_left: 0,
+      balance_right: 0,
+      day: 19,
+      id: 63363,
+      inserted_at: ~N[2024-04-20 14:37:32],
+      month: 4,
+      new_left: 0,
+      new_right: 690,
+      paired: nil,
+      sum_left: nil,
+      sum_right: nil,
+      total_left: 690,
+      total_right: 690,
+      updated_at: ~N[2024-04-20 14:37:35],
+      user_id: 197,
+      year: 2024
+    }
+
     Multi.new()
     |> Multi.run(:carry_forward, fn _repo, %{} ->
       res =
@@ -2886,10 +2935,10 @@ defmodule CommerceFront.Settings do
               |> Enum.reject(&(&1.balance_left == nil && &1.balance_right == nil)) do
           gs_summary = gs_summary |> Repo.preload(:user)
 
-          # if gs_summary.user.username == "yyh168" &&
-          #      from_date in [~D[2024-04-03], ~D[2024-04-04], ~D[2024-04-05]] do
-          #   IO.inspect(gs_summary)
-          # end
+          if gs_summary.user.username == "johortai" &&
+               from_date in [~D[2024-04-19], ~D[2024-04-20]] do
+            IO.inspect(gs_summary)
+          end
 
           gs_summary =
             if gs_summary.new_left == 0 && gs_summary.new_right == 0 &&
@@ -2911,9 +2960,17 @@ defmodule CommerceFront.Settings do
                   if gs_summary.new_left != 0 || gs_summary.new_right != 0 do
                     if gs_summary.balance_left == 0 && gs_summary.balance_right == 0 do
                       if gs_summary.new_left > gs_summary.new_right do
-                        gs_summary |> Map.put(:balance_left, gs_summary.total_left)
+                        if gs_summary.total_left == gs_summary.total_right do
+                          gs_summary |> Map.put(:balance_left, 0)
+                        else
+                          gs_summary |> Map.put(:balance_left, gs_summary.total_left)
+                        end
                       else
-                        gs_summary |> Map.put(:balance_right, gs_summary.total_right)
+                        if gs_summary.total_left == gs_summary.total_right do
+                          gs_summary |> Map.put(:balance_right, 0)
+                        else
+                          gs_summary |> Map.put(:balance_right, gs_summary.total_right)
+                        end
                       end
                     else
                       gs_summary
@@ -3036,10 +3093,6 @@ defmodule CommerceFront.Settings do
             }
           )
           |> Repo.insert()
-
-          # if gs_summary.user.username == "damien" && from_date == ~D[2023-11-26] do
-          #   IEx.pry()
-          # end
 
           CommerceFront.Settings.GroupSalesSummary.changeset(
             gs,
