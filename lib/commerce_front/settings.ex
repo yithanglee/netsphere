@@ -1837,6 +1837,10 @@ defmodule CommerceFront.Settings do
         if full do
           map
         else
+          ranks = ["Bronze Package", "Silver Package", "Gold Package", "Shopper"]
+          cranks = ["铜级套餐", "银级套餐", "金级套餐", "Shopper"]
+          display_rank = ranks |> Enum.at(cranks |> Enum.find_index(&(&1 == fullname)))
+
           map = %{
             left: left |> String.to_integer(),
             right: right |> String.to_integer(),
@@ -1849,11 +1853,11 @@ defmodule CommerceFront.Settings do
             new_left: new_left || 0,
             new_right: new_right || 0,
             name: username,
-            fullname: fullname,
             children: zchildren,
             username: username,
             id: id |> String.to_integer(),
             fullname: fullname,
+            rank_name: display_rank,
             position: position
           }
 
@@ -1864,6 +1868,7 @@ defmodule CommerceFront.Settings do
               level: count,
               username: username,
               fullname: fullname,
+              rank_name: display_rank,
               left: left |> String.to_integer(),
               right: right |> String.to_integer(),
               total_left: total_left || 0,
@@ -1889,6 +1894,10 @@ defmodule CommerceFront.Settings do
             []
           end
 
+        ranks = ["Bronze Package", "Silver Package", "Gold Package", "Shopper"]
+        cranks = ["铜级套餐", "银级套餐", "金级套餐", "Shopper"]
+        display_rank = ranks |> Enum.at(cranks |> Enum.find_index(&(&1 == rank_name)))
+
         bg =
           case rank_name do
             "金级套餐" ->
@@ -1907,7 +1916,7 @@ defmodule CommerceFront.Settings do
           text: """
           <span class='my-2'>
             <span class='p-1 my-2 left-box'>#{username}</span>
-            <span class='m-0 px-1 ' style="width: 40%; position: absolute;right: 0px;"><span class="badge #{bg}"> #{rank_name}</span></span>
+            <span class='m-0 px-1 ' style="width: 40%; position: absolute;right: 0px;"><span class="badge #{bg}"> #{display_rank}</span></span>
           </span>
           """,
           children: zchildren,
@@ -2077,10 +2086,15 @@ defmodule CommerceFront.Settings do
               smap.user.rank_name
             end
 
+          ranks = ["Bronze Package", "Silver Package", "Gold Package", "Shopper"]
+          cranks = ["铜级套餐", "银级套餐", "金级套餐", "Shopper"]
+          display_rank = ranks |> Enum.at(cranks |> Enum.find_index(&(&1 == rank_name)))
+
           inner_map = %{
             id: map.parent_id,
             name: map.parent_username,
-            fullname: if(smap != nil, do: rank_name, else: "n/a"),
+            fullname: if(smap != nil, do: display_rank, else: "n/a"),
+            rank_name: display_rank,
             position: if(smap != nil, do: smap.position, else: "n/a"),
             left: if(smap != nil, do: smap.left, else: "n/a"),
             right: if(smap != nil, do: smap.right, else: "n/a"),
@@ -2101,7 +2115,8 @@ defmodule CommerceFront.Settings do
             %{
               level: count,
               username: map.parent_username,
-              fullname: if(smap != nil, do: rank_name, else: "n/a"),
+              fullname: if(smap != nil, do: display_rank, else: "n/a"),
+              rank_name: display_rank,
               position: if(smap != nil, do: smap.position, else: "n/a"),
               left: if(smap != nil, do: smap.left, else: "n/a"),
               right: if(smap != nil, do: smap.right, else: "n/a"),
@@ -2125,6 +2140,10 @@ defmodule CommerceFront.Settings do
             smap
           end
 
+        ranks = ["Bronze Package", "Silver Package", "Gold Package", "Shopper"]
+        cranks = ["铜级套餐", "银级套餐", "金级套餐", "Shopper"]
+        display_rank = ranks |> Enum.at(cranks |> Enum.find_index(&(&1 == map.rank_name)))
+
         bg =
           case map.rank_name do
             "金级套餐" ->
@@ -2142,11 +2161,11 @@ defmodule CommerceFront.Settings do
           text: """
           <span class='my-2'>
             <span class='p-1 my-2 left-box'>#{username}</span>
-            <span class='m-0 px-1 ' style="width: 40%;position: absolute;right: 0px;"><span class="badge #{bg}"> #{map.rank_name}</span></span>
+            <span class='m-0 px-1 ' style="width: 40%;position: absolute;right: 0px;"><span class="badge #{bg}"> #{display_rank}</span></span>
           </span>
           """,
           id: map.parent_id,
-          rank_name: map.rank_name,
+          rank_name: display_rank,
           name: map.parent_username <> " #{if(smap != nil, do: smap.id, else: "n/a")}",
           children: children |> Enum.sort_by(& &1.id)
         }
@@ -4261,17 +4280,25 @@ defmodule CommerceFront.Settings do
                                                pgsd: pgsd,
                                                user: user,
                                                sale: sale,
+                                               sales_person: sales_person,
                                                placement: placement,
                                                referral: referral
                                              } ->
         if params["upgrade"] != nil do
+          special_share_reward(
+            referral.parent_user_id,
+            sale.total_point_value,
+            sale,
+            params["scope"]
+          )
+
           {:ok, nil}
         else
           if params["stockist"] != nil do
             {:ok, nil}
           else
-            # pay to sponsor...   
-
+            # 22/3 pay to sponsor...   
+            # 23/5 pay to sales person
             special_share_reward(
               referral.parent_user_id,
               sale.total_point_value,
@@ -4715,6 +4742,87 @@ defmodule CommerceFront.Settings do
       Enum.reduce(rewards, Multi.new(), &pay_to_bonus_wallet.(&1, &2))
       |> Repo.transaction()
       |> IO.inspect()
+    end
+  end
+
+  def pay_to_bonus_wallet(reward) do
+    date = reward.inserted_at
+    user = CommerceFront.Settings.get_user!(reward.user_id)
+    username = user.username
+
+    user_id =
+      if user.stockist_user_id != nil do
+        user.stockist_user_id
+      else
+        user.id
+      end
+
+    {y, m, d} = date |> Date.to_erl()
+
+    matrix = ["team bonus", "matching bonus", "elite leader"]
+
+    month_rewards =
+      Repo.all(
+        from(r in Reward,
+          where:
+            r.month == ^m and
+              r.year == ^y,
+          select: %{sum: sum(r.amount), bonus: r.name, user_id: r.user_id},
+          group_by: [r.user_id, r.name]
+        )
+      )
+
+    check_this_month_reward = fn user_id, month_rewards ->
+      month_rewards
+      |> Enum.filter(&(&1.user_id == user_id))
+      |> Enum.filter(&(&1.bonus in matrix))
+      |> Enum.map(& &1.sum)
+      |> Enum.sum()
+    end
+
+    total_this_month = check_this_month_reward.(reward.user_id, month_rewards)
+
+    {amount, remarks} =
+      if reward.name not in matrix do
+        {reward.amount, "month total: #{total_this_month}|pay: 100%"}
+      else
+        if username == "haho_unpaid" do
+          {reward.amount, "month total: #{total_this_month}|pay: 100%"}
+        else
+          if total_this_month > 10000 do
+            {reward.amount, "month total: #{total_this_month}|pay: 100%"}
+          else
+            {reward.amount * 0.9, "month total: #{total_this_month}|pay: 90%"}
+          end
+        end
+      end
+
+    params = %{
+      reward_id: reward.id,
+      user_id: user_id,
+      amount: amount |> Float.round(2),
+      remarks: reward.remarks <> "|" <> remarks,
+      wallet_type: "bonus"
+    }
+
+    case create_wallet_transaction(params) do
+      {:ok, wt} ->
+        if total_this_month <= 10000 && reward.name in matrix && username != "haho_unpaid" do
+          params2 = %{
+            reward_id: reward.id,
+            user_id: user_id,
+            amount: (reward.amount * 0.1) |> Float.round(2),
+            remarks: reward.remarks <> "|" <> "month total: #{total_this_month}|pay: 10%",
+            wallet_type: "product"
+          }
+
+          create_wallet_transaction(params2)
+        end
+
+        update_reward(reward, %{is_paid: true})
+
+      {:error, cg} ->
+        {:error, cg}
     end
   end
 

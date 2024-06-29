@@ -20,7 +20,7 @@ case @title do
     "DOC NO:"
 end
 
-
+sales_person = @sales.sales_person
 has_merchant = @merchant != nil 
 
 %>
@@ -170,7 +170,7 @@ has_merchant = @merchant != nil
           <th class="text-end">PAYMENT BY:</th>
           <td></td>
           <td><span id="chosen_bank">
-              <%= payment_method %></span></td>
+              <%= sales_person.username %></span></td>
         </tr>
         <tr valign="top">
           <th class="text-end">REF NO:</th>

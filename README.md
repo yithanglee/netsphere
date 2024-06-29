@@ -366,3 +366,24 @@ then insert into the input [v]
 
 3 the register page, remove the default values. [v]
 4 
+
+
+
+---
+
+23/5
+
+pdf invoice 
+1. replace the pamynet by method, with sales person name
+
+
+
+
+
+
+maintain bonus
+
+
+before month end, personal purchase at least 36RP,
+personal sponsor 2 ppl = 11 level
+4 ppl = 22 level

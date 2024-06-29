@@ -14,7 +14,8 @@ import { MENUS } from './menu.js';
 
 
 $("html").attr("data-bs-theme", localStorage.getItem("data-bs-theme"))
-window.showRP = false
+window.showRP = true
+window.includeShippingTax = true
 window.toggleMcart = false
 var useSw = false,
   isDev = window.location.hostname == "localhost";

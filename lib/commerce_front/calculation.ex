@@ -175,6 +175,11 @@ defmodule CommerceFront.Calculation do
 
   22 mar 24'
   base on override perc to calc
+
+  sale = CommerceFront.Settings.get_sale!(130)
+  referral = CommerceFront.Settings.get_referral_by_username("freddy")
+  CommerceFront.Calculation.special_share_reward(  referral.parent_user_id, sale.total_point_value, sale, "upgrade")
+
   """
 
   def special_share_reward(user_id, pv, sale, scope \\ "register") do
@@ -300,18 +305,21 @@ defmodule CommerceFront.Calculation do
            true <- calculated == false do
         bonus = remainder_point_value * perc
 
-        CommerceFront.Settings.create_reward(%{
-          sales_id: sale.id,
-          is_paid: false,
-          remarks:
-            "sales-#{sale.id}|#{remainder_point_value} * #{perc} = #{bonus}|lvl:#{calc_index}/#{rank.name}|skipped to: lv#{index}",
-          name: "sharing bonus",
-          amount: bonus,
-          user_id: user.id,
-          day: Date.utc_today().day,
-          month: Date.utc_today().month,
-          year: Date.utc_today().year
-        })
+        {:ok, r} =
+          CommerceFront.Settings.create_reward(%{
+            sales_id: sale.id,
+            is_paid: false,
+            remarks:
+              "sales-#{sale.id}|#{remainder_point_value} * #{perc} = #{bonus}|lvl:#{calc_index}/#{rank.name}|skipped to: lv#{index}",
+            name: "sharing bonus",
+            amount: bonus,
+            user_id: user.id,
+            day: Date.utc_today().day,
+            month: Date.utc_today().month,
+            year: Date.utc_today().year
+          })
+
+        CommerceFront.Settings.pay_to_bonus_wallet(r)
 
         new_matrix_item =
           matrix |> Enum.find(&(&1.rank == rank.name)) |> Map.put(:calculated, true)
@@ -1514,6 +1522,7 @@ defmodule CommerceFront.Calculation do
   bromze g1 2%
 
 
+  CommerceFront.Calculation.drp_sales_level_bonus(132, 81, CommerceFront.Settings.get_user_by_username("freddy3"), ~D[2024-05-31])
 
   """
   def drp_sales_level_bonus(sales_id, drp_amount, child_user, date) do
@@ -1565,7 +1574,14 @@ defmodule CommerceFront.Calculation do
             0
           end
 
-        amount = (drp_amount * perc) |> Float.round(2)
+        amount = drp_amount * perc
+
+        amount =
+          if amount > 0 do
+            amount |> Float.round(2)
+          else
+            amount
+          end
 
         if amount > 0 do
           p = %{

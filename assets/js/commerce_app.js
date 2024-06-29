@@ -3438,11 +3438,38 @@ export let commerceApp_ = {
 
 
         var rp = `<div class="font-sm fw-light text-secondary text-center ">RP <span class="format-float">` + data.retail_price + `</span></div>`
+        if (phxApp_.chosen_country_id_.name == "Malaysia") {
+          includeShippingTax = false
+        } else {
+          includeShippingTax = true
+        }
+        if (includeShippingTax) {
+          rp = `<div class="font-sm fw-light text-secondary text-center "><span class="format-float">` + (data.retail_price * 1.1) + ` </span> RP</div>`
+          if (phxApp_.chosen_country_id_.name == "Singapore") {
+            rp = `<div class="font-sm fw-light text-secondary text-center "><span class="format-float">` + (data.retail_price * 1.05) + ` </span> RP</div>`
+
+          }
+        }
+
+
 
         console.info(phxApp_.chosen_country_id_.conversion)
         if (!showRP) {
-
           rp = `<div class="font-sm fw-light text-secondary text-center ">MYR <span class="format-float">` + (data.retail_price * phxApp_.chosen_country_id_.conversion) + `</span></div>`
+
+          if (phxApp_.chosen_country_id_.name == "Malaysia") {
+            includeShippingTax = false
+          } else {
+            includeShippingTax = true
+          }
+          if (includeShippingTax) {
+            rp = `<div class="font-sm fw-light text-secondary text-center ">MYR <span class="format-float">` + (data.retail_price * phxApp_.chosen_country_id_.conversion * 1.1) + `</span></div>`
+            if (phxApp_.chosen_country_id_.name == "Singapore") {
+              rp = `<div class="font-sm fw-light text-secondary text-center ">MYR <span class="format-float">` + (data.retail_price * phxApp_.chosen_country_id_.conversion * 1.05) + `</span></div>`
+
+            }
+          }
+
         }
 
 
@@ -3669,8 +3696,7 @@ export let commerceApp_ = {
               random_id = 'products',
               productSource = new phoenixModel({
                 onDrawFn: () => {
-                  $(".spinner-border.loading").parent().remove()
-                  $(".loading").removeClass("d-none")
+
 
 
                   setTimeout(() => {
@@ -3680,7 +3706,10 @@ export let commerceApp_ = {
                       }
                     })
                     ColumnFormater.formatDate()
-                  }, 1200)
+
+                  $(".spinner-border.loading").parent().remove()
+                  $(".loading").removeClass("d-none")
+                  }, 800)
 
                 },
                 xcard: (params) => {
@@ -3708,9 +3737,38 @@ export let commerceApp_ = {
 
 
                   var rp = `<div class="font-sm fw-light text-secondary text-center ">RP <span class="format-float">` + data.retail_price + `</span></div>`
-                  if (!showRP) {
+                  if (phxApp_.chosen_country_id_.name == "Malaysia") {
+                    includeShippingTax = false
+                  } else {
+                    includeShippingTax = true
+                  }
+                  if (includeShippingTax) {
+                    rp = `<div class="font-sm fw-light text-secondary text-center "><span class="format-float">` + (data.retail_price  * 1.1) + `</span> RP</div>`
 
+                    if (phxApp_.chosen_country_id_.name == "Singapore") {
+
+                      rp = `<div class="font-sm fw-light text-secondary text-center "><span class="format-float">` + (data.retail_price  * 1.05) + `</span> RP</div>`
+                    }
+
+                  }
+                  if (!showRP) {
                     rp = `<div class="font-sm fw-light text-secondary text-center ">MYR <span class="format-float">` + (data.retail_price * phxApp_.chosen_country_id_.conversion) + `</span></div>`
+
+                    if (phxApp_.chosen_country_id_.name == "Malaysia") {
+                      includeShippingTax = false
+                    } else {
+                      includeShippingTax = true
+                    }
+                    if (includeShippingTax) {
+                      rp = `<div class="font-sm fw-light text-secondary text-center ">MYR <span class="format-float">` + (data.retail_price * phxApp_.chosen_country_id_.conversion * 1.1) + `</span></div>`
+
+
+                      if (phxApp_.chosen_country_id_.name == "Singapore") {
+
+                        rp = `<div class="font-sm fw-light text-secondary text-center ">MYR <span class="format-float">` + (data.retail_price * phxApp_.chosen_country_id_.conversion * 1.05) + `</span></div>`
+                      }
+
+                    }
                   }
 
 
@@ -4079,8 +4137,17 @@ export let commerceApp_ = {
 
       if (user) {
 
-        var rank_name = user.rank != null ? user.rank.name : user.rank_name;
-        var name = user != null ? "Welcome! " + `<a href="/profile" class="navi">` + user.fullname + ` (` + rank_name + `)</a>` : `<a href="/login" class="navi">Login</a>`
+        var ranks = ["Bronze Package", "Silver Package", "Gold Package", "Shopper"],
+          cranks = ["铜级套餐", "银级套餐", "金级套餐", "Shopper"],
+          rank_name = user.rank != null ? user.rank.name : user.rank_name;
+
+        var display_rank = ranks[cranks.indexOf(rank_name)]
+
+        if (phxApp_.chosen_country_id_.name == "China") {
+          display_rank = rank_name
+        }
+
+        var name = user != null ? "Welcome! " + `<a href="/profile" class="navi">` + user.fullname + ` (` + display_rank + `)</a>` : `<a href="/login" class="navi">Login</a>`
         $("userProfile").customHtml(`
             
               ` + name + `
