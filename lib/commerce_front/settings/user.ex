@@ -20,6 +20,8 @@ defmodule CommerceFront.Settings.User do
     field(:username, :string)
     belongs_to(:rank, CommerceFront.Settings.Rank)
     has_one(:royalty_user, CommerceFront.Settings.RoyaltyUser)
+    has_one(:referral, CommerceFront.Settings.Referral)
+    has_one(:sponsor, through: [:referral, :parent_user])
     field(:u2, :string, virtual: true)
     field(:u3, :string, virtual: true)
     has_one(:merchant, CommerceFront.Settings.Merchant)
@@ -31,6 +33,8 @@ defmodule CommerceFront.Settings.User do
     field(:stockist_user_id, :integer)
 
     has_many(:stockist_users, CommerceFront.Settings.User, foreign_key: :stockist_user_id)
+    has_many(:ewallets, CommerceFront.Settings.Ewallet)
+    has_many(:parent_ewallets, through: [:sponsor, :ewallets])
     timestamps()
   end
 

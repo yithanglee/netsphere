@@ -12,6 +12,20 @@ defmodule CommerceFront.Settings.Product do
     field(:name, :string)
     field(:point_value, :integer)
     field(:retail_price, :float)
+    belongs_to(:first_payment_product, CommerceFront.Settings.Product)
+    belongs_to(:instalment, CommerceFront.Settings.Instalment)
+
+    has_many(:instalment_packages, CommerceFront.Settings.Product,
+      foreign_key: :first_payment_product_id
+    )
+
+    has_many(:instalment_products, CommerceFront.Settings.InstalmentProduct,
+      foreign_key: :instalment_product_id
+    )
+
+    # field(:instalment_id, :integer)
+    field(:is_instalment, :boolean, default: false)
+    # field(:first_payment_product_id, :integer)
     # field(:country_id, :integer)
 
     field(:override_pv_amount, :integer)
@@ -35,6 +49,9 @@ defmodule CommerceFront.Settings.Product do
   def changeset(product, attrs) do
     product
     |> cast(attrs, [
+      :first_payment_product_id,
+      :instalment_id,
+      :is_instalment,
       :override_perc,
       :override_pv,
       :override_pv_amount,

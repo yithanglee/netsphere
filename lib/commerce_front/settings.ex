@@ -1289,7 +1289,8 @@ defmodule CommerceFront.Settings do
   end
 
   def get_product!(id) do
-    Repo.get!(Product, id) |> Repo.preload([:stocks, :countries])
+    Repo.get!(Product, id)
+    |> Repo.preload([:stocks, :countries, :instalment_packages, :first_payment_product])
   end
 
   def create_product(params \\ %{}) do
@@ -1302,6 +1303,10 @@ defmodule CommerceFront.Settings do
 
     bool_key = "override_special_share_payout"
     params = append_bool_key(params, bool_key) |> IO.inspect()
+
+    bool_key = "is_instalment"
+    params = append_bool_key(params, bool_key) |> IO.inspect()
+
     Product.changeset(model, params) |> Repo.update() |> IO.inspect()
   end
 
@@ -3228,6 +3233,9 @@ defmodule CommerceFront.Settings do
         params["user"] |> Map.get("redeem") != nil ->
           "Redeem"
 
+        params["user"] |> Map.get("instalment") != nil ->
+          "Instalment"
+
         params["user"] |> Map.get("upgrade") != nil ->
           "Upgrade"
 
@@ -3350,7 +3358,14 @@ defmodule CommerceFront.Settings do
             get_product_by_name(product_params["item_name"])
           end
 
-        p |> Map.put(:qty, product_params["qty"] |> String.to_integer())
+        r = p |> Map.put(:qty, product_params["qty"] |> String.to_integer())
+
+        if title == "Instalment" do
+          r
+          |> Map.put(:remarks, params["user"]["instalment"])
+        else
+          r
+        end
       end
 
     calc_rp = fn product, acc ->
@@ -3415,8 +3430,14 @@ defmodule CommerceFront.Settings do
           res =
             for key <- Map.keys(products) do
               product_params =
-                products[key]
-                |> Map.put("sales_id", sale.id)
+                if title == "Instalment" do
+                  products[key]
+                  |> Map.put("sales_id", sale.id)
+                  |> Map.put("remarks", params["user"]["instalment"])
+                else
+                  products[key]
+                  |> Map.put("sales_id", sale.id)
+                end
 
               {:ok, pres} = product_params |> CommerceFront.Settings.create_sales_item()
 
@@ -4192,6 +4213,81 @@ defmodule CommerceFront.Settings do
           })
         end
         |> IO.inspect()
+      end)
+      |> Multi.run(:member_instalment, fn _repo, %{sale: sale, user: user} ->
+        sale = sale |> Repo.preload(:sales_items)
+
+        for item <- sale.sales_items do
+          product = get_product_by_name(item |> Map.get(:item_name))
+
+          cond do
+            product.is_instalment ->
+              mi =
+                Repo.all(
+                  from(mi in CommerceFront.Settings.MemberInstalment,
+                    where:
+                      mi.user_id == ^user.id and mi.product_id == ^product.id and
+                        mi.is_paid == ^false
+                  )
+                )
+                |> List.first()
+
+              CommerceFront.Settings.update_member_instalment(mi, %{is_paid: true})
+
+            item.remarks != nil ->
+              check = item.remarks |> String.contains?("instalment_product_id:")
+
+              if check do
+                instalment_product_id =
+                  item.remarks |> String.replace("instalment_product_id:", "")
+
+                instalment_product =
+                  Repo.all(
+                    from(p in CommerceFront.Settings.Product,
+                      where: p.id == ^instalment_product_id
+                    ),
+                    preload: [:instalment, :instalment_packages, :instalment_products]
+                  )
+                  |> List.first()
+                  |> Repo.preload(:instalment)
+
+                instalment = instalment_product |> Map.get(:instalment)
+
+                for item <- 1..instalment.no_of_months do
+                  due_date = Date.utc_today() |> Timex.shift(months: item)
+
+                  {:ok, member_instalment} =
+                    CommerceFront.Settings.create_member_instalment(%{
+                      due_date: due_date,
+                      instalment_id: instalment.id,
+                      is_paid: false,
+                      month_no: item,
+                      product_id: instalment_product.id,
+                      user_id: user.id
+                    })
+
+                  instalment_products =
+                    instalment_product
+                    |> Repo.preload([:instalment_products])
+                    |> Map.get(:instalment_products)
+
+                  freebie =
+                    instalment_products
+                    |> Enum.filter(&(&1.month_no == item))
+                    |> List.first()
+
+                  if freebie != nil do
+                    CommerceFront.Settings.create_member_instalment_product(%{
+                      member_instalment_id: member_instalment.id,
+                      instalment_product_id: freebie.id
+                    })
+                  end
+                end
+              end
+          end
+        end
+
+        {:ok, nil}
       end)
       |> Multi.run(:referral, fn _repo, %{user: user} ->
         if params["upgrade"] != nil do
@@ -5475,116 +5571,77 @@ defmodule CommerceFront.Settings do
     menu_list() |> update_admin_menus()
   end
 
-  def populate_menus() do
-    Repo.delete_all(AppRoute)
-    Repo.delete_all(RoleAppRoute)
-    role = get_admin_staff()
+  def populate_menus(menus) do
+    rars = Repo.all(from(r in Role, preload: [:app_routes]))
 
-    menus = [
-      %{
-        path: "#",
-        title: "Admin",
-        icon: nil,
-        children: [
-          %{path: "/admin/staff", title: "Staff", icon: "camera-foto-solid"},
-          %{path: "/admin/role", title: "Role", icon: "camera-foto-solid"},
-          %{path: "/admin/app_route", title: "Route", icon: "camera-foto-solid"}
-        ]
-      },
-      %{
-        path: "#",
-        title: "Geo",
-        icon: nil,
-        children: [
-          %{path: "/geo/countries", title: "Country", icon: "camera-foto-solid"},
-          %{path: "/geo/states", title: "States", icon: "camera-foto-solid"},
-          %{path: "/geo/pick_up_points", title: "Pick Up Points", icon: "camera-foto-solid"}
-        ]
-      },
-      %{path: "/announcements", title: "Announcements", icon: "book-solid"},
-      %{
-        path: "#",
-        title: "Commission",
-        icon: nil,
-        children: [
-          %{path: "/rewards/summary", title: "Commission Summary", icon: "camera-foto-solid"},
-          %{path: "/rewards/details", title: "Commission Details", icon: "camera-foto-solid"},
-          %{path: "/rewards", title: "All Commission", icon: "camera-foto-solid"},
-          %{path: "/rewards/royalty_users", title: "Royalty Users", icon: "camera-foto-solid"}
-        ]
-      },
-      %{
-        path: "#",
-        title: "GroupSales",
-        icon: nil,
-        children: [
-          %{path: "/referral_gs_summary", title: "Referral GS Summary", icon: "book-solid"},
-          %{path: "/referral_gs_details", title: "Referral GS Details", icon: "book-solid"},
-          %{path: "/gs_summary", title: "Placement GS Summary", icon: "book-solid"},
-          %{path: "/group_sales_details", title: "Placement GS Details", icon: "book-solid"}
-        ]
-      },
-      %{path: "/deliveries", title: "Deliveries", icon: "book-solid"},
-      %{path: "/sales", title: "Sales", icon: "book-solid"},
-      %{
-        path: "#",
-        title: "Products",
-        icon: nil,
-        children: [
-          %{path: "/products", title: "Product", icon: "book-solid"},
-          %{path: "/stocks", title: "Stocks", icon: "book-solid"}
-        ]
-      },
-      %{path: "/users", title: "Users", icon: "book-solid"},
-      %{path: "/ranks", title: "Rank", icon: "book-solid"},
-      %{
-        path: "#",
-        title: "Ewallets",
-        icon: nil,
-        children: [
-          %{path: "/ewallets/withdrawal_batches", title: "Withdrawal", icon: "camera-foto-solid"},
-          %{path: "/ewallets", title: "Ewallets", icon: "book-solid"},
-          %{path: "/ewallets/transfers", title: "Transfers", icon: "camera-foto-solid"},
-          %{
-            path: "/ewallets/register_points",
-            title: "Register Points",
-            icon: "camera-foto-solid"
-          }
-        ]
-      }
-    ]
+    Multi.new()
+    |> Multi.run(:update, fn _repo, %{} ->
+      Repo.delete_all(AppRoute)
+      Repo.delete_all(RoleAppRoute)
 
-    for menu <- menus do
-      {:ok, route} =
-        create_app_route(%{
-          "name" => menu.title,
-          "route" => menu.path,
-          "icon" => menu.icon
-        })
+      for role <- rars do
+        for menu <- menus do
+          {:ok, route} =
+            create_app_route(%{
+              "name" => menu |> Map.get("title"),
+              "route" => menu |> Map.get("path"),
+              "icon" => menu |> Map.get("icon")
+            })
 
-      RoleAppRoute.changeset(%RoleAppRoute{}, %{
-        role_id: role.id,
-        app_route_id: route.id
-      })
-      |> Repo.insert()
+          admin_role = get_admin_staff()
 
-      children = Map.get(menu, :children, [])
+          cg =
+            RoleAppRoute.changeset(%RoleAppRoute{}, %{
+              role_id: role.id,
+              app_route_id: route.id
+            })
 
-      for child <- children do
-        {:ok, croute} =
-          create_app_route(%{
-            "name" => child.title,
-            "route" => child.path,
-            "icon" => child.icon
-          })
+          if role.name == admin_role.name do
+            cg
+            |> Repo.insert()
+          else
+            if role.app_routes
+               |> Enum.filter(&(&1.route == route.route))
+               |> Enum.filter(&(&1.name == route.name)) != [] do
+              cg
+              |> Repo.insert()
+            end
+          end
 
-        RoleAppRoute.changeset(%RoleAppRoute{}, %{
-          role_id: role.id,
-          app_route_id: croute.id
-        })
-        |> Repo.insert()
+          children = Map.get(menu, "children", %{})
+
+          for child <- children do
+            {:ok, croute} =
+              create_app_route(%{
+                "name" => child |> Map.get("title"),
+                "route" => child |> Map.get("path"),
+                "icon" => child |> Map.get("icon")
+              })
+
+            ccg =
+              RoleAppRoute.changeset(%RoleAppRoute{}, %{
+                role_id: role.id,
+                app_route_id: croute.id
+              })
+
+            if role.name == admin_role.name do
+              ccg
+              |> Repo.insert()
+            else
+              if role.app_routes
+                 |> Enum.filter(&(&1.route == croute.route))
+                 |> Enum.filter(&(&1.name == croute.name)) != [] do
+                ccg
+                |> Repo.insert()
+              end
+            end
+          end
+        end
       end
-    end
+
+      {:ok, nil}
+    end)
+    |> Repo.transaction()
   end
 
   def group_unpay_rewards() do
@@ -6518,5 +6575,151 @@ defmodule CommerceFront.Settings do
 
   def clear_zero_rewards() do
     Repo.delete_all(from(r in Settings.Reward, where: r.amount == ^0 and r.is_paid == ^false))
+  end
+
+  alias CommerceFront.Settings.Instalment
+
+  def list_instalments() do
+    Repo.all(Instalment)
+  end
+
+  def get_instalment!(id) do
+    Repo.get!(Instalment, id)
+  end
+
+  def create_instalment(params \\ %{}) do
+    Instalment.changeset(%Instalment{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_instalment(model, params) do
+    Instalment.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_instalment(%Instalment{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.MemberInstalment
+
+  def list_member_instalments() do
+    Repo.all(MemberInstalment)
+  end
+
+  def list_outstanding_member_instalments(user_id) do
+    # Repo.all(from mi in MemberInstalment, where: mi.user_id == ^user_id)
+    mi =
+      Repo.all(
+        from(mi in CommerceFront.Settings.MemberInstalment,
+          where:
+            mi.user_id == ^user_id and
+              mi.is_paid == ^false,
+          preload: [:product, :user, :instalment, member_instalment_product: :product]
+        )
+      )
+      |> List.first()
+  end
+
+  def get_member_instalment!(id) do
+    Repo.get!(MemberInstalment, id)
+  end
+
+  def create_member_instalment(params \\ %{}) do
+    MemberInstalment.changeset(%MemberInstalment{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_member_instalment(model, params) do
+    MemberInstalment.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_member_instalment(%MemberInstalment{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.InstalmentProduct
+
+  def list_instalment_products() do
+    Repo.all(InstalmentProduct)
+  end
+
+  def get_instalment_product!(id) do
+    Repo.get!(InstalmentProduct, id)
+  end
+
+  def _create_product_country(params \\ %{}) do
+    ProductCountry.changeset(%ProductCountry{}, params) |> Repo.insert() |> IO.inspect()
+
+    product_id = Map.keys(params["Country"]) |> List.first()
+
+    items = params["Country"][product_id] |> Map.keys()
+    Repo.delete_all(from(rap in ProductCountry, where: rap.product_id == ^product_id))
+
+    for item <- items do
+      params = %{"product_id" => product_id, "country_id" => item}
+      ProductCountry.changeset(%ProductCountry{}, params) |> Repo.insert() |> IO.inspect()
+    end
+
+    {:ok, %ProductCountry{id: 0}}
+  end
+
+  def create_instalment_product(params \\ %{}) do
+    sample = %{
+      "Product" => %{"34" => %{"4" => "on"}},
+      "id" => "0",
+      "month_no" => "3",
+      "qty" => "1"
+    }
+
+    instalment_product_id = params["Product"] |> Map.keys() |> List.first()
+
+    Repo.delete_all(
+      from(rap in InstalmentProduct,
+        where:
+          rap.instalment_product_id == ^instalment_product_id and
+            rap.month_no == ^params["month_no"]
+      )
+    )
+
+    product_id = params["Product"][instalment_product_id] |> Map.keys() |> List.first()
+
+    InstalmentProduct.changeset(%InstalmentProduct{}, %{
+      qty: params["qty"],
+      month_no: params["month_no"],
+      instalment_product_id: instalment_product_id,
+      product_id: product_id
+    })
+    |> Repo.insert()
+    |> IO.inspect()
+  end
+
+  def update_instalment_product(model, params) do
+    InstalmentProduct.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_instalment_product(%InstalmentProduct{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.MemberInstalmentProduct
+
+  def list_member_instalment_products() do
+    Repo.all(MemberInstalmentProduct)
+  end
+
+  def get_member_instalment_product!(id) do
+    Repo.get!(MemberInstalmentProduct, id)
+  end
+
+  def create_member_instalment_product(params \\ %{}) do
+    MemberInstalmentProduct.changeset(%MemberInstalmentProduct{}, params)
+    |> Repo.insert()
+    |> IO.inspect()
+  end
+
+  def update_member_instalment_product(model, params) do
+    MemberInstalmentProduct.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_member_instalment_product(%MemberInstalmentProduct{} = model) do
+    Repo.delete(model)
   end
 end

@@ -387,3 +387,29 @@ maintain bonus
 before month end, personal purchase at least 36RP,
 personal sponsor 2 ppl = 11 level
 4 ppl = 22 level
+
+
+----
+
+withdrawl add another 2nd pw
+
+instalment packs every month has different stock to deduct
+
+
+registration sequence to change,
+the sponsor detail first,
+then the payment
+then the shipping details
+
+
+
+admin to assist the sponsor to 
+pay the instalment
+
+if the sponsor has sufficient DRP,
+will proceed to use the DRP first to make the payment
+
+
+
+----
+

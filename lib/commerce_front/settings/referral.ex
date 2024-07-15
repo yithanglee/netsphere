@@ -4,7 +4,8 @@ defmodule CommerceFront.Settings.Referral do
 
   schema "referrals" do
     field(:parent_referral_id, :integer)
-    field(:parent_user_id, :integer)
+    # field(:parent_user_id, :integer)
+    belongs_to(:parent_user, CommerceFront.Settings.User)
     field(:user_id, :integer)
 
     timestamps()

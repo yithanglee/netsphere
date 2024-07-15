@@ -60,6 +60,13 @@ export let phxApp_ = {
     memberApp_.logout()
   },
   user: null,
+  addItem(id) {
+    var data = phxApp_.api("get_product", { id: id })
+    data.payInstalment = true
+    commerceApp_.addItem_(data)
+    commerceApp_.components["updateCart"]()
+    commerceApp_.components["cartItems"]()
+  },
   hasCartItems() {
     console.log("checking...")
     console.log(commerceApp_.hasCartItems())
@@ -1089,7 +1096,7 @@ export let phxApp_ = {
 
 
         input2 = `<div class="` + alt_class + `">
-                      `+ qv.placeholder +`
+                      ` + qv.placeholder + `
                     </div>`
       }
       if (qv.code) {

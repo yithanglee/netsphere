@@ -105,8 +105,30 @@ table td, table th {
                 </div>
               </td>
               <td class="text-start ">
-                <img class="me-4" src="<%= item.img_url %>" height="40px;">
-                <%= item.item_name %>
+               
+             
+                      <table>
+                        <tr>
+                           <%= if item.remarks != nil do %>
+                          <td rowspan="2"> 
+                            <% else %>
+                            <td>
+                            <% end %>
+                            <img class="me-4" src="<%= item.img_url %>" height="40px;"></td>
+                          <td>
+                               <%= item.item_name %>
+                          </td>
+                        </tr>
+                        <%= if item.remarks != nil do %>
+                            <tr>
+                              <td>
+                                <div><%= item.remarks %></div>        
+                              </td>
+                            </tr>
+                        <% end %>
+                      </table>
+
+                
               </td>
               <td class="text-end">
                 <%= item.item_price |> :erlang.float_to_binary(decimals: 2) %>

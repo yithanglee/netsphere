@@ -16,6 +16,7 @@ export let commerceApp_ = {
   cart_: [],
   mcart_: [],
   region: "MY",
+  selectedInstalment: null,
 
 
   emptyCart_(is_merchant) {
@@ -53,8 +54,23 @@ export let commerceApp_ = {
   },
 
   addItem_(item, is_merchant) {
+    console.info(item)
     const cart = is_merchant ? this.mcart_ : this.cart_;
     const index = cart.findIndex(cartItem => cartItem.id === item.id);
+
+    if (item.is_instalment) {
+      if (item.payInstalment) {
+
+      } else {
+
+        instalment_name = item.name
+        product_instalment_id = item.id
+        item = item.first_payment_product
+        item.selectedInstalmentId = product_instalment_id
+        item.selectedInstalment = { id: product_instalment_id, name: instalment_name }
+      }
+    }
+
 
     if (index >= 0) {
       cart[index].qty += 1;
@@ -1352,6 +1368,13 @@ export let commerceApp_ = {
     },
 
     upgradeTarget() {
+      var needInstalment = false,
+        instalmentProduct;
+      if ($("upgradeTarget").attr("instalment") != null) {
+        console.log("ok")
+        needInstalment = true
+        commerceApp_.emptyCart_()
+      }
 
       window.upgradeTarget
       if (window.upgradeTarget == null) {
@@ -1383,6 +1406,7 @@ export let commerceApp_ = {
 
 
           phxApp_.api("get_accumulated_sales", {
+              show_instalment: true,
               parent_id: memberApp_.user.id,
               show_rank: true,
               username: $("[name='upgrade[username]']").val(),
@@ -1401,11 +1425,25 @@ export let commerceApp_ = {
               if (res[2].is_direct_downline) {
                 $(".to-upgrade").removeClass("disabled")
               } else {
+                phxApp_.notify("User not direct downline!", { type: 'danger' })
                 $("label[for='btnradio3']").click()
                 $(".to-upgrade").addClass("disabled")
               }
+              // please stick DRP
+              console.info(res[4].outstanding_instalments)
+              try {
+                if (res[4].outstanding_instalments != null) {
 
-
+                  $("input[name='user[pick_up_point_id]']").val(phxApp_.pick_up_points[0].id)
+                  $("input[name='user[shipping][fullname]']").val(res[4].outstanding_instalments.user.fullname)
+                  $("input[name='user[shipping][phone]']").val(res[4].outstanding_instalments.user.phone)
+                  $("input[name='user[instalment]']").val('Month no: ' + res[4].outstanding_instalments.month_no + '/' + res[4].outstanding_instalments.instalment.no_of_months)
+                  instalmentProduct = res[4].outstanding_instalments.product
+                  freebie = res[4].outstanding_instalments.member_instalment_product.product
+                }
+              } catch (e) {
+                console.error(e)
+              }
             })
 
 
@@ -1417,7 +1455,15 @@ export let commerceApp_ = {
           $("#mySubModal").modal('hide')
           window.upgradeTarget = $("[name='upgrade[username]']").val()
           $("#upgradeTarget").html($("[name='upgrade[username]']").val())
+          if (instalmentProduct != null) {
 
+            phxApp_.addItem(instalmentProduct.id)
+            if (freebie != null) {
+           
+              phxApp_.addItem(freebie.id)
+            }
+
+          }
           commerceApp_.components["cartItems"]()
           console.info("need to check if member is direct sponsor")
 
@@ -1563,7 +1609,12 @@ export let commerceApp_ = {
 
       shipping_fee = sale.shipping_fee || 0
       eligible_rank = this.evalRank(subtotal)
-      reg_dets = JSON.parse(sale.registration_details)
+      try {
+
+        reg_dets = JSON.parse(sale.registration_details)
+      } catch (e) {
+        console.error(e)
+      }
       var is_merchant = false
       if (reg_dets.scope == "merchant_checkout") {
         total_pv = sale.total_point_value
@@ -1617,7 +1668,10 @@ export let commerceApp_ = {
                                   ">
                   </div>
                 </div>
-                <span>` + v.item_name + ` <small>(x` + v.qty + `)</small></span>
+                <div class="d-flex flex-column">
+                  <span>` + v.item_name + ` <small>(x` + v.qty + `)</small></span>
+                  <div>` + v.remarks + `</div>
+                </div>
               </div>
               <div class="d-flex flex-column flex-lg-row justify-content-between align-items-center">
                 <div class="d-flex flex-column align-items-end">
@@ -1662,10 +1716,14 @@ export let commerceApp_ = {
 
       `
 
-
-      shipping = reg_dets.user.shipping
-      console.info(shipping)
-      payment = sale.payment
+      try {
+        shipping = reg_dets.user.shipping
+        console.log("shippnig...")
+        console.info(shipping)
+        payment = sale.payment
+      } catch (e) {
+        console.error(e)
+      }
 
       var drp_details = {};
       if (sale.payment != null) {
@@ -1703,47 +1761,50 @@ export let commerceApp_ = {
 
         `
         }
-        if (sale.payment.webhook_details != null) {
+        try {
+          console.info(sale.payment)
+          if (sale.payment.webhook_details != null) {
 
-          sale.payment.webhook_details.split("|").map((v, i) => {
+            sale.payment.webhook_details.split("|").map((v, i) => {
 
-            data = v.split(": ")
-            var key = data[0].replace(" ", "_")
-            console.log(key)
-            drp_details[key] = parseFloat(data[1])
+              data = v.split(": ")
+              var key = data[0].replace(" ", "_")
+              console.log(key)
+              drp_details[key] = parseFloat(data[1])
 
 
-          })
-          console.info(drp_details)
-          drp_amount = 0
-          var dpp = `DRP`
-          if (is_merchant) {
-            dpp = 'Merchant Point'
-          }
-          if (drp_details.drp_paid != null || drp_details.mp_paid != null) {
+            })
+            console.info(drp_details)
 
-            drp_amount = drp_details.drp_paid
+            drp_amount = 0
+            var dpp = `DRP`
             if (is_merchant) {
-              drp_amount = drp_details.mp_paid
+              dpp = 'Merchant Point'
             }
-          }
-          if (drp_details.pp_paid != null) {
-            total_pv = 0
-          }
-          var tt4 = (total_pv - drp_amount)
-          var tt5 = (subtotal + shipping_fee - drp_amount - (drp_details.rp_paid || 0))
-          var elb = ` <div class="d-flex justify-content-between align-items-center">
+            if (drp_details.drp_paid != null || drp_details.mp_paid != null) {
+
+              drp_amount = drp_details.drp_paid
+              if (is_merchant) {
+                drp_amount = drp_details.mp_paid
+              }
+            }
+            if (drp_details.pp_paid != null) {
+              total_pv = 0
+            }
+            var tt4 = (total_pv - drp_amount)
+            var tt5 = (subtotal + shipping_fee - drp_amount - (drp_details.rp_paid || 0))
+            var elb = ` <div class="d-flex justify-content-between align-items-center">
                     <span class="fw-bold text-secondary">Eligible Rank</span>
                     <span class="text-info "><span class="format-integer">` + eligible_rank + `</span></span>
                   </div>`
-          if (is_merchant) {
-            elb = ''
-            tt4 = total_pv
-            tt5 = (subtotal + shipping_fee)
-          }
+            if (is_merchant) {
+              elb = ''
+              tt4 = total_pv
+              tt5 = (subtotal + shipping_fee)
+            }
 
 
-          payment_info = `
+            payment_info = `
 
                  <div class="d-flex justify-content-between align-items-center">
                     <span class="fs-5">Subtotal</span>
@@ -1777,39 +1838,59 @@ export let commerceApp_ = {
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="fw-bold text-secondary">Paid with</span>
                     <span class="text-primary "><span class="">` + (payment.payment_method.split("_").map((v, i) => {
-            return ColumnFormater.capitalize(v)
+              return ColumnFormater.capitalize(v)
 
-          }).join(" ")) + `</span></span>
+            }).join(" ")) + `</span></span>
                           </div>
 
                 `
 
 
+
+
+          }
+        } catch (e) {
+          console.error(e)
         }
+
       }
 
+      var addre = `      `
+      try {
 
-      var addre = `
-  <span class="text-secondary">Deliver To:</span> 
-                   <span>` + shipping.line1 + `, ` + shipping.line2 + `</span>
-                   <span>` + shipping.city + ` ` + shipping.postcode + `, ` + shipping.state + ` </span>
+        if (shipping != null) {
+          addre = `
+          <span class="text-secondary">Deliver To:</span> 
+                           <span>` + shipping.line1 + `, ` + shipping.line2 + `</span>
+                           <span>` + shipping.city + ` ` + shipping.postcode + `, ` + shipping.state + ` </span>
 
       `
 
+        } else {
+          shipping = { phone: null, fullname: null }
+        }
 
+        if (sale.pick_up_point != null) {
+          addre =
 
-      if (sale.pick_up_point != null) {
-        addre =
+            `           <span class="text-secondary">Pick Up Point: </span>
+                        <span>` + sale.pick_up_point.name + ` </span>
+                      <span>` + sale.pick_up_point.address + ` </span>
 
-          `                   <span class="text-secondary">Pick Up Point: </span>
- <span>` + sale.pick_up_point.name + ` </span>
-                   <span>` + sale.pick_up_point.address + ` </span>
+          `
 
-`
+        }
 
+      } catch (e) {
+        console.error(e)
       }
 
 
+
+
+
+
+      console.info(addre)
 
 
 
@@ -1833,7 +1914,7 @@ export let commerceApp_ = {
         </div>
                 <div class="d-flex flex-column mb-4 ">
                    <span class="text-secondary">Sold To:</span> 
-                   <span>` + (reg_dets.user.fullname) + `, ` + (reg_dets.user.phone) + `</span>
+                   <span>` + (reg_dets.user.fullname || phxApp_.user.fullname) + `, ` + (reg_dets.user.phone || phxApp_.user.phone) + `</span>
                    
                 </div>
                 <div class="d-flex flex-column mb-4 ">
@@ -2327,6 +2408,34 @@ export let commerceApp_ = {
 
             rp = `MYR <span class="format-float">` + (v.retail_price * v.qty * phxApp_.chosen_country_id_.conversion).toFixed(2) + ``
           }
+          var instalment_input = ``,
+            instalment_info = ``
+
+
+
+          if (v.selectedInstalmentId != null) {
+            var instalment = v.selectedInstalment
+            try {
+
+              instalment_info = `<div class="text-sm text-secondary">` + instalment.name + `</div>`
+              instalment_input = `<input type="hidden"  name="user[products][` + i + `][remarks]" value="instalment_product_id:` + v.selectedInstalmentId + `">`
+            } catch (e) {
+              console.error(e)
+            }
+          }
+
+          try {
+            if ($("input[name='user[instalment]']").val() != null) {
+
+              var form_instalment_info = $("input[name='user[instalment]']").val()
+              instalment_info = form_instalment_info
+            }
+            // very likely this is for the repurchase....
+          } catch (e) {
+            console.error(e)
+          }
+
+
           list.push(`
 
               <div class="d-flex align-items-center justify-content-between gap-2 ` + linePassed + ` rounded p-2 me-3">
@@ -2335,6 +2444,7 @@ export let commerceApp_ = {
               <input type="hidden"  name="user[products][` + i + `][item_pv]" value="` + v.point_value + `">
               <input type="hidden"  name="user[products][` + i + `][img_url]" value="` + v.img_url + `">
               <input type="hidden"  name="user[products][` + i + `][qty]" value="` + v.qty + `">
+              ` + instalment_input + `
                 <div class="d-flex align-items-center justify-content-between gap-2">
                   <div class="d-flex justify-content-center align-items-center " style="
                                     cursor: pointer;   
@@ -2364,7 +2474,10 @@ export let commerceApp_ = {
                                     ">
                     </div>
                   </div>
-                  <span>` + v.name + ` <small>(x` + v.qty + `)</small></span>
+                  <div class="d-flex flex-column">
+                    <span>` + v.name + ` <small>(x` + v.qty + `)</small></span>
+                    ` + instalment_info + `
+                  </div>
                 </div>
                 <div class="d-flex flex-column flex-lg-row justify-content-between align-items-center">
                   <div class="d-flex flex-column align-items-end">
@@ -2801,6 +2914,8 @@ export let commerceApp_ = {
           frp = `<div class="font-sm">MYR <span class="font-sm format-float">` + (v.retail_price * v.qty * phxApp_.chosen_country_id_.conversion).toFixed(2) + `</span></div>`
 
         }
+
+
         list.push(`
 
           <li><a class="dropdown-item" href="javascript:void(0);">
@@ -3381,7 +3496,7 @@ export let commerceApp_ = {
             localStorage.setItem("first_cart_country_id", phxApp_.chosen_country_id_.id)
           }
 
-          console.log(check)
+          console.info(check)
           if (data.countries.map((vv, ii) => { return vv.id }).includes(parseInt(commerceApp_.first_cart_country_id))) {
 
             commerceApp_.addItem_(data)
@@ -3452,8 +3567,6 @@ export let commerceApp_ = {
         }
 
 
-
-        console.info(phxApp_.chosen_country_id_.conversion)
         if (!showRP) {
           rp = `<div class="font-sm fw-light text-secondary text-center ">MYR <span class="format-float">` + (data.retail_price * phxApp_.chosen_country_id_.conversion) + `</span></div>`
 
@@ -3471,7 +3584,32 @@ export let commerceApp_ = {
           }
 
         }
+        addBtn = `<div class="btn btn-outline-primary mt-4" product-id="` + data.id + `">Add</div>`
+        if (data.instalment_packages.length > 0) {
 
+          var cards = []
+          data.instalment_packages.forEach((p, i) => {
+
+            c = `
+              <div class=" col-12 col-lg-8 offset-lg-2 ">
+                <div class="card m-4 p-4 ">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div class="fs-4">` + p.name + `</div>
+                    <span class="d-flex flex-column">
+                      <div class="text-secondary">` + p.retail_price + ` RP</div>
+                      <div>` + p.point_value + ` PV</div> 
+                    </span>
+                    <span><div class="btn btn-outline-primary" product-id="` + p.id + `">Choose</div></span>
+                  </div>
+                </div>
+              </div>
+
+            `
+            cards.push(c)
+          })
+
+          addBtn = `<div class="row w-100">` + cards.join("") + `</div>`
+        }
 
 
         $("#pcontent").customHtml(`
@@ -3511,14 +3649,19 @@ export let commerceApp_ = {
           <div style="margin-top: 50px;">` + data.desc + `</div>
           ` + rp + `
           <div class="font-sm fw-light text-info text-center pv_label d-none">PV <span class="format-float">` + data.point_value + `</span></div>
-          <div class="btn btn-outline-primary mt-4" product-id="` + data.id + `">Add</div>
+          ` + addBtn + `
         </div>
 
         `)
         $("#ptitle").html(
           data.name
         )
-        $("[product-id='" + data.id + "']")[0].onclick = addToCart_
+        try {
+
+          $("[product-id='" + data.id + "']")[0].onclick = addToCart_
+        } catch (e) {
+
+        }
 
       })
 
@@ -3631,9 +3774,11 @@ export let commerceApp_ = {
             console.log(check)
             if (data.countries.map((vv, ii) => { return vv.id }).includes(parseInt(commerceApp_.first_cart_country_id))) {
 
+              commerceApp_.selectedInstalment = data
               commerceApp_.addItem_(data)
               commerceApp_.components["updateCart"]()
               commerceApp_.components["cartItems"]()
+
 
               phxApp_.notify("Added " + data.name, {
                 delay: 2000,
@@ -3645,6 +3790,7 @@ export let commerceApp_ = {
               })
               // phxApp_.toast({ content: `<div class=""><ul class="">` + $(".ac").html() + `</ul></div>` })
             } else if (commerceApp_.first_cart_country_id == null) {
+              commerceApp_.selectedInstalment = data
               commerceApp_.addItem_(data)
               commerceApp_.components["updateCart"]()
               commerceApp_.components["cartItems"]()
@@ -3707,8 +3853,8 @@ export let commerceApp_ = {
                     })
                     ColumnFormater.formatDate()
 
-                  $(".spinner-border.loading").parent().remove()
-                  $(".loading").removeClass("d-none")
+                    $(".spinner-border.loading").parent().remove()
+                    $(".loading").removeClass("d-none")
                   }, 800)
 
                 },
@@ -3743,11 +3889,11 @@ export let commerceApp_ = {
                     includeShippingTax = true
                   }
                   if (includeShippingTax) {
-                    rp = `<div class="font-sm fw-light text-secondary text-center "><span class="format-float">` + (data.retail_price  * 1.1) + `</span> RP</div>`
+                    rp = `<div class="font-sm fw-light text-secondary text-center "><span class="format-float">` + (data.retail_price * 1.1) + `</span> RP</div>`
 
                     if (phxApp_.chosen_country_id_.name == "Singapore") {
 
-                      rp = `<div class="font-sm fw-light text-secondary text-center "><span class="format-float">` + (data.retail_price  * 1.05) + `</span> RP</div>`
+                      rp = `<div class="font-sm fw-light text-secondary text-center "><span class="format-float">` + (data.retail_price * 1.05) + `</span> RP</div>`
                     }
 
                   }
@@ -3827,9 +3973,9 @@ export let commerceApp_ = {
                     // product_country: "product_country",
 
                   }],
-                  // additional_search_queries: [
-                  //   "b.country_id=" + phxApp_.chosen_country_id_.id
-                  // ],
+                  additional_search_queries: [
+                    "b.is_instalment=false"
+                  ],
 
                   country_id: phxApp_.chosen_country_id_.id,
                   preloads: ["product"],

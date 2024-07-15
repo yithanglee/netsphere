@@ -319,22 +319,37 @@ defmodule CommerceFrontWeb.ApiController do
 
         "get_accumulated_sales" ->
           user = Settings.get_user_by_username(params["username"])
-          parent = Settings.get_user!(String.to_integer(params["parent_id"]))
-          # todo: from username check uplines, if the upline is you, ok
-          # todo: from self/ parent_id check uplines , if the user is in the upline, then error
 
           if params["parent_id"] != nil do
-            check = Settings.verify_parent(String.to_integer(params["parent_id"]), user)
+            parent = Settings.get_user!(String.to_integer(params["parent_id"]))
+            # todo: from username check uplines, if the upline is you, ok
+            # todo: from self/ parent_id check uplines , if the user is in the upline, then error
 
-            check2 =
-              CommerceFront.Settings.check_uplines(params["username"])
-              |> Enum.filter(&(&1.parent == parent.username))
+            if params["parent_id"] != nil do
+              check = Settings.verify_parent(String.to_integer(params["parent_id"]), user)
 
-            Settings.accumulated_sales_by_user(user, params["show_rank"])
-            |> List.insert_at(2, %{"is_direct_downline" => check})
-            |> List.insert_at(3, %{"is_downline" => check2 != []})
-          else
-            Settings.accumulated_sales(params["username"])
+              check2 =
+                CommerceFront.Settings.check_uplines(params["username"])
+                |> Enum.filter(&(&1.parent == parent.username))
+
+              res =
+                Settings.accumulated_sales_by_user(user, params["show_rank"])
+                |> List.insert_at(2, %{"is_direct_downline" => check})
+                |> List.insert_at(3, %{"is_downline" => check2 != []})
+
+              oi =
+                if params["show_instalment"] != nil do
+                  Settings.list_outstanding_member_instalments(user.id)
+                  |> BluePotion.sanitize_struct()
+                else
+                  %{}
+                end
+
+              res
+              |> List.insert_at(4, %{"outstanding_instalments" => oi})
+            else
+              Settings.accumulated_sales(params["username"])
+            end
           end
 
         "unpaid_reward_summary" ->
@@ -699,6 +714,19 @@ defmodule CommerceFrontWeb.ApiController do
   def post(conn, params) do
     res =
       case params["scope"] do
+        "sponsor_pay_instalment" ->
+          sample = %{
+            "id" => 27,
+            "scope" => "sponsor_pay_instalment",
+            "selectedType" => "register"
+          }
+
+          %{status: "ok"}
+
+        "sync_menu" ->
+          params["_json"] |> Settings.populate_menus() |> IO.inspect()
+          %{status: "ok"}
+
         "approve_merchant" ->
           Settings.approve_merchant(params)
           %{status: "ok"}
@@ -1102,6 +1130,12 @@ defmodule CommerceFrontWeb.ApiController do
                   |> BluePotion.sanitize_struct()
                   |> Map.put(:token, token)
               }
+
+            {:error, []} ->
+              %{status: "error", reason: "User not approved yet"}
+
+            {:error, [user]} ->
+              %{status: "error", reason: "Username password not matched"}
 
             _ ->
               %{status: "error"}

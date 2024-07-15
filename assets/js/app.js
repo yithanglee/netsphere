@@ -168,6 +168,9 @@ const route_list = [
   { html: "reward_details.html", title: "Reward Details ", route: "/reward_details/:name/:month/:year" },
   { html: "sales_detail.html", title: "Sales Details", route: "/sales/:id" },
   { html: "sales.html", title: "Sales History", route: "/sales" },
+{ html: "pay_instalment.html", title: "Pay Instalment", route: "/pay_instalment" },
+  
+  { html: "instalment_payments.html", title: "Instalment Payments", route: "/instalment_payments" },
   { html: "wallet_transaction.html", title: "Transactions ", route: "/wallets/:id" },
   { html: "product.html", title: "Product", route: "/products/:id/:name" },
   { html: "register.html", title: "Register", route: "/register" },
