@@ -560,7 +560,7 @@ defmodule CommerceFrontWeb.ApiController do
            "countries",
            "get_ranks",
            "list_pick_up_point_by_country",
-           "list_user_sales_addresses_by_username",
+           # "list_user_sales_addresses_by_username",
            "translation"
          ] do
         conn
@@ -720,6 +720,90 @@ defmodule CommerceFrontWeb.ApiController do
             "scope" => "sponsor_pay_instalment",
             "selectedType" => "register"
           }
+
+          data =
+            Settings.get_member_instalment!(params["id"])
+            |> Repo.preload([:freebie, :sponsor, :instalment, :product, :user])
+            |> IO.inspect()
+
+          sponsor = data |> Map.get(:sponsor)
+          instalment = data |> Map.get(:instalment)
+          instalment_product = data |> Map.get(:product)
+          freebie = data |> Map.get(:freebie)
+          user = data |> Map.get(:user)
+
+          shipping_deets =
+            CommerceFront.Settings.get_first_sales_by_user_id(user.id)
+            |> List.first()
+            |> Map.get(:registration_details)
+            |> Jason.decode!()
+            |> Map.get("user")
+            |> Map.get("shipping")
+
+          amount =
+            if instalment_product.override_pv do
+              instalment_product.retail_price * instalment_product.override_perc
+            else
+              if params["selectedType"] == "direct_recruitment" do
+                instalment_product.retail_price * instalment_product.override_perc
+              else
+                instalment_product.retail_price
+              end
+            end
+            |> :erlang.trunc()
+
+          payment =
+            if params["selectedType"] == "direct_recruitment" do
+              %{"drp" => "#{amount}", "method" => "register_point"}
+            else
+              %{"drp" => "", "method" => "only_register_point"}
+            end
+
+          products =
+            if freebie != nil do
+              %{
+                "0" => %{
+                  "img_url" => "#{freebie.img_url}",
+                  "item_name" => "#{freebie.name}",
+                  "item_price" => "0",
+                  "item_pv" => "0",
+                  "qty" => "1"
+                },
+                "1" => %{
+                  "img_url" => "#{instalment_product.img_url}",
+                  "item_name" => instalment_product.name,
+                  "item_price" => "#{instalment_product.retail_price}",
+                  "item_pv" => "#{instalment_product.point_value}",
+                  "qty" => "1"
+                }
+              }
+            else
+              %{
+                "0" => %{
+                  "img_url" => "null",
+                  "item_name" => instalment_product.name,
+                  "item_price" => "#{instalment_product.retail_price}",
+                  "item_pv" => "#{instalment_product.point_value}",
+                  "qty" => "1"
+                }
+              }
+            end
+
+          sample3 = %{
+            "scope" => "upgrade",
+            "user" => %{
+              "country_id" => "#{user.country_id}",
+              "instalment" => "Month no: #{data.month_no}/#{instalment.no_of_months}",
+              "payment" => payment,
+              "pick_up_point_id" => "1",
+              "products" => products,
+              "sales_person_id" => "#{sponsor.id}",
+              "shipping" => shipping_deets,
+              "upgrade" => "#{user.username}"
+            }
+          }
+
+          post(conn, sample3)
 
           %{status: "ok"}
 
@@ -1836,7 +1920,6 @@ defmodule CommerceFrontWeb.ApiController do
         data
         |> Enum.map(fn x ->
           x
-          |> IO.inspect()
           |> Map.put(
             :registration_details,
             x.registration_details

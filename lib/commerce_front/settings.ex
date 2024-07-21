@@ -906,6 +906,14 @@ defmodule CommerceFront.Settings do
   end
 
   def update_reward(model, params) do
+    params =
+      if "is_paid" in Map.keys(params) do
+        bool_key = "is_paid"
+        append_bool_key(params, bool_key)
+      else
+        params
+      end
+
     Reward.changeset(model, params) |> Repo.update() |> IO.inspect()
   end
 
@@ -1147,12 +1155,18 @@ defmodule CommerceFront.Settings do
         nil ->
           map =
             if gsd.position == "left" do
-              %{new_left: gsd.amount, total_left: gsd.amount, total_right: 0}
+              %{
+                new_left: gsd.amount,
+                total_left: gsd.amount,
+                total_right: 0,
+                balance_left: gsd.amount
+              }
             else
               %{
-                total_left: 0,
                 new_right: gsd.amount,
-                total_right: gsd.amount
+                total_left: 0,
+                total_right: gsd.amount,
+                balance_right: gsd.amount
               }
             end
 
@@ -1264,6 +1278,10 @@ defmodule CommerceFront.Settings do
   def get_sale!(id) do
     Repo.get!(Sale, id)
     |> Repo.preload([:payment, :sales_person, :user, :sales_items, :pick_up_point])
+  end
+
+  def get_first_sales_by_user_id(id) do
+    Repo.all(from(s in Sale, where: s.user_id == ^id))
   end
 
   def create_sale(params \\ %{}) do
@@ -2635,7 +2653,7 @@ defmodule CommerceFront.Settings do
   when the placement group sales details is in place, based on the inserted at date to reconstruct the group sales sumary
 
   maybe redo from the start of the month?
-  CommerceFront.Settings.reconstruct_daily_group_sales_summary(~D[2024-04-01], :monthly)
+  CommerceFront.Settings.reconstruct_daily_group_sales_summary(~D[2024-07-15], :monthly)
 
   """
   def reconstruct_daily_group_sales_summary(date \\ Date.utc_today(), period \\ :daily) do
@@ -2913,8 +2931,6 @@ defmodule CommerceFront.Settings do
     |> Repo.transaction()
   end
 
-  require IEx
-
   @doc """
   end of day, the balance from the summary need to carry forward to next day
   CommerceFront.Settings.carry_forward_entry(Date.utc_today() |> Timex.shift(days: -1))
@@ -2980,6 +2996,7 @@ defmodule CommerceFront.Settings do
                   gs_summary |> Map.put(:balance_right, gs_summary.total_right)
                 end
               else
+                # please test new 3 units 
                 _ ->
                   if gs_summary.new_left != 0 || gs_summary.new_right != 0 do
                     if gs_summary.balance_left == 0 && gs_summary.balance_right == 0 do
@@ -3213,11 +3230,11 @@ defmodule CommerceFront.Settings do
         "sales_person_id" => "",
         "share_code" => "bc165de9-b13e-460f-9200-731ec7d599cb",
         "shipping" => %{
-          "city" => "",
           "fullname" => "LEE YIT LIN",
+          "phone" => "0122774254",
+          "city" => "",
           "line1" => "",
           "line2" => "",
-          "phone" => "0122774254",
           "postcode" => "",
           "state" => "Johor"
         },
@@ -3349,7 +3366,7 @@ defmodule CommerceFront.Settings do
 
     pres =
       for key <- Map.keys(products) do
-        product_params = products[key]
+        product_params = products[key] |> IO.inspect()
 
         p =
           if params["scope"] == "merchant_checkout" do
@@ -3357,6 +3374,7 @@ defmodule CommerceFront.Settings do
           else
             get_product_by_name(product_params["item_name"])
           end
+          |> IO.inspect()
 
         r = p |> Map.put(:qty, product_params["qty"] |> String.to_integer())
 
@@ -3373,9 +3391,55 @@ defmodule CommerceFront.Settings do
     end
 
     total_rp = Enum.reduce(pres, 0, &calc_rp.(&1, &2))
+    shipping_fee = 0
+
+    shipping_fee =
+      if CommerceFront.Settings.get_malaysia().id ==
+           String.to_integer(params["user"]["country_id"]) do
+        if params["user"]["pick_up_point_id"] != nil &&
+             params["user"]["pick_up_point_id"] != "" do
+          0
+        else
+          if params["scope"] == "merchant_checkout" do
+            Float.ceil(total_rp / 200) * 2
+          else
+            if params["user"]["shipping"]["state"] in ["Sabah", "Sarawak", "Labuan"] do
+              Float.ceil(total_rp / 200) * 4
+            else
+              if total_rp >= 100 do
+                shipping_fee
+              else
+                2
+              end
+            end
+          end
+        end
+      else
+        country_id = params |> Kernel.get_in(["user", "country_id"]) |> Integer.parse() |> elem(0)
+
+        cond do
+          get_country_by_name("Singapore").id == country_id ->
+            if params["scope"] == "merchant_checkout" do
+              total_rp * 0.1
+            else
+              total_rp * 0.05
+            end
+
+          true ->
+            total_rp * 0.1
+        end
+      end
+      |> IO.inspect()
+
+    shipping_fee =
+      if title == "Instalment" do
+        0
+      else
+        shipping_fee
+      end
 
     cond do
-      total_rp - form_drp < 0 ->
+      total_rp - form_drp + shipping_fee < 0 ->
         {:error, "Too much drp used."}
 
       params |> Kernel.get_in(["user", "password"]) == "" ->
@@ -3390,20 +3454,24 @@ defmodule CommerceFront.Settings do
       true ->
         Multi.new()
         |> Multi.run(:user_sale_address, fn _repo, %{} ->
-          if params["user"]["pick_up_point_id"] != nil do
-            {:ok, nil}
-          else
-            create_user_sales_address(
-              params["user"]["shipping"]
-              |> Map.put("user_id", params["user"]["sales_person_id"])
-              |> Map.put("country_id", params["user"]["country_id"])
-            )
-          end
+          re =
+            if params["user"]["pick_up_point_id"] != "" do
+              {:ok, nil}
+            else
+              create_user_sales_address(
+                params["user"]["shipping"]
+                |> Map.put("user_id", params["user"]["sales_person_id"])
+                |> Map.put("country_id", params["user"]["country_id"])
+              )
+            end
+
+          re
         end)
         |> Multi.run(:sale, fn _repo, %{} ->
           pv = 0
           # need to check if DRP was used
           create_sale(%{
+            is_instalment: title == "Instalment",
             pick_up_point_id: params["user"]["pick_up_point_id"],
             country_id: params["user"]["country_id"],
             month: Date.utc_today().month,
@@ -3473,44 +3541,6 @@ defmodule CommerceFront.Settings do
             else
               _ ->
                 Enum.reduce(res, 0, &calc_pv.(&1, &2)) |> :erlang.trunc()
-            end
-            |> IO.inspect()
-
-          shipping_fee =
-            if CommerceFront.Settings.get_malaysia().id == sale.country_id do
-              if params["user"]["pick_up_point_id"] != nil &&
-                   params["user"]["pick_up_point_id"] != "" do
-                0
-              else
-                if params["scope"] == "merchant_checkout" do
-                  Float.ceil(total_rp / 200) * 2
-                else
-                  if params["user"]["shipping"]["state"] in ["Sabah", "Sarawak", "Labuan"] do
-                    Float.ceil(total_rp / 200) * 4
-                  else
-                    if total_rp >= 100 do
-                      shipping_fee
-                    else
-                      2
-                    end
-                  end
-                end
-              end
-            else
-              country_id =
-                params |> Kernel.get_in(["user", "country_id"]) |> Integer.parse() |> elem(0)
-
-              cond do
-                get_country_by_name("Singapore").id == country_id ->
-                  if params["scope"] == "merchant_checkout" do
-                    total_rp * 0.1
-                  else
-                    total_rp * 0.05
-                  end
-
-                true ->
-                  total_rp * 0.1
-              end
             end
             |> IO.inspect()
 
@@ -4115,13 +4145,21 @@ defmodule CommerceFront.Settings do
       wallet_type: "merchant"
     })
 
-    if form_drp > 0 do
-      CommerceFront.Calculation.drp_sales_level_bonus(
-        sale.id,
-        form_drp,
-        user,
-        Date.utc_today()
-      )
+    sale = sale |> Repo.preload(:sales_items)
+
+    total_pv = sale.sales_items |> Enum.map(& &1.item_price) |> Enum.sum()
+
+    final_form_drp = total_pv + sale.shipping_fee - form_drp
+
+    if final_form_drp > 0 do
+      if form_drp != 0 do
+        CommerceFront.Calculation.drp_sales_level_bonus(
+          sale.id,
+          final_form_drp,
+          user,
+          Date.utc_today()
+        )
+      end
     end
   end
 
@@ -4232,6 +4270,12 @@ defmodule CommerceFront.Settings do
                 )
                 |> List.first()
 
+              freebie = mi |> Repo.preload(:freebie) |> Map.get(:freebie)
+
+              if freebie != nil do
+                CommerceFront.Settings.update_sale(sale, %{has_freebies: true})
+              end
+
               CommerceFront.Settings.update_member_instalment(mi, %{is_paid: true})
 
             item.remarks != nil ->
@@ -4284,6 +4328,9 @@ defmodule CommerceFront.Settings do
                   end
                 end
               end
+
+            true ->
+              nil
           end
         end
 
@@ -4306,7 +4353,7 @@ defmodule CommerceFront.Settings do
         if params["upgrade"] != nil do
           parent_p = get_placement_by_username(params["upgrade"])
 
-          {:ok, parent_p}
+          {:ok, %CommerceFront.Settings.Placement{id: parent_p.id}}
         else
           {position, parent_p} =
             determine_position(params["sponsor"], true, params["placement"]["position"])
@@ -4348,7 +4395,11 @@ defmodule CommerceFront.Settings do
         if params["stockist"] != nil do
           {:ok, nil}
         else
-          sharing_bonus(user.username, sale.total_point_value, sale, referral)
+          if sale.total_point_value > 0 do
+            sharing_bonus(user.username, sale.total_point_value, sale, referral)
+          else
+            {:ok, nil}
+          end
         end
       end)
       |> Multi.run(:stockist_register_bonus, fn _repo,
@@ -4365,7 +4416,11 @@ defmodule CommerceFront.Settings do
           unpaid_user = CommerceFront.Settings.unpaid_user()
 
           if sale != nil do
-            stockist_register_bonus(unpaid_user, user.username, sale.total_point_value, sale)
+            if sale.total_point_value > 0 do
+              stockist_register_bonus(unpaid_user, user.username, sale.total_point_value, sale)
+            else
+              {:ok, nil}
+            end
           end
 
           {:ok, nil}

@@ -1524,6 +1524,10 @@ defmodule CommerceFront.Calculation do
 
   CommerceFront.Calculation.drp_sales_level_bonus(132, 81, CommerceFront.Settings.get_user_by_username("freddy3"), ~D[2024-05-31])
 
+  16/07
+
+  should use remaining RP aka deducted DRP, the remaining RP used for calculation.
+
   """
   def drp_sales_level_bonus(sales_id, drp_amount, child_user, date) do
     {y, m, d} = date |> Date.to_erl()

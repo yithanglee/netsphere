@@ -21,6 +21,8 @@ defmodule CommerceFront.Settings.Sale do
   )
 
   schema "sales" do
+    field(:is_instalment, :boolean, default: false)
+    field(:has_freebies, :boolean, default: false)
     field(:month, :integer)
     field(:remarks, :string)
     field(:sale_date, :date)

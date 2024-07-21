@@ -137,7 +137,7 @@ has_merchant = @merchant != nil
         <tr valign="top">
           <th class="text-end">EMAIL:</th>
           <td></td>
-          <td>N/A</td>
+          <td><%= @email%></td>
         </tr>
         <%= if @sales.pick_up_point != nil do %>
           <tr valign="top">
@@ -186,7 +186,7 @@ has_merchant = @merchant != nil
         <tr valign="top">
           <th class="text-end">DATE:</th>
           <td></td>
-          <td><span id="chosen_date"><%= @sales.inserted_at |> Timex.Timezone.convert( "GMT+8") |> Timex.format!("%Y-%m-%d %I:%M %p", :strftime) %></span></td>
+          <td><span id="chosen_date"><%= @sales.inserted_at |> Timex.shift(hours: 8) |> Timex.Timezone.convert( "GMT+8") |> Timex.format!("%Y-%m-%d %I:%M %p", :strftime) %></span></td>
         </tr>
                 <tr>
           <th class="text-end">USERNAME:</th>

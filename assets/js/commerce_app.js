@@ -1368,7 +1368,7 @@ export let commerceApp_ = {
     },
 
     upgradeTarget() {
-      var needInstalment = false,
+      var needInstalment = false, freebie = null,
         instalmentProduct;
       if ($("upgradeTarget").attr("instalment") != null) {
         console.log("ok")
@@ -1434,7 +1434,7 @@ export let commerceApp_ = {
               try {
                 if (res[4].outstanding_instalments != null) {
 
-                  $("input[name='user[pick_up_point_id]']").val(phxApp_.pick_up_points[0].id)
+
                   $("input[name='user[shipping][fullname]']").val(res[4].outstanding_instalments.user.fullname)
                   $("input[name='user[shipping][phone]']").val(res[4].outstanding_instalments.user.phone)
                   $("input[name='user[instalment]']").val('Month no: ' + res[4].outstanding_instalments.month_no + '/' + res[4].outstanding_instalments.instalment.no_of_months)
@@ -1459,7 +1459,7 @@ export let commerceApp_ = {
 
             phxApp_.addItem(instalmentProduct.id)
             if (freebie != null) {
-           
+
               phxApp_.addItem(freebie.id)
             }
 
@@ -1980,13 +1980,13 @@ export let commerceApp_ = {
         if ($("[name='user[pick_up_point_id]']").val() == null) {
 
           $(".ss1").customHtml(`
-                <select class="form-select" required id="s1" name="user[shipping][state]">
+                <select class="form-select" required id="s1" onchange="window.choosenAddress = null" name="user[shipping][state]">
                 </select>
                 <label class="ms-2" for="floatingInput">State</label>
           `)
         } else {
           $(".ss1").customHtml(`
-                <select class="form-select"  id="s1" name="user[shipping][state]">
+                <select class="form-select"  id="s1" onchange="window.choosenAddress = null" name="user[shipping][state]">
                 </select>
                 <label class="ms-2" for="floatingInput">State</label>
           `)
@@ -2027,14 +2027,14 @@ export let commerceApp_ = {
         if ($("[name='user[pick_up_point_id]']").val() == null) {
 
           $(".ss1").customHtml(`
-                <input class="form-control" required id="s1" name="user[shipping][state]">
+                <input class="form-control" required id="s1" onchange="window.choosenAddress = null" name="user[shipping][state]">
                 </input>
                 <label class="ms-2" for="floatingInput">State</label>
           `)
         } else {
 
           $(".ss1").customHtml(`
-                <input class="form-control"  id="s1" name="user[shipping][state]">
+                <input class="form-control"  id="s1" onchange="window.choosenAddress = null" name="user[shipping][state]">
                 </input>
                 <label class="ms-2" for="floatingInput">State</label>
           `)
@@ -2090,6 +2090,8 @@ export let commerceApp_ = {
       return s
     },
     evalShippingAddresses() {
+
+
       try {
         phxApp_.api("list_pick_up_point_by_country", { country_id: phxApp_.chosen_country_id_.id }, null, (list) => {
           phxApp_.pick_up_points = list
@@ -2192,6 +2194,10 @@ export let commerceApp_ = {
         if (pageParams.share_code != null) {
 
         } else {
+          // if its an instalment
+
+
+
           phxApp_.api("list_user_sales_addresses_by_username", { username: phxApp_.user.username }, null, (list) => {
             phxApp_.addresses = list
             if (list.length > 0) {
@@ -2265,6 +2271,8 @@ export let commerceApp_ = {
             })
           })
         }
+
+
 
       } catch (e) {
         console.error(e)
@@ -2499,6 +2507,27 @@ export let commerceApp_ = {
 
 
       })
+
+
+
+
+      var has_instalment_info = false;
+
+      try {
+        if ($("input[name='user[instalment]']").val() != null) {
+
+          has_instalment_info = true 
+
+        }
+        // very likely this is for the repurchase....
+      } catch (e) {
+        console.error(e)
+      }
+
+      if (has_instalment_info) {
+        shipping_fee = 0
+      }
+
 
       var currency = `RP`,
         srp = (subtotal + shipping_fee),

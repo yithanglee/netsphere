@@ -413,3 +413,8 @@ will proceed to use the DRP first to make the payment
 
 ----
 
+
+ + admin help pay, also need ensure there's address
+ + instalment payment need to include the shipping address 
+ + shipping fee 0 for those instalment payments 
+
