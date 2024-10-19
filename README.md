@@ -418,3 +418,43 @@ will proceed to use the DRP first to make the payment
  + instalment payment need to include the shipping address 
  + shipping fee 0 for those instalment payments 
 
+
+
+----
+
+CN增加一个
+DT2 Topup Card配套
+10张卡
+375RP｜PV 0｜BV375
+
+
+shipping fee = 0 !  [v]
+
+投放奖15% [v]
+direct payout !  [v]
+
+帮扶奖第一代50% [v]
+帮扶奖第二代50%[v]
+need admin approve payout  [v]
+
+
+帮扶奖：以投放奖的来计算
+total payout: 30% on BV
+should not payout the DRP bonus, cannot use DRP to pay for registration 
+
+
+admin sponsor pay cant use drp ! [v]
+
+
+stockist fee need to specify [v]
+sponsor tree [v]
+
+
+the instalment packge need a delay, bcuz china allow use to try 90 days  [v]
+
+need a contract view ? optional
+
+
+to be used for the topup card pacakges
+
+----

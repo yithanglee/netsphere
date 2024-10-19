@@ -188,6 +188,7 @@ export let memberApp_ = {
     if ($("form#register")) {
       if (this.user != null) {
         $("input[name='user[sales_person_id]']").val(this.user.id)
+   
 
       }
       if (phxApp_.chosen_country_id_ != null) {
@@ -203,6 +204,7 @@ export let memberApp_ = {
         console.log(e)
         if (e != null) {
           commerceApp_.emptyCart_()
+           window.stockistTarget  = null
           if (e.billplz_code != null) {
 
             window.location = e.payment_url

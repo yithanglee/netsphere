@@ -393,10 +393,11 @@ background-repeat: no-repeat;
       if ($(v).html().split(" ").includes("CR")) {
         prefix = "CR"
       }
-      var content = $(v).html().replace("-", "")
+     
+      var content = $(v).html()
 
       if (parseFloat(content) > 0) {
-        var span = `<span class="text-end" >` + this.currencyFormat(parseFloat(content)).replace(".00", "") + ` ` + prefix + `</span>`
+        var span = `<span class="text-end" >` + prefix + `` + this.currencyFormat(parseFloat(content)).replace(".00", "") + `</span>`
         $(v).html(span)
 
       } else if (parseFloat(content) == 0) {
@@ -414,10 +415,13 @@ background-repeat: no-repeat;
       if ($(v).html().split(" ").includes("CR")) {
         prefix = "CR"
       }
+      if ($(v).html().includes("-")) {
+        prefix = "-"
+      }
       var content = $(v).html().replace("-", "")
 
       if (parseFloat(content) > 0) {
-        var span = `<span class="text-end" >` + this.currencyFormat(parseFloat(content)) + ` ` + prefix + `</span>`
+        var span = `<span class="text-end" >` + prefix + `` + this.currencyFormat(parseFloat(content)) + ` </span>`
         $(v).html(span)
 
       } else if (parseFloat(content) == 0) {

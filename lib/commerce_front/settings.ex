@@ -11,6 +11,8 @@ defmodule CommerceFront.Settings do
 
   import CommerceFront.Calculation,
     only: [
+      biz_incentive_bonus: 4,
+      matching_biz_incentive_bonus: 2,
       special_share_reward: 3,
       special_share_reward: 4,
       sharing_bonus: 4,
@@ -503,11 +505,13 @@ defmodule CommerceFront.Settings do
       |> Enum.filter(&(&1.wallet_type == :bonus))
       |> List.first()
 
+    {amount, _tail} = Float.parse(params["amount"])
+
     cond do
-      String.to_integer(params["amount"]) < 100 ->
+      amount < 100 ->
         {:error, Ecto.Changeset.add_error(cg, :amount, "Cannot be less than 100")}
 
-      String.to_integer(params["amount"]) > wallet.total ->
+      amount > wallet.total ->
         {:error,
          Ecto.Changeset.add_error(
            cg,
@@ -1325,6 +1329,9 @@ defmodule CommerceFront.Settings do
     bool_key = "is_instalment"
     params = append_bool_key(params, bool_key) |> IO.inspect()
 
+    bool_key = "can_pay_by_drp"
+    params = append_bool_key(params, bool_key) |> IO.inspect()
+
     Product.changeset(model, params) |> Repo.update() |> IO.inspect()
   end
 
@@ -1499,25 +1506,29 @@ defmodule CommerceFront.Settings do
           stockist_users = user |> Repo.preload(:stockist_users) |> Map.get(:stockist_users)
 
           for stockist_user <- stockist_users do
-            [username, position] = stockist_user.username |> String.split("-") |> IO.inspect()
+            case stockist_user.username |> String.split("-") |> IO.inspect() do
+              [username, position] ->
+                {:ok, u} =
+                  User.changeset(
+                    stockist_user,
+                    attrs
+                    |> Map.take([
+                      "fullname",
+                      "phone",
+                      "email",
+                      "country_id",
+                      "bank_account_holder",
+                      "bank_account_no",
+                      "bank_name"
+                    ])
+                    |> Map.put("username", attrs["username"] <> "-" <> position)
+                  )
+                  |> Repo.update()
+                  |> IO.inspect()
 
-            {:ok, u} =
-              User.changeset(
-                stockist_user,
-                attrs
-                |> Map.take([
-                  "fullname",
-                  "phone",
-                  "email",
-                  "country_id",
-                  "bank_account_holder",
-                  "bank_account_no",
-                  "bank_name"
-                ])
-                |> Map.put("username", attrs["username"] <> "-" <> position)
-              )
-              |> Repo.update()
-              |> IO.inspect()
+              _ ->
+                nil
+            end
           end
         else
         end
@@ -2611,7 +2622,9 @@ defmodule CommerceFront.Settings do
       )
 
       Repo.delete_all(
-        from(r in Reward, where: r.name == ^"royalty bonus" and r.month == ^m and r.year == ^y)
+        from(r in Reward,
+          where: r.name == ^"royalty bonus" and r.month == ^m and r.year == ^y
+        )
       )
 
       {:ok, nil}
@@ -3243,7 +3256,7 @@ defmodule CommerceFront.Settings do
       }
     }
 
-    IO.inspect(params)
+    stockist_user_id = params |> Map.get("user") |> Map.get("stockist_user_id")
 
     title =
       cond do
@@ -3435,7 +3448,11 @@ defmodule CommerceFront.Settings do
       if title == "Instalment" do
         0
       else
-        shipping_fee
+        if stockist_user_id != nil do
+          0
+        else
+          shipping_fee
+        end
       end
 
     cond do
@@ -3493,7 +3510,7 @@ defmodule CommerceFront.Settings do
           }
 
           products = params |> Kernel.get_in(["user", "products"])
-          shipping_fee = 0
+          # shipping_fee = 0
 
           res =
             for key <- Map.keys(products) do
@@ -3804,14 +3821,16 @@ defmodule CommerceFront.Settings do
                     sale = sale |> Repo.preload([:merchant, :user])
 
                     merchant = CommerceFront.Settings.get_merchant!(sale.merchant_id)
-
+                    # collect 100
                     create_wallet_transaction(%{
                       user_id: merchant.user_id,
-                      amount: sale.grand_total,
-                      remarks: "#{title}: #{sale.id} - Received RP (#{sale.total_point_value})",
+                      amount: sale.grand_total + sale.shipping_fee,
+                      remarks:
+                        "#{title}: #{sale.id} - Received RP (#{sale.total_point_value} + shipping (#{sale.shipping_fee}))",
                       wallet_type: "merchant_bonus"
                     })
 
+                    # pay 10
                     create_wallet_transaction(%{
                       user_id: merchant.user_id,
                       amount: (sale.grand_total * 0.10 * -1) |> Float.round(2),
@@ -3827,6 +3846,7 @@ defmodule CommerceFront.Settings do
                       sale |> Map.get(:merchant)
                     )
 
+                    # pay 20
                     create_wallet_transaction(%{
                       user_id: merchant.user_id,
                       amount:
@@ -4048,15 +4068,17 @@ defmodule CommerceFront.Settings do
 
                   sale = sale |> Repo.preload([:merchant, :user])
                   merchant = CommerceFront.Settings.get_merchant!(sale.merchant_id)
-
+                  # collect 100 + 10 - 20
                   ers =
                     create_wallet_transaction(%{
                       user_id: merchant.user_id,
-                      amount: sale.total_point_value + sale.shipping_fee,
+                      amount: sale.total_point_value + sale.shipping_fee - form_drp,
                       remarks:
                         "#{title}: #{sale.id} - Received: #{sale.total_point_value} RP + shipping fee  #{sale.shipping_fee}",
                       wallet_type: "merchant_bonus"
                     })
+
+                  # pay 10
 
                   create_wallet_transaction(%{
                     user_id: merchant.user_id,
@@ -4064,6 +4086,8 @@ defmodule CommerceFront.Settings do
                     remarks: "#{title}: #{sale.id} - Platform Fee (10%)",
                     wallet_type: "merchant_bonus"
                   })
+
+                  # pay as commission 20
 
                   CommerceFront.Calculation.mp_sales_level_bonus(
                     sale.id,
@@ -4166,6 +4190,18 @@ defmodule CommerceFront.Settings do
   def register(params, sales) do
     multi =
       Multi.new()
+      |> Multi.run(:stockist_user, fn _repo, %{} ->
+        stockist =
+          with true <- params["stockist_user_id"] != nil,
+               true <- params["stockist_user_id"] != "" do
+            CommerceFront.Settings.get_user!(params["stockist_user_id"])
+          else
+            _ ->
+              nil
+          end
+
+        {:ok, stockist}
+      end)
       |> Multi.run(:sales_person, fn _repo, %{} ->
         user = CommerceFront.Settings.get_user!(params["sales_person_id"]) |> Repo.preload(:rank)
         {:ok, user}
@@ -4298,7 +4334,8 @@ defmodule CommerceFront.Settings do
                 instalment = instalment_product |> Map.get(:instalment)
 
                 for item <- 1..instalment.no_of_months do
-                  due_date = Date.utc_today() |> Timex.shift(months: item)
+                  # todo need to check the main package for delay 
+                  due_date = Date.utc_today() |> Timex.shift(months: item + instalment.delay)
 
                   {:ok, member_instalment} =
                     CommerceFront.Settings.create_member_instalment(%{
@@ -4367,10 +4404,15 @@ defmodule CommerceFront.Settings do
         end
       end)
       |> Multi.run(:pgsd, fn _repo, %{user: user, sale: sale, placement: placement} ->
-        if params["stockist"] != nil do
-          {:ok, nil}
-        else
-          contribute_group_sales(user.username, sale.total_point_value, sale, placement)
+        cond do
+          params["stockist_user_id"] != nil ->
+            {:ok, nil}
+
+          params["stockist"] != nil ->
+            {:ok, nil}
+
+          true ->
+            contribute_group_sales(user.username, sale.total_point_value, sale, placement)
         end
       end)
       |> Multi.run(:rgsd, fn _repo,
@@ -4380,14 +4422,19 @@ defmodule CommerceFront.Settings do
                                sale: sale,
                                placement: placement
                              } ->
-        if params["stockist"] != nil do
-          {:ok, nil}
-        else
-          contribute_referral_group_sales(
-            sales_person.username,
-            sale.total_point_value,
-            sale
-          )
+        cond do
+          params["stockist_user_id"] != nil ->
+            {:ok, nil}
+
+          params["stockist"] != nil ->
+            {:ok, nil}
+
+          true ->
+            contribute_referral_group_sales(
+              sales_person.username,
+              sale.total_point_value,
+              sale
+            )
         end
       end)
       |> Multi.run(:sharing_bonus, fn _repo,
@@ -4408,10 +4455,46 @@ defmodule CommerceFront.Settings do
                                                   pgsd: pgsd,
                                                   user: user,
                                                   sale: sale,
-                                                  referral: referral
+                                                  referral: referral,
+                                                  stockist_user: stockist_user
                                                 } ->
         if sales_person.is_stockist && sale != nil do
-          stockist_register_bonus(sales_person, user.username, sale.total_point_value, sale)
+          # stockist_register_bonus(sales_person, user.username, sale.total_point_value, sale)
+
+          if sale.total_point_value > 0 do
+            stockist_register_bonus(sales_person, user.username, sale.total_point_value, sale)
+          else
+            if stockist_user != nil do
+              # todo
+
+              ra =
+                stockist_register_bonus(
+                  stockist_user,
+                  user.username,
+                  sale.subtotal |> :erlang.trunc(),
+                  sale
+                )
+
+              rb =
+                biz_incentive_bonus(
+                  sales_person,
+                  user.username,
+                  sale.subtotal |> :erlang.trunc(),
+                  sale
+                )
+
+              rc =
+                CommerceFront.Calculation.matching_biz_incentive_bonus(
+                  Date.utc_today().month,
+                  Date.utc_today().year
+                )
+
+              IO.inspect([ra, rb, rc])
+            else
+            end
+
+            {:ok, nil}
+          end
         else
           unpaid_user = CommerceFront.Settings.unpaid_user()
 
@@ -4419,6 +4502,31 @@ defmodule CommerceFront.Settings do
             if sale.total_point_value > 0 do
               stockist_register_bonus(unpaid_user, user.username, sale.total_point_value, sale)
             else
+              if stockist_user != nil do
+                # todo
+
+                ra =
+                  stockist_register_bonus(
+                    stockist_user,
+                    user.username,
+                    sale.subtotal |> :erlang.trunc(),
+                    sale
+                  )
+
+                rb =
+                  biz_incentive_bonus(
+                    sales_person,
+                    user.username,
+                    sale.subtotal |> :erlang.trunc(),
+                    sale
+                  )
+
+                rc = matching_biz_incentive_bonus(Date.utc_today().month, Date.utc_today().year)
+
+                IO.inspect([ra, rb, rc])
+              else
+              end
+
               {:ok, nil}
             end
           end
@@ -4433,7 +4541,8 @@ defmodule CommerceFront.Settings do
                                                sale: sale,
                                                sales_person: sales_person,
                                                placement: placement,
-                                               referral: referral
+                                               referral: referral,
+                                               stockist_user: stockist_user
                                              } ->
         if params["upgrade"] != nil do
           special_share_reward(
@@ -4445,7 +4554,7 @@ defmodule CommerceFront.Settings do
 
           {:ok, nil}
         else
-          if params["stockist"] != nil do
+          if params["stockist"] != nil || stockist_user != nil do
             {:ok, nil}
           else
             # 22/3 pay to sponsor...   
@@ -5722,6 +5831,213 @@ defmodule CommerceFront.Settings do
     |> Enum.map(&(&1 |> sanitize_float.()))
   end
 
+  def monthly_outlet_trx_only_rp(month \\ 7, year \\ 2024) do
+    naive_date = Date.from_erl!({year, month, 1})
+    end_naive_date = naive_date |> Timex.shift(months: 1)
+
+    query3 = """
+    WITH drp_data AS (
+    SELECT 
+        l.id,
+        COALESCE(
+            NULLIF(
+                regexp_replace(
+                    convert_from(p.webhook_details, 'UTF8'), 
+                    '^.*drp paid:\\s*([0-9.]+)\\s*.*$',  
+                    '\\1'
+                ), 
+                ''
+            )::float, 
+            0
+        ) AS drp_paid,
+        p.webhook_details
+    FROM 
+        sales l
+    LEFT JOIN 
+        payments p 
+    ON 
+        p.sales_id = l.id 
+    WHERE 
+        convert_from(p.webhook_details, 'UTF8') ILIKE '%drp%'
+    )
+    select
+      to_char( l.inserted_at , 'YYYY') as year,
+      sum(l.subtotal) - sum(dp.drp_paid) as "only_rp",
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '01') - sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '01') AS jan,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '02') - sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '02') AS feb,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '03') - sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '03') AS mar,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '04') - sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '04') AS apr,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '05') - sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '05') AS may,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '06') - sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '06') AS jun,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '07') - sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '07') AS jul,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '08') - sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '08') AS aug,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '09') - sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '09') AS sep,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '10') - sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '10') AS oct,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '11') - sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '11') AS nov,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '12') - sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '12') AS dec
+    from
+      sales l
+      left join payments p on p.sales_id = l.id
+      full join drp_data dp on dp.id = l.id
+      group by  to_char( l.inserted_at , 'YYYY') order by to_char( l.inserted_at , 'YYYY') desc ;
+      
+      
+    """
+
+    params = []
+    type = ""
+
+    query =
+      case type do
+        _ ->
+          query3
+      end
+
+    {:ok, %Postgrex.Result{columns: columns, rows: rows} = res} = Repo.query(query, params)
+
+    for row <- rows do
+      Enum.zip(columns |> Enum.map(&(&1 |> String.to_atom())), row) |> Enum.into(%{})
+    end
+  end
+
+  def monthly_outlet_trx(month \\ 7, year \\ 2024) do
+    naive_date = Date.from_erl!({year, month, 1})
+    end_naive_date = naive_date |> Timex.shift(months: 1)
+
+    query3 = """
+    WITH drp_data AS (
+    SELECT 
+        l.id,
+        COALESCE(
+            NULLIF(
+                regexp_replace(
+                    convert_from(p.webhook_details, 'UTF8'), 
+                    '^.*drp paid:\\s*([0-9.]+)\\s*.*$',  
+                    '\\1'
+                ), 
+                ''
+            )::float, 
+            0
+        ) AS drp_paid,
+        p.webhook_details
+    FROM 
+        sales l
+    LEFT JOIN 
+        payments p 
+    ON 
+        p.sales_id = l.id 
+    WHERE 
+        convert_from(p.webhook_details, 'UTF8') ILIKE '%drp%'
+    )
+    select
+      to_char( l.inserted_at , 'YYYY') as year,
+      sum(l.subtotal),
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '01') AS jan,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '02') AS feb,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '03') AS mar,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '04') AS apr,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '05') AS may,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '06') AS jun,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '07') AS jul,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '08') AS aug,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '09') AS sep,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '10') AS oct,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '11') AS nov,
+      sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '12') AS dec
+    from
+      sales l
+      left join payments p on p.sales_id = l.id
+      full join drp_data dp on dp.id = l.id
+      group by  to_char( l.inserted_at , 'YYYY') order by to_char( l.inserted_at , 'YYYY') desc ;
+      
+      
+    """
+
+    params = []
+    type = ""
+
+    query =
+      case type do
+        _ ->
+          query3
+      end
+
+    {:ok, %Postgrex.Result{columns: columns, rows: rows} = res} = Repo.query(query, params)
+
+    for row <- rows do
+      Enum.zip(columns |> Enum.map(&(&1 |> String.to_atom())), row) |> Enum.into(%{})
+    end
+  end
+
+  def monthly_outlet_trx_drp(month \\ 7, year \\ 2024) do
+    naive_date = Date.from_erl!({year, month, 1})
+    end_naive_date = naive_date |> Timex.shift(months: 1)
+
+    query3 = """
+    WITH drp_data AS (
+    SELECT 
+        l.id,
+        COALESCE(
+            NULLIF(
+                regexp_replace(
+                    convert_from(p.webhook_details, 'UTF8'), 
+                    '^.*drp paid:\\s*([0-9.]+)\\s*.*$',  
+                    '\\1'
+                ), 
+                ''
+            )::float, 
+            0
+        ) AS drp_paid,
+        p.webhook_details
+    FROM 
+        sales l
+    LEFT JOIN 
+        payments p 
+    ON 
+        p.sales_id = l.id 
+    WHERE 
+        convert_from(p.webhook_details, 'UTF8') ILIKE '%drp%'
+    )
+    select
+      to_char( l.inserted_at , 'YYYY') as year,
+      sum(dp.drp_paid),
+      sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '01') AS jan,
+      sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '02') AS feb,
+      sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '03') AS mar,
+      sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '04') AS apr,
+      sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '05') AS may,
+      sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '06') AS jun,
+      sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '07') AS jul,
+      sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '08') AS aug,
+      sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '09') AS sep,
+      sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '10') AS oct,
+      sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '11') AS nov,
+      sum(dp.drp_paid) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '12') AS dec
+    from
+      sales l
+      left join payments p on p.sales_id = l.id
+      full join drp_data dp on dp.id = l.id
+      group by  to_char( l.inserted_at , 'YYYY') order by to_char( l.inserted_at , 'YYYY') desc ;
+      
+      
+    """
+
+    params = []
+    type = ""
+
+    query =
+      case type do
+        _ ->
+          query3
+      end
+
+    {:ok, %Postgrex.Result{columns: columns, rows: rows} = res} = Repo.query(query, params)
+
+    for row <- rows do
+      Enum.zip(columns |> Enum.map(&(&1 |> String.to_atom())), row) |> Enum.into(%{})
+    end
+  end
+
   def yearly_sales_performance(type \\ "MY") do
     query3 = """
     select
@@ -6597,13 +6913,13 @@ defmodule CommerceFront.Settings do
   def disable_merchant(params) do
     m = get_merchant!(params["id"])
 
-    update_merchant(m, %{is_approved: false})
+    update_merchant(m, %{"is_approved" => false})
   end
 
   def approve_merchant(params) do
     m = get_merchant!(params["id"])
 
-    update_merchant(m, %{is_approved: true})
+    update_merchant(m, %{"is_approved" => true})
   end
 
   alias CommerceFront.Settings.MerchantCategory
@@ -6629,7 +6945,9 @@ defmodule CommerceFront.Settings do
   end
 
   def clear_zero_rewards() do
-    Repo.delete_all(from(r in Settings.Reward, where: r.amount == ^0 and r.is_paid == ^false))
+    Repo.delete_all(
+      from(r in CommerceFront.Settings.Reward, where: r.amount == ^0 and r.is_paid == ^false)
+    )
   end
 
   alias CommerceFront.Settings.Instalment
@@ -6776,5 +7094,161 @@ defmodule CommerceFront.Settings do
 
   def delete_member_instalment_product(%MemberInstalmentProduct{} = model) do
     Repo.delete(model)
+  end
+
+  def remove_duplicated_reward_payouts() do
+    q =
+      WalletTransaction
+      |> join(:left, [wt], w in Ewallet, on: wt.ewallet_id == w.id)
+      |> where([wt, w], not is_nil(wt.reward_id))
+      |> group_by([wt, w], [wt.remarks, wt.user_id])
+      |> select([wt, w], %{
+        count: count(wt.remarks),
+        user_id: wt.user_id,
+        remarks: wt.remarks
+      })
+
+    # |> where([r], r.name == ^"royalty bonus")
+
+    checks =
+      Repo.all(q)
+      |> Enum.filter(&(&1.remarks |> String.contains?("royalty")))
+
+    for %{count: count, user_id: user_id, remarks: remarks} = check <- checks do
+      wts =
+        Repo.all(
+          from(wt in WalletTransaction,
+            where: wt.remarks == ^remarks and wt.user_id == ^user_id
+          )
+        )
+
+      if Enum.count(wts) > 1 do
+        [hd | tl] = wts
+
+        adjustments =
+          for tail_wt <- tl do
+            {:ok, multi_res} =
+              create_wallet_transaction(%{
+                user_id: tail_wt.user_id,
+                amount: tail_wt.amount * -1,
+                remarks: "System adjustment|duplicate payout|from trx: #{tail_wt.id}",
+                wallet_type: "register"
+              })
+
+            multi_res |> Map.get(:wallet_transaction)
+          end
+
+        # tl |> Enum.map(&(&1 |> Repo.delete()))
+        # adjustments |> Enum.map(&(&1 |> Repo.delete()))
+      end
+    end
+  end
+
+  update_wallet_balance2 = fn user_ids ->
+    for user_id <- user_ids do
+      wt_res =
+        CommerceFront.Repo.all(
+          from(wt in CommerceFront.Settings.WalletTransaction,
+            left_join: w in CommerceFront.Settings.Ewallet,
+            on: w.id == wt.ewallet_id,
+            where: w.wallet_type == ^"register",
+            where: w.user_id == ^user_id,
+            order_by: [desc: wt.id]
+          )
+        )
+        |> List.first()
+
+      if wt_res != nil do
+        after_amt = wt_res |> Map.get(:after)
+
+        ewallet = wt_res |> Repo.preload(:ewallet) |> Map.get(:ewallet)
+
+        CommerceFront.Settings.update_ewallet(ewallet, %{total: after_amt})
+      else
+        IO.inspect("#{user_id} don hav register wallet?")
+      end
+    end
+  end
+
+  def update_wallet_balance(user_ids \\ [51, 60, 196, 375, 175, 49, 515, 448]) do
+    sample = [51, 60, 196, 375, 175, 49, 515, 448]
+
+    for user_id <- user_ids do
+      wt_res =
+        CommerceFront.Repo.all(
+          from(wt in CommerceFront.Settings.WalletTransaction,
+            left_join: w in CommerceFront.Settings.Ewallet,
+            on: w.id == wt.ewallet_id,
+            where: w.wallet_type == ^"register",
+            where: w.user_id == ^user_id,
+            order_by: [desc: wt.id]
+          )
+        )
+        |> List.first()
+
+      if wt_res != nil do
+        after_amt = wt_res |> Map.get(:after)
+
+        ewallet = wt_res |> Repo.preload(:ewallet) |> Map.get(:ewallet)
+
+        CommerceFront.Settings.update_ewallet(ewallet, %{total: after_amt})
+      else
+        IO.inspect("#{user_id} don hav register wallet?")
+      end
+    end
+  end
+
+  def clone_products(ids \\ [56, 57, 58], first_payment_product_id \\ 83) do
+    products =
+      Repo.all(
+        from(p in Product,
+          where: p.id in ^ids,
+          preload: [:countries, :stocks, instalment_products: [:product]]
+        )
+      )
+
+    Multi.new()
+    |> Multi.run(:clone, fn _repo, %{} ->
+      for product <- products do
+        cg =
+          product
+          |> BluePotion.sanitize_struct()
+          |> Map.put(:first_payment_product_id, first_payment_product_id)
+          |> IO.inspect()
+
+        {:ok, nproduct} = create_product(cg)
+
+        for ip <- cg.instalment_products do
+          InstalmentProduct.changeset(
+            %InstalmentProduct{},
+            ip
+            |> Map.put(:product_id, nproduct.id)
+          )
+          |> Repo.insert()
+        end
+
+        for stock <- cg.countries do
+          ProductCountry.changeset(
+            %ProductCountry{},
+            %{country_id: stock.id}
+            |> Map.put(:product_id, nproduct.id)
+          )
+          |> Repo.insert()
+        end
+
+        for stock <- cg.stocks do
+          ProductStock.changeset(
+            %ProductStock{},
+            %{stock_id: stock.id}
+            |> Map.put(:product_id, nproduct.id)
+          )
+          |> Repo.insert()
+        end
+      end
+      |> IO.inspect()
+
+      {:ok, nil}
+    end)
+    |> Repo.transaction()
   end
 end

@@ -132,7 +132,7 @@ defmodule CommerceFront do
     end
   end
 
-  def populate_member_data() do
+  def populate_member_data(country_name) do
     rows = File.read!("h4.csv") |> String.split("\n") |> Enum.reject(&(&1 == "")) |> IO.inspect()
 
     for sample <- rows do
@@ -156,7 +156,7 @@ defmodule CommerceFront do
           "sponsor" => sponsor,
           "username" => username,
           "placement" => %{"position" => dir},
-          "country_id" => CommerceFront.Settings.get_country_by_name("Indonesia") |> Map.get(:id)
+          "country_id" => CommerceFront.Settings.get_country_by_name(country_name) |> Map.get(:id)
         }
         |> IO.inspect()
 

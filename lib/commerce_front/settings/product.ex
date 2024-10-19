@@ -12,6 +12,8 @@ defmodule CommerceFront.Settings.Product do
     field(:name, :string)
     field(:point_value, :integer)
     field(:retail_price, :float)
+
+    field(:can_pay_by_drp, :boolean, default: true)
     belongs_to(:first_payment_product, CommerceFront.Settings.Product)
     belongs_to(:instalment, CommerceFront.Settings.Instalment)
 
@@ -49,6 +51,7 @@ defmodule CommerceFront.Settings.Product do
   def changeset(product, attrs) do
     product
     |> cast(attrs, [
+      :can_pay_by_drp,
       :first_payment_product_id,
       :instalment_id,
       :is_instalment,

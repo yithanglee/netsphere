@@ -162,6 +162,121 @@ defmodule CommerceFront.Calculation do
     })
   end
 
+  def biz_incentive_bonus(sales_person, username, pv, sale) do
+    bonus = (pv * 0.20) |> Float.round(2)
+
+    {:ok, r} =
+      CommerceFront.Settings.create_reward(%{
+        sales_id: sale.id,
+        is_paid: false,
+        remarks: "sales-#{sale.id}|#{pv} * 0.20 = #{bonus}|register: #{username}",
+        name: "biz incentive bonus",
+        amount: bonus,
+        user_id: sales_person.id,
+        day: Date.utc_today().day,
+        month: Date.utc_today().month,
+        year: Date.utc_today().year
+      })
+
+    CommerceFront.Settings.pay_to_bonus_wallet(r)
+  end
+
+  def matching_biz_incentive_bonus(month, year) do
+    date = Date.from_erl!({year, month, 1})
+
+    subquery = """
+    select
+      u.username,
+      r.user_id,
+      sum(r.amount),
+      r.month,
+      r.year
+    from
+      rewards r
+    left join users u on
+      u.id = r.user_id
+    where
+      r.name = 'biz incentive bonus'
+      and r.month = $1
+      and r.year = $2
+    group by
+      u.username,
+      r.user_id,
+      r.month,
+      r.year;
+    """
+
+    {:ok, %Postgrex.Result{columns: columns, rows: rows} = res} =
+      Ecto.Adapters.SQL.query(Repo, subquery, [month, year])
+
+    biz_incentive_bonuses =
+      for row <- rows do
+        Enum.zip(columns |> Enum.map(&(&1 |> String.to_atom())), row) |> Enum.into(%{})
+      end
+
+    unpaid_node = unpaid_node()
+
+    Repo.delete_all(
+      from(r in Reward,
+        where: r.name == ^"matching biz incentive bonus" and r.month == ^month and r.year == ^year
+      )
+    )
+
+    users = Repo.all(from(u in User, order_by: [desc: u.id]))
+
+    Multi.new()
+    |> Multi.run(:calculation, fn _repo, %{} ->
+      for user <- users do
+        uplines =
+          Settings.check_uplines(user.username, :referal)
+          |> Enum.reverse()
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> Enum.reverse()
+
+        # check user has team bonus
+
+        check =
+          biz_incentive_bonuses
+          |> Enum.filter(&(&1.user_id == user.id))
+          |> List.first()
+          |> IO.inspect()
+
+        calc = fn upline, index ->
+          if index < 3 do
+            constant = 0.5
+            bonus = check.sum * constant
+
+            CommerceFront.Settings.create_reward(%{
+              sales_id: 0,
+              is_paid: false,
+              remarks:
+                "#{check.sum |> :erlang.float_to_binary(decimals: 2)} * #{constant} = #{bonus}||lvl:#{index}||#{user.username} biz incentive bonus at #{month}-#{year}: #{check.sum |> :erlang.float_to_binary(decimals: 2)}|",
+              name: "matching biz incentive bonus",
+              amount: bonus |> Float.round(2),
+              user_id: upline.parent_id,
+              day: Timex.end_of_month(date).day,
+              month: month,
+              year: year
+            })
+          end
+
+          index + 1
+
+          # check upline's weak leg 
+        end
+
+        if check != nil do
+          Enum.reduce(uplines, 1, &calc.(&1, &2))
+        end
+      end
+
+      {:ok, nil}
+    end)
+    |> Repo.transaction()
+  end
+
   @doc """
   A.2）Special Sharing Reward
   For every 100PV shared, receive an additional #DRP 50
@@ -187,8 +302,9 @@ defmodule CommerceFront.Calculation do
 
     if pv != 0 do
       sales_items = sale |> Repo.preload(:sales_items) |> Map.get(:sales_items)
+      # total = Enum.count(sales_items)
 
-      for sales_item <- sales_items do
+      for {sales_item, index} <- sales_items |> Enum.with_index() do
         product =
           if scope == "merchant_checkout" do
             CommerceFront.Settings.get_merchant_product_by_name(sales_item.item_name)

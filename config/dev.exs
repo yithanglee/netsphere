@@ -19,6 +19,17 @@ config :commerce_front, CommerceFrontWeb.Endpoint,
   check_origin: false,
   watchers: []
 
+config :commerce_front, CommerceFront.Repo,
+  username: "postgres",
+  password: "postgres",
+  database: "commerce_front_prod",
+  hostname: "139.162.60.209",
+  port: "5432",
+  show_sensitive_data_on_connection_error: true,
+  pool_size: 10,
+  queue_target: 5_000,
+  timeout: 60_000
+
 # ## SSL Support
 #
 # In order to use HTTPS in development, a self-signed

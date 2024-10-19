@@ -154,7 +154,7 @@ const route_list = [
   { html: "merchant_sales.html", title: "Merchant Sales", route: "/merchant_sales" },
   { html: "merchant_mall.html", title: "Merchant Mall", route: "/merchant_mall" },
   { html: "merchant_products.html", title: "Merchant Products", route: "/merchant_products" },
-  { html: "mproduct.html", title: "Merchant Product", route: "/mproducts/:id/:name" },
+  { html: "mproduct.html", title: "Merchant Product", route: "/merchant_products/:id/:name" },
 
   { html: "refund_policy.html", title: "Refund Policy ", route: "/refund_policy", public: true, skipNav: true },
   { html: "terms_condition.html", title: "Terms Condition ", route: "/terms_condition", public: true, skipNav: true },
@@ -168,11 +168,12 @@ const route_list = [
   { html: "reward_details.html", title: "Reward Details ", route: "/reward_details/:name/:month/:year" },
   { html: "sales_detail.html", title: "Sales Details", route: "/sales/:id" },
   { html: "sales.html", title: "Sales History", route: "/sales" },
-{ html: "pay_instalment.html", title: "Pay Instalment", route: "/pay_instalment" },
-  
+  { html: "pay_instalment.html", title: "Pay Instalment", route: "/pay_instalment" },
+
   { html: "instalment_payments.html", title: "Instalment Payments", route: "/instalment_payments" },
   { html: "wallet_transaction.html", title: "Transactions ", route: "/wallets/:id" },
   { html: "product.html", title: "Product", route: "/products/:id/:name" },
+  { html: "topup_card_register.html", title: "Topup Card Register", route: "/topup_card_register" },
   { html: "register.html", title: "Register", route: "/register" },
   { html: "logout.html", title: "Logout", route: "/logout", public: true },
   { html: "thank_you.html", title: "Login", route: "/thank_you", public: true },

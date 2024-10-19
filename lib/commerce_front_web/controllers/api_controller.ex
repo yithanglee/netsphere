@@ -311,11 +311,28 @@ defmodule CommerceFrontWeb.ApiController do
           Settings.list_countries()
           |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
 
+        "current_month_outlet_trx_only_rp" ->
+          Settings.monthly_outlet_trx_only_rp()
+
+        "current_month_outlet_trx_drp" ->
+          Settings.monthly_outlet_trx_drp()
+
+        "current_month_outlet_trx" ->
+          Settings.monthly_outlet_trx()
+
         "yearly_sales_performance" ->
           Settings.yearly_sales_performance()
 
         "royalty_bonus" ->
           Settings.royalty_bonus(params["date"]) |> IO.inspect()
+
+        "get_stockist" ->
+          user = Settings.get_user_by_username(params["username"])
+
+          res =
+            Settings.accumulated_sales_by_user(user, params["show_rank"])
+            |> List.insert_at(1, %{"is_stockist" => user.is_stockist})
+            |> List.insert_at(2, user |> BluePotion.sanitize_struct())
 
         "get_accumulated_sales" ->
           user = Settings.get_user_by_username(params["username"])

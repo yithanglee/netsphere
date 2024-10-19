@@ -67,6 +67,10 @@ export let phxApp_ = {
     commerceApp_.components["updateCart"]()
     commerceApp_.components["cartItems"]()
   },
+
+  filterItemsByName(itemName) {
+    return commerceApp_.filterItemsByName(itemName)
+  },
   hasCartItems() {
     console.log("checking...")
     console.log(commerceApp_.hasCartItems())
@@ -586,7 +590,7 @@ export let phxApp_ = {
     return res;
   },
   token: null,
-  async csrf_(renew) {
+   csrf_(renew) {
 
     if (this.token == null) {
       // var token = await fetch('/api/get_csrf_token').then(response => response.json())
@@ -650,17 +654,18 @@ export let phxApp_ = {
 
   post(scope, params, failed_callback, successCallback) {
     var res = ""
-    var csrfToken = this.csrf_(true)
+     var csrfToken =  $("input[name='_csrf_token_ori']").val()
+     var data =  {...params, ...{_csrf_token: csrfToken }};
+     console.log(data)
     $.ajax({
       async: false,
       method: "post",
       headers: {
-        '_commerce_front_key': memberApp_.user.token,
         "Authorization": "Basic " + (phxApp_.user != null ? phxApp_.user.token : null),
         'X-CSRF-Token': csrfToken
       },
       url: "/api/webhook?scope=" + scope,
-      data: params
+      data: data 
     }).done((j) => {
       if (successCallback != null) {
 
@@ -669,7 +674,8 @@ export let phxApp_ = {
       res = j
     }).fail(function(e) {
       if (e.status == 403) {
-        memberApp_.logout()
+        // memberApp_.logout()
+
       }
 
       phxApp_.notify("Ops, somethings' not right!", {
@@ -694,7 +700,7 @@ export let phxApp_ = {
     $("body")[0].scrollIntoView();
   },
   async putToken() {
-    var csrfToken = await this.csrf_(true)
+    var csrfToken =  this.csrf_(true)
     if ($("input#need-token")) {
       $("input[name='_csrf_token']").val($("input[name='_csrf_token_ori']").val())
     }

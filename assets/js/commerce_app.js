@@ -48,6 +48,17 @@ export let commerceApp_ = {
       }
     }
   },
+  filterItemsByName(itemName) {
+
+    const cart = this.cart_;
+    // const index = cart.findIndex(cartItem => cartItem.id === item.id);
+    var res = cart.filter((v, i) => {
+      return v.name.includes(itemName)
+    })
+    console.log(res)
+
+    return res;
+  },
   hasCartItems(is_merchant) {
     const cart = is_merchant ? this.mcart_ : this.cart_;
     return cart.length;
@@ -196,7 +207,7 @@ export let commerceApp_ = {
     // callback function to call this render
     var list = ["merchantProducts", "merchantproduct", "merchantProfile", "merchant", "recruit", "topup", "country",
       "light", "userProfile", "wallet", "announcement", "products", "product",
-      "rewardList", "mcart", "cart", "cartItems", "salesItems", "upgradeTarget", "sponsorTarget", "choosePayment"
+      "rewardList", "mcart", "cart", "cartItems", "salesItems", "upgradeTarget", "sponsorTarget", "stockistTarget", "choosePayment"
     ]
 
     list.forEach((v, i) => {
@@ -399,7 +410,7 @@ export let commerceApp_ = {
                 var data = params,
                   showBtn = '',
                   img = '/images/placeholder.png',
-                  onclickAttr = `onclick="phxApp.navigateTo('/mproducts/` + data.id + `/` + data.name + `')"`;
+                  onclickAttr = `onclick="phxApp.navigateTo('/merchant_products/` + data.id + `/` + data.name + `')"`;
 
 
                 if ($(products).attr("direct") != null) {
@@ -683,7 +694,7 @@ export let commerceApp_ = {
         `)
 
 
-      $(".merchant-apply").click(() => {
+      $(".merchant-apply").on("click", () => {
 
 
         phxApp_.post("apply_merchant", { id: phxApp_.user.id }, null, () => {
@@ -1368,7 +1379,8 @@ export let commerceApp_ = {
     },
 
     upgradeTarget() {
-      var needInstalment = false, freebie = null,
+      var needInstalment = false,
+        freebie = null,
         instalmentProduct;
       if ($("upgradeTarget").attr("instalment") != null) {
         console.log("ok")
@@ -1379,6 +1391,7 @@ export let commerceApp_ = {
       window.upgradeTarget
       if (window.upgradeTarget == null) {
         window.upgradeTarget = memberApp_.user.username
+        $("input[name='user[upgrade]']").val(window.upgradeTarget)
       } else {
         $("input[name='user[upgrade]']").val(window.upgradeTarget)
       }
@@ -1558,6 +1571,90 @@ export let commerceApp_ = {
 
           commerceApp_.components["cartItems"]()
           console.info("need to check if member is direct sponsor")
+
+
+
+
+        })
+      })
+
+    },
+    stockistTarget() {
+
+      window.stockistTarget
+      if (window.stockistTarget == null) {
+        window.stockistTarget = memberApp_.user.username
+      } else {}
+      $("input[name='user[stockist_user_id]']").val('')
+      $("stockistTarget").customHtml(`<span>for: <span id="stockistTarget">` + window.stockistTarget + `</span>
+       <a class="ms-4" href="javascript:void(0);" aria-stockist=true> <i class="fa fa-edit"></i> Change</a> </span>`)
+
+      $("[aria-stockist]").click(() => {
+        phxApp_.modal({
+          selector: "#mySubModal",
+          autoClose: false,
+          content: `
+          <div>
+            <div class="form-group">
+              <label>Username</label>
+              <input class="my-2 form-control" value="` + memberApp_.user.username + `" type="text" name='sponsor[username]'></input>
+              
+
+              <button class="mt-4 btn btn-outline-primary checkUser">Check</button>
+              <button class="mt-4 btn btn-primary disabled selectUser">Select this user</button>
+            </div>
+          </div>
+          `,
+          header: 'Change Stockist User',
+        })
+        $(".checkUser").click(() => {
+
+
+          phxApp_.api("get_stockist", {
+              parent_id: memberApp_.user.id,
+              show_rank: true,
+              username: $("[name='sponsor[username]']").val(),
+
+            }, () => {
+              window.stockistTarget = memberApp_.user.username
+              $("input[name='user[stockist_user_id]']").val(null)
+
+              $(".selectUser").addClass("disabled")
+
+            },
+            (res) => {
+
+              $(".selectUser").removeClass("disabled")
+              // $(".pv-info").customHtml(`Accumulated sales PV: ` + res[0] + ` | Rank: ` + res[1])
+
+              if (res[1].is_stockist) {
+                window.stockistTargetData = res[2]
+                $("input[name='user[stockist_user_id]']").val(window.stockistTargetData.id)
+                phxApp_.notify("User verified!")
+
+              } else {
+                phxApp_.notify("Not stockist!", { type: "warning" })
+                $(".selectUser").addClass("disabled")
+
+              }
+
+
+
+            })
+
+
+        })
+        $(".selectUser").click(() => {
+          $("input[name='user[stockist]']").val($("[name='sponsor[username]']").val())
+          $("input[name='view[stockist]']").val($("[name='sponsor[username]']").val())
+          phxApp_.notify("User selected!")
+
+          $("#mySubModal").modal('hide')
+          window.stockistTarget = $("[name='sponsor[username]']").val()
+          $("#stockistTarget").html($("[name='sponsor[username]']").val())
+
+          commerceApp_.components["cartItems"]()
+
 
 
 
@@ -2280,9 +2377,9 @@ export let commerceApp_ = {
 
     },
     cartItems() {
+
+
       var is_merchant = $("cartItems").attr("merchant") == "" ? true : false;
-
-
       const cart = is_merchant ? commerceApp_.mcart_ : commerceApp_.cart_;
       var hasOverride = false,
         count = 0,
@@ -2516,7 +2613,7 @@ export let commerceApp_ = {
       try {
         if ($("input[name='user[instalment]']").val() != null) {
 
-          has_instalment_info = true 
+          has_instalment_info = true
 
         }
         // very likely this is for the repurchase....
@@ -2524,9 +2621,22 @@ export let commerceApp_ = {
         console.error(e)
       }
 
+
+      try {
+        if ($("input[name='user[stockist_user_id]']").val() != null) {
+
+          shipping_fee = 0
+
+        }
+        // very likely this is for the repurchase....
+      } catch (e) {
+        console.error(e)
+      }
       if (has_instalment_info) {
         shipping_fee = 0
       }
+
+
 
 
       var currency = `RP`,
@@ -2621,9 +2731,9 @@ export let commerceApp_ = {
               var wallet = check[0]
 
               if (is_merchant) {
-                $("#drp_payment").attr("max", subtotal * 0.5)
+                $("#drp_payment").attr("max", subtotal * 0.2)
                 $("#drp_payment").attr("min", 0)
-                $("#drp_payment").attr("value", subtotal * 0.5)
+                $("#drp_payment").attr("value", subtotal * 0.2)
 
               } else {
 
@@ -3593,6 +3703,13 @@ export let commerceApp_ = {
             rp = `<div class="font-sm fw-light text-secondary text-center "><span class="format-float">` + (data.retail_price * 1.05) + ` </span> RP</div>`
 
           }
+
+          if (phxApp_.chosen_country_id_.name == "China" && ['DT2体验卡配套', 'DT2启动配套', '2张99次开机卡 DT2启动配套'].includes(data.name)) {
+
+            rp = `<div class="font-sm fw-light text-secondary text-center "><span class="format-float">` + (data.retail_price * 1.00) + ` </span> RP</div>`
+
+          }
+
         }
 
 
@@ -3925,6 +4042,13 @@ export let commerceApp_ = {
                       rp = `<div class="font-sm fw-light text-secondary text-center "><span class="format-float">` + (data.retail_price * 1.05) + `</span> RP</div>`
                     }
 
+                    if (phxApp_.chosen_country_id_.name == "China" && ['DT2体验卡配套', 'DT2启动配套', '2张99次开机卡 DT2启动配套'].includes(data.name)) {
+
+                      rp = `<div class="font-sm fw-light text-secondary text-center "><span class="format-float">` + (data.retail_price * 1.00) + `</span> RP</div>`
+
+
+                    }
+
                   }
                   if (!showRP) {
                     rp = `<div class="font-sm fw-light text-secondary text-center ">MYR <span class="format-float">` + (data.retail_price * phxApp_.chosen_country_id_.conversion) + `</span></div>`
@@ -3942,6 +4066,7 @@ export let commerceApp_ = {
 
                         rp = `<div class="font-sm fw-light text-secondary text-center ">MYR <span class="format-float">` + (data.retail_price * phxApp_.chosen_country_id_.conversion * 1.05) + `</span></div>`
                       }
+
 
                     }
                   }
@@ -4177,7 +4302,7 @@ export let commerceApp_ = {
 
           $(".spinner-border.loading").parent().remove()
           $(".loading").removeClass("d-none")
-          var rewards = ["sharing bonus", "team bonus", "matching bonus", "elite leader", "travel fund", "repurchase bonus", "drp sales level bonus", "stockist register bonus", "merchant sales level bonus"
+          var rewards = ["sharing bonus", "team bonus", "matching bonus", "elite leader", "travel fund", "repurchase bonus", "drp sales level bonus", "stockist register bonus", "merchant sales level bonus", "biz incentive bonus", "matching biz incentive bonus"
               // "royalty bonus"
             ],
             list = []
