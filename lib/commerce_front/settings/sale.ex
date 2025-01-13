@@ -33,7 +33,7 @@ defmodule CommerceFront.Settings.Sale do
     field(:shipping_ref, :string)
     field(:shipping_fee, :float, default: 0.0)
     field(:grand_total, :float, default: 0.0)
-    field(:total_point_value, :integer)
+    field(:total_point_value, :float)
     field(:registration_details, :binary)
     # field(:payment_id, :integer)
     has_one(:payment, CommerceFront.Settings.Payment, foreign_key: :sales_id)

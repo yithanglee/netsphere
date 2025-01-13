@@ -113,7 +113,7 @@
 
     showInstallPromotion() {
       // Logic to show your "Add to Home Screen" UI
-      phxApp.notify("Installation Possible!");
+   
     },
     hideInstallPromotion() {
       console.log("hiding...!");
@@ -141,7 +141,7 @@
 
 
   window.addEventListener('beforeinstallprompt', (e) => {
-    phxApp.notify("beforeinstallprompt")
+
     // Prevent the mini-infobar from appearing on mobile
     e.preventDefault();
     // Stash the event so it can be triggered later.

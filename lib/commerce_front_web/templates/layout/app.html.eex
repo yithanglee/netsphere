@@ -7,12 +7,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="<%= Routes.static_path(@conn, "/css/app.css") %>"/>
   <script type="text/javascript" src="<%= Routes.static_path(@conn, "/js/jquery.min.js") %>"></script>
-  <script defer type="text/javascript" src='/js/app.js?v=0.1.87'></script>
+  <script defer type="text/javascript" src='/js/app.js?v=0.2.10'></script>
   <link rel="stylesheet" href="<%= Routes.static_path(@conn, "/css/themes/default/style.min.css") %>"/>
   <link rel="stylesheet" href="<%= Routes.static_path(@conn, "/css/datatables.min.css") %>"/>
   <script type="text/javascript" src="/js/datatables.min.js"></script>
   <script src="/js/bootstrap.notify.js"></script>
-    <script src="/js/html2canvas.min.js"></script>
+  <script src="/js/html2canvas.min.js"></script>
   <script defer src="/js/amcharts/index.js"></script>
   <script defer src="/js/amcharts/hierarchy.js"></script>
   <script defer src="/js/amcharts/animated.js"></script>

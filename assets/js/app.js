@@ -149,7 +149,10 @@ const route_list = [
 
   { html: "merchant_application.html", title: "Merchant Application ", route: "/merchant_application" },
   { html: "merchant_profile.html", title: "Merchant Profile ", route: "/merchant_profile" },
+  { html: "merchant_checkout_register.html", title: "Merchant Checkout ", route: "/merchant_checkout_register" },
+  
   { html: "merchant_checkout.html", title: "Merchant Checkout ", route: "/merchant_checkout" },
+  { html: "merchant_checkout_bd.html", title: "Merchant Checkout Back Date", route: "/merchant_checkout_bd" },
   { html: "merchant_purchases.html", title: "Merchant Purchases", route: "/merchant_purchases" },
   { html: "merchant_sales.html", title: "Merchant Sales", route: "/merchant_sales" },
   { html: "merchant_mall.html", title: "Merchant Mall", route: "/merchant_mall" },
@@ -158,6 +161,7 @@ const route_list = [
 
   { html: "refund_policy.html", title: "Refund Policy ", route: "/refund_policy", public: true, skipNav: true },
   { html: "terms_condition.html", title: "Terms Condition ", route: "/terms_condition", public: true, skipNav: true },
+  { html: "merchant_code_register.html", title: "Register ", route: "/merchant_code_register/:share_code", public: true, skipNav: true },
   { html: "code_register.html", title: "Register ", route: "/code_register/:share_code", public: true, skipNav: true },
   { html: "register_wallet.html", title: "Register Wallet ", route: "/register_wallet" },
   { html: "bonus_wallet.html", title: "Bonus Wallet ", route: "/bonus_wallet" },
@@ -248,17 +252,17 @@ var reloadStrategies = {
   css: cssStrategy,
   page: pageStrategy
 };
-if (isDev) {
+// if (isDev) {
 
-  const rsocket = new Socket("/phoenix/live_reload/socket", { params: { token: window.userToken } });
-  rsocket.connect();
-  var chan = rsocket.channel('phoenix:live_reload', {})
-  chan.on('assets_change', function(msg) {
-    var reloadStrategy = reloadStrategies[msg.asset_type] || reloadStrategies.page;
-    setTimeout(function() { reloadStrategy(chan); }, 1000);
-  });
-  chan.join();
-}
+//   const rsocket = new Socket("/phoenix/live_reload/socket", { params: { token: window.userToken } });
+//   rsocket.connect();
+//   var chan = rsocket.channel('phoenix:live_reload', {})
+//   chan.on('assets_change', function(msg) {
+//     var reloadStrategy = reloadStrategies[msg.asset_type] || reloadStrategies.page;
+//     setTimeout(function() { reloadStrategy(chan); }, 1000);
+//   });
+//   chan.join();
+// }
 
 
 

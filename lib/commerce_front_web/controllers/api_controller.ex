@@ -334,6 +334,41 @@ defmodule CommerceFrontWeb.ApiController do
             |> List.insert_at(1, %{"is_stockist" => user.is_stockist})
             |> List.insert_at(2, user |> BluePotion.sanitize_struct())
 
+        "get_accumulated_sales_merchant" ->
+          user = Settings.get_user_by_username(params["username"])
+
+          if params["parent_id"] != nil do
+            parent = Settings.get_user!(String.to_integer(params["parent_id"]))
+            # todo: from username check uplines, if the upline is you, ok
+            # todo: from self/ parent_id check uplines , if the user is in the upline, then error
+
+            if params["parent_id"] != nil do
+              check = Settings.verify_parent(String.to_integer(params["parent_id"]), user)
+
+              check2 =
+                CommerceFront.Settings.check_uplines(params["username"])
+                |> Enum.filter(&(&1.parent == parent.username))
+
+              res =
+                Settings.accumulated_sales_by_user_merchant(user, params["show_rank"])
+                |> List.insert_at(2, %{"is_direct_downline" => check})
+                |> List.insert_at(3, %{"is_downline" => check2 != []})
+
+              oi =
+                if params["show_instalment"] != nil do
+                  Settings.list_outstanding_member_instalments(user.id)
+                  |> BluePotion.sanitize_struct()
+                else
+                  %{}
+                end
+
+              res
+              |> List.insert_at(4, %{"outstanding_instalments" => oi})
+            else
+              Settings.accumulated_sales(params["username"])
+            end
+          end
+
         "get_accumulated_sales" ->
           user = Settings.get_user_by_username(params["username"])
 
@@ -565,6 +600,9 @@ defmodule CommerceFrontWeb.ApiController do
         "get_share_link" ->
           Settings.generate_link(params)
 
+        "get_merchant_share_link" ->
+          Settings.generate_merchant_link(params)
+
         "gen_inputs" ->
           BluePotion.test_module(params["module"])
 
@@ -575,7 +613,7 @@ defmodule CommerceFrontWeb.ApiController do
     append_cache_request = fn conn ->
       if Map.get(conn.params, "scope") in [
            "countries",
-           "get_ranks",
+           # "get_ranks",
            "list_pick_up_point_by_country",
            # "list_user_sales_addresses_by_username",
            "translation"
@@ -1407,7 +1445,11 @@ defmodule CommerceFrontWeb.ApiController do
       |> Enum.take(2)
       |> Module.concat()
 
-    IO.inspect(mod)
+    booleans =
+      BluePotion.test_module(model)
+      |> Map.to_list()
+      |> Enum.filter(&(elem(&1, 1) == :boolean))
+      |> Enum.map(&(elem(&1, 0) |> Atom.to_string()))
 
     dynamic_code =
       if Map.get(params, model) |> Map.get("id") != "0" do
@@ -1497,6 +1539,7 @@ defmodule CommerceFrontWeb.ApiController do
           p
       end
 
+    p = booleans |> Enum.reduce(p, &CommerceFront.Settings.append_bool_key(&2, &1))
     {result, _values} = Code.eval_string(dynamic_code, params: p |> CommerceFront.upload_file())
 
     IO.inspect(result)
@@ -1926,7 +1969,8 @@ defmodule CommerceFrontWeb.ApiController do
         Module.concat(["CommerceFront", "Settings", model]),
         additional_join_statements,
         additional_search_queries,
-        preloads
+        preloads,
+        ""
       )
 
     %{data: data, draw: _draw, recordsFiltered: _recordsFiltered, recordsTotal: _recordsTotal} =

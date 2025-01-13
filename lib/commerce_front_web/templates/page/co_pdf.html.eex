@@ -173,7 +173,11 @@ table td, table th {
 
             <tr class="fw-bold">
               <td colspan="4" class="text-end">
+                <%= if has_merchant do %>
+                RP ( including shipping fee)
+              <% else %>
                 RP
+              <% end %>
               </td>
               <td class="text-end">
                 <%=  rp_amount  |> :erlang.float_to_binary(decimals: 2) %>

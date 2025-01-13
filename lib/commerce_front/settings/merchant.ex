@@ -8,6 +8,7 @@ defmodule CommerceFront.Settings.Merchant do
     field(:remarks, :string)
     # field(:user_id, :integer)
     belongs_to(:user, CommerceFront.Settings.User)
+    belongs_to(:country, CommerceFront.Settings.Country)
     belongs_to(:merchant_category, CommerceFront.Settings.MerchantCategory)
     has_many(:merchant_products, CommerceFront.Settings.MerchantProduct)
     field(:description, :binary)
@@ -29,6 +30,7 @@ defmodule CommerceFront.Settings.Merchant do
   def changeset(merchant, attrs) do
     merchant
     |> cast(attrs, [
+      :country_id,
       :merchant_category_id,
       :company_address,
       :company_email,

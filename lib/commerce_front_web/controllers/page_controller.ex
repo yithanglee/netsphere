@@ -21,6 +21,23 @@ defmodule CommerceFrontWeb.PageController do
   def notification(conn, params) do
     IO.inspect(params)
 
+    %{
+      "amount" => "2.50",
+      "appcode" => "",
+      "channel" => "FPX_MB2U",
+      "currency" => "RM",
+      "domain" => "MGhaho2u",
+      "error_code" => "",
+      "error_desc" => "",
+      "extraP" => "{\"fpx_buyer_name\":\"LEE YIT HANG\",\"fpx_txn_id\":\"2501050214000277\"}",
+      "nbcb" => "2",
+      "orderid" => "HAHOSALE268",
+      "paydate" => "2025-01-05 02:13:58",
+      "skey" => "2d73918ab3d95f3d4eaa97e3c44a01c1",
+      "status" => "00",
+      "tranID" => "2617777380"
+    }
+
     json(conn, %{})
   end
 
@@ -435,24 +452,23 @@ defmodule CommerceFrontWeb.PageController do
     end
   end
 
+  @doc """
+  CommerceFrontWeb.PageController.thank_you(%Plug.Conn{}, %{
+        "amount" => "2.50",
+        "appcode" => "",
+        "channel" => "FPX_MB2U",
+        "currency" => "RM",
+        "domain" => "MGhaho2u",
+        "error_desc" => "",
+        "orderid" => "HAHOSALE310",
+        "paydate" => "2025-01-05 02:13:58",
+        "skey" => "2d73918ab3d95f3d4eaa97e3c44a01c1",
+        "status" => "00",
+        "tranID" => "2617777380"
+      })
+  """
   def thank_you(conn, params) do
     IO.inspect(params)
-
-    %{
-      "amount" => "2.50",
-      "appcode" => "",
-      "channel" => "FPX_MB2U",
-      "currency" => "RM",
-      "domain" => "MGhaho2u",
-      "error_code" => "",
-      "error_desc" => "",
-      "extraP" => "{\"fpx_buyer_name\":\"LEE%20YIT%20HANG\",\"fpx_txn_id\":\"2403170834530847\"}",
-      "orderid" => "HAHOTOPUP42",
-      "paydate" => "2024-03-17 08:34:51",
-      "skey" => "87a101336941e8a097cc03d19e14a9e2",
-      "status" => "00",
-      "tranID" => "2065317565"
-    }
 
     payment = CommerceFront.Settings.get_payment_by_billplz_code(params["orderid"])
     payment |> CommerceFront.Settings.update_payment(%{webhook_details: Jason.encode!(params)})

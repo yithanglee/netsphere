@@ -39,7 +39,12 @@ config :blue_potion,
   otp_app: "CommerceFront",
   repo: CommerceFront.Repo,
   contexts: ["Settings"],
-  project: %{name: "CommerceFront", alias_name: "commerce_front", vsn: "0.1.0"},
+  project: %{
+    name: "CommerceFront",
+    alias_name: "commerce_front",
+    sname: "#{System.get_env("SNAME")}",
+    vsn: "0.1.0"
+  },
   server: %{
     url: "139.162.60.209",
     db_url: "127.0.0.1",

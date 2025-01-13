@@ -8,7 +8,7 @@ defmodule CommerceFront.Settings.SalesItem do
     field(:qty, :integer)
     field(:remarks, :string)
     field(:sales_id, :integer)
-    field(:item_pv, :integer)
+    field(:item_pv, :integer, default: 0)
     field(:img_url, :string)
     timestamps()
   end

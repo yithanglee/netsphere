@@ -125,7 +125,11 @@ export let memberApp_ = {
             // console.log("e user")
             // console.log(e.user)
             // memberApp_.updateUser(e.user)
+
+            if (     $("input[name='user[instalment]']").val()  == null   ) {
             phxApp_.notify("Please relogin to update rank.")
+
+            }
             commerceApp_.emptyCart_()
             commerceApp_.components["userProfile"]()
             phxApp_.navigateTo(e.payment_url)
