@@ -412,9 +412,6 @@ defmodule CommerceFront.Settings do
   end
 
   def update_withdrawal_batch(model, params) do
-    bool_key = "is_open"
-    params = append_bool_key(params, bool_key)
-
     WithdrawalBatch.changeset(model, params) |> Repo.update() |> IO.inspect()
   end
 
@@ -737,9 +734,6 @@ defmodule CommerceFront.Settings do
   end
 
   def update_wallet_topup(model, params) do
-    bool_key = "is_approved"
-    params = append_bool_key(params, bool_key)
-
     WalletTopup.changeset(model, params) |> Repo.update() |> IO.inspect()
   end
 
@@ -910,14 +904,6 @@ defmodule CommerceFront.Settings do
   end
 
   def update_reward(model, params) do
-    params =
-      if "is_paid" in Map.keys(params) do
-        bool_key = "is_paid"
-        append_bool_key(params, bool_key)
-      else
-        params
-      end
-
     Reward.changeset(model, params) |> Repo.update() |> IO.inspect()
   end
 
@@ -1006,12 +992,11 @@ defmodule CommerceFront.Settings do
   CommerceFront.Settings.create_wallet_transaction(  %{user_id: CommerceFront.Settings.finance_user.id, amount: 1.00, remarks: "something", wallet_type: "reserve" })
 
   CommerceFront.Settings.create_wallet_transaction(  %{user_id: 609, amount: 1100.00, remarks: "something", wallet_type: "direct_recruitment" })
-  CommerceFront.Settings.create_wallet_transaction(  %{user_id: 212, amount: 100.00, remarks: "Initial", wallet_type: "merchant" })
+  CommerceFront.Settings.create_wallet_transaction(  %{user_id: 122, amount: 100.00, remarks: "Initial", wallet_type: "merchant" })
 
   %{
     user_id: 1,
     amount: 100.00,
-
     remarks: "something",
     wallet_type: "bonus"
   }
@@ -1321,18 +1306,6 @@ defmodule CommerceFront.Settings do
   end
 
   def update_product(model, params) do
-    bool_key = "override_pv"
-    params = append_bool_key(params, bool_key)
-
-    bool_key = "override_special_share_payout"
-    params = append_bool_key(params, bool_key) |> IO.inspect()
-
-    bool_key = "is_instalment"
-    params = append_bool_key(params, bool_key) |> IO.inspect()
-
-    bool_key = "can_pay_by_drp"
-    params = append_bool_key(params, bool_key) |> IO.inspect()
-
     Product.changeset(model, params) |> Repo.update() |> IO.inspect()
   end
 
@@ -1584,7 +1557,31 @@ defmodule CommerceFront.Settings do
       res = Repo.all(from(u in User, where: u.username == ^username)) |> List.first()
 
       if res != nil do
+        gs_summary = get_latest_gs_summary_by_user_id(res.id) |> BluePotion.sanitize_struct()
+
+        gs_summary =
+          if gs_summary != nil do
+            gs_summary
+          else
+            %{
+              total_left: 0,
+              total_right: 0,
+              balance_left: 0,
+              balance_right: 0,
+              new_left: 0,
+              new_right: 0,
+              sum_left: 0,
+              sum_right: 0
+            }
+          end
+
         Repo.get_by(Referral, user_id: res.id)
+        |> Repo.preload(:user)
+        |> BluePotion.sanitize_struct()
+        |> Map.merge(%{
+          sum_left: gs_summary.sum_left,
+          sum_right: gs_summary.sum_right
+        })
       end
     end
   end
@@ -1927,7 +1924,7 @@ defmodule CommerceFront.Settings do
           )
         end
       else
-        [username, id, fullname, rank_name] = list |> String.split("|")
+        [username, id, fullname, rank_name, sum_left, sum_right] = list |> String.split("|")
 
         zchildren =
           if include_empty do
@@ -1971,13 +1968,18 @@ defmodule CommerceFront.Settings do
           text: """
           <span class='my-2'>
             <span class='p-1 my-2 left-box'>#{username}</span>
-            <span class='m-0 px-1 ' style="width: 40%; position: absolute;right: 0px;"><span class="badge #{bg}"> #{display_rank}</span></span>
+            <span class='m-0 px-1 ' style="width: 40%; position: absolute;right: 0px;">
+              <span class="badge #{bg}"> #{display_rank}</span>
+              <span class="text-sm text-secondary">(Placement Grp Sales: #{sum_left}PV | #{sum_right}PV)</span>
+            </span>
           </span>
           """,
           children: zchildren,
           username: username,
           id: id |> String.to_integer(),
-          fullname: fullname
+          fullname: fullname,
+          sum_left: sum_left,
+          sum_right: sum_right
         }
       end
     end
@@ -2022,7 +2024,7 @@ defmodule CommerceFront.Settings do
           full
         )
       else
-        [username, id, fullname, rank_name] = list
+        [username, id, fullname, rank_name, sum_left, sum_right] = list
 
         # map = ori_data |> Enum.filter(&(&1.parent_username == username)) |> List.first()
 
@@ -2236,12 +2238,19 @@ defmodule CommerceFront.Settings do
           text: """
           <span class='my-2'>
             <span class='p-1 my-2 left-box'>#{username}</span>
-            <span class='m-0 px-1 ' style="width: 40%;position: absolute;right: 0px;"><span class="badge #{bg}"> #{display_rank}</span></span>
+            <span class='m-0 px-1 ' style="width: 40%;position: absolute;right: 0px;">
+
+            <span class="badge #{bg}"> #{display_rank}</span>
+                   <span class="text-sm text-secondary">(Placement Grp Sales: #{smap |> Map.get(:sum_left, 0)}PV | #{smap |> Map.get(:sum_right, 0)}PV)</span>
+
+            </span>
           </span>
           """,
           id: map.parent_id,
           rank_name: display_rank,
           name: map.parent_username <> " #{if(smap != nil, do: smap.id, else: "n/a")}",
+          sum_left: smap |> Map.get(:sum_left),
+          sum_right: smap |> Map.get(:sum_right),
           children: children |> Enum.sort_by(& &1.id)
         }
       end
@@ -5141,17 +5150,21 @@ defmodule CommerceFront.Settings do
         })
       else
         query
-        |> select([m, pt, m2], %{
+        |> select([m, pt, m2, gss, gss2], %{
           children:
             fragment(
-              "ARRAY_AGG( CONCAT(?, ?, ?, ?, ?, ?, ?) )",
+              "ARRAY_AGG( CONCAT(?, ?, ?, ?, ?, ?, ?,? , ? , ? ,?) )",
               m.username,
               "|",
               m.id,
               "|",
               m.fullname,
               "|",
-              m.rank_name
+              m.rank_name,
+              "|",
+              gss2.sum_left,
+              "|",
+              gss2.sum_right
             ),
           parent: m2.fullname,
           parent_username: m2.username,
@@ -5182,29 +5195,53 @@ defmodule CommerceFront.Settings do
     |> join(:full, [m, pt, m2, gss], gss2 in subquery(gs_subquery2()),
       on: gss2.user_id == pt.user_id
     )
-    # |> where([m, pt, m2, gss, gss2], m.id > ^parent_user_id)
     |> where([m, pt, m2, gss, gss2], not is_nil(m2.id))
     |> group_by([m, pt, m2, gss, gss2], [m2.id])
     |> select_statement.()
     |> Repo.all()
-
-    # sanitize_res = fn map ->
-    #   uniq_children = map.children |> Enum.uniq()
-
-    #   map |> Map.put(:children, uniq_children)
-    # end
-
-    # Enum.map(res, &(&1 |> sanitize_res.()))
   end
 
-  def gs_subquery2() do
-    from(gss in GroupSalesSummary,
-      where:
-        gss.month == ^Date.utc_today().month and
-          gss.year == ^Date.utc_today().year,
-      select: %{sum_left: sum(gss.new_left), sum_right: sum(gss.new_right), user_id: gss.user_id},
-      group_by: [gss.user_id, gss.month, gss.year]
-    )
+  def gs_subquery2(tree \\ :placement) do
+    if tree == :placement do
+      from(gss in GroupSalesSummary,
+        where:
+          gss.month == ^Date.utc_today().month and
+            gss.year == ^Date.utc_today().year,
+        select: %{
+          sum_left: sum(gss.new_left),
+          sum_right: sum(gss.new_right),
+          user_id: gss.user_id
+        },
+        group_by: [gss.user_id, gss.month, gss.year]
+      )
+    else
+      from(gss in CommerceFront.Settings.ReferralGroupSalesSummary,
+        where:
+          gss.month == ^Date.utc_today().month and
+            gss.year == ^Date.utc_today().year,
+        select: %{
+          sum: sum(gss.amount),
+          user_id: gss.user_id
+        },
+        group_by: [gss.user_id, gss.month, gss.year]
+      )
+    end
+  end
+
+  def gs_subquery(tree \\ :placement) do
+    if tree == :placement do
+      from(gss in GroupSalesSummary,
+        where:
+          gss.day == ^Date.utc_today().day and gss.month == ^Date.utc_today().month and
+            gss.year == ^Date.utc_today().year
+      )
+    else
+      from(gss in CommerceFront.Settings.ReferralGroupSalesSummary,
+        where:
+          gss.month == ^Date.utc_today().month and
+            gss.year == ^Date.utc_today().year
+      )
+    end
   end
 
   def sanitize_carry_forwards(date) do
@@ -5229,14 +5266,6 @@ defmodule CommerceFront.Settings do
           nil
       end
     end
-  end
-
-  def gs_subquery() do
-    from(gss in GroupSalesSummary,
-      where:
-        gss.day == ^Date.utc_today().day and gss.month == ^Date.utc_today().month and
-          gss.year == ^Date.utc_today().year
-    )
   end
 
   def pay_unpaid_bonus(date, bonus_list) do

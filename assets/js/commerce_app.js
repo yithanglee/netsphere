@@ -994,7 +994,7 @@ export let commerceApp_ = {
 
             <div class="">
                 <label class="my-2">Position</label>
-                <select class="form-control" name="position">
+                <select class="form-control" name="mposition">
                   <option>left</option>
                   <option>right</option>
                 </select>
@@ -1026,7 +1026,7 @@ export let commerceApp_ = {
 
                     phxApp_.api("get_merchant_share_link", {
                         username: phxApp_.user.username,
-                        position: $("select[name='position']").val()
+                        position: $("select[name='mposition']").val()
                     }, null, (code) => {
 
 
