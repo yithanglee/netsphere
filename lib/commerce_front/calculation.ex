@@ -8,6 +8,23 @@ defmodule CommerceFront.Calculation do
   alias CommerceFront.Settings
   alias CommerceFront.Settings.{User, Reward}
 
+  @doc """
+  CommerceFront.Calculation.mp_sales_level_bonus(sales_id, form_mp, sale, date, merchant)
+
+  import Ecto.Query
+  alias CommerceFront.{Settings, Repo}
+  id = 300
+  sale =  Repo.all(from s in Settings.Sale, where: s.id == ^id, preload: :merchant)  |> List.first
+       CommerceFront.Calculation.mp_sales_level_bonus(
+                      sale.id,
+                      0,
+                      sale,
+                      Date.utc_today(),
+                      sale |> Map.get(:merchant)
+                    )
+
+  """
+
   def mp_sales_level_bonus(sales_id, form_mp, sale, date, merchant) do
     params = [sales_id, form_mp, sale, date]
 
@@ -35,6 +52,7 @@ defmodule CommerceFront.Calculation do
         _ ->
           sale.user.username
       end
+      |> IO.inspect(label: "target mp sales level bonus")
 
     uplines =
       CommerceFront.Settings.check_uplines(
@@ -65,7 +83,8 @@ defmodule CommerceFront.Calculation do
       if upline_rank != nil do
         last_month_sum = Settings.last_month_sales(upline.parent)
 
-        if upline_rank.rank in ["PreferredShopper", "铜级套餐", "银级套餐", "金级套餐"] && last_month_sum < 36 do
+        if upline_rank.rank in ["PreferredShopper", "铜级套餐", "银级套餐", "金级套餐"] &&
+             last_month_sum < 36 do
           index
         else
           if index < 8 do
@@ -74,7 +93,7 @@ defmodule CommerceFront.Calculation do
             max =
               matrix |> Enum.filter(&(&1.rank == upline.rank)) |> List.first() |> Map.get(:max)
 
-            perc = (merchant.commission_perc / 8) |> Float.round(2)
+            perc = (merchant.commission_perc / 8) |> Float.round(4)
 
             if index < max do
               amount = (perc * sale.total_point_value) |> Float.round(2)
@@ -128,16 +147,16 @@ defmodule CommerceFront.Calculation do
 
     uplines = CommerceFront.Settings.check_uplines(user.username, :referal)
 
-    calc = fn upline, remainder_perc ->
+    calc = fn upline, {prev_perc, accumulated_perc} ->
       upline_user = Settings.get_user_by_username(upline.parent) |> Repo.preload(:royalty_user)
 
       if upline_user |> Map.get(:royalty_user) != nil do
         royalty_user = upline_user |> Map.get(:royalty_user)
         perc = royalty_user.perc
 
-        res = (remainder_perc - perc) |> Float.round(3)
+        res = (perc - prev_perc) |> Float.round(3)
 
-        if res >= 0 do
+        if accumulated_perc <= 0.05 do
           check =
             Repo.all(
               from(r in CommerceFront.Settings.Reward,
@@ -155,9 +174,9 @@ defmodule CommerceFront.Calculation do
               sales_id: sale.id,
               is_paid: false,
               remarks:
-                "sales-#{sale.id} on #{y}-#{m}-#{d}|royalty perc: #{perc}|calc perc: #{perc}| #{perc} * #{sale.total_point_value} ",
+                "sales-#{sale.id} on #{y}-#{m}-#{d}|royalty perc: #{perc}|calc perc: #{res}| #{res} * #{sale.total_point_value} ",
               name: "royalty bonus",
-              amount: (perc * sale.total_point_value) |> Float.round(2),
+              amount: (res * sale.total_point_value) |> Float.round(2),
               user_id: upline_user.id,
               day: d,
               month: m,
@@ -167,9 +186,9 @@ defmodule CommerceFront.Calculation do
             IO.inspect("there is paid royalty bonus ")
           end
 
-          res
+          {perc, accumulated_perc + perc}
         else
-          remm = remainder_perc * sale.total_point_value
+          remm = (accumulated_perc - prev_perc) * sale.total_point_value
 
           amt =
             if remm > 0 do
@@ -195,7 +214,7 @@ defmodule CommerceFront.Calculation do
               sales_id: sale.id,
               is_paid: false,
               remarks:
-                "sales-#{sale.id} on #{y}-#{m}-#{d}|royalty perc: #{perc}|calc perc: #{remainder_perc}| #{remainder_perc} * #{sale.total_point_value} ",
+                "sales-#{sale.id} on #{y}-#{m}-#{d}|royalty perc: #{perc}|calc perc: #{res}| #{res} * #{sale.total_point_value} ",
               name: "royalty bonus",
               amount: amt,
               user_id: upline_user.id,
@@ -210,11 +229,11 @@ defmodule CommerceFront.Calculation do
           0
         end
       else
-        remainder_perc
+        prev_perc
       end
     end
 
-    Enum.reduce(uplines, 0.05, &calc.(&1, &2))
+    Enum.reduce(uplines, {0.00, 0.00}, &calc.(&1, &2))
   end
 
   def stockist_register_bonus(sales_person, username, pv, sale) do

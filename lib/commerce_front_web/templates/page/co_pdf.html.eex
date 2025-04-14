@@ -62,6 +62,10 @@ table td, table th {
       _ ->
       1
   end 
+  currency = @sale.country.currency  
+  conversion_rate = @sale.country.conversion |> Float.round(2)
+
+  
   user_deet =  @sale.registration_details |> Jason.decode! |> Map.get("user") |> IO.inspect
 
   payment = user_deet  |> Map.get("payment")

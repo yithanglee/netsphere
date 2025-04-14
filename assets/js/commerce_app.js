@@ -212,7 +212,7 @@ export let commerceApp_ = {
         // callback function to call this render
         var list = ["merchantProducts", "merchantproduct", "merchantProfile", "merchant", "recruit", "topup", "country",
             "light", "userProfile", "wallet", "announcement", "products", "product",
-            "rewardList", "mcart", "cart", "cartItems", "salesItems", "upgradeTarget", "upgradeTargetMerchant", "sponsorTarget", "stockistTarget", "choosePayment"
+            "rewardList", "rewardSummary","mcart", "cart", "cartItems", "salesItems", "upgradeTarget", "upgradeTargetMerchant", "sponsorTarget", "stockistTarget", "choosePayment"
         ]
 
         list.forEach((v, i) => {
@@ -4933,29 +4933,99 @@ export let commerceApp_ = {
 
                                 list.push(`
 
-            <div class="my-2 d-flex align-items-center justify-content-between">
+                                    <div class="my-2 d-flex align-items-center justify-content-between">
 
-              <span class="fs-5">
-                ` + ColumnFormater.capitalize(v.name) + `
-              </span>
-              <span class="d-flex justify-content-between gap-2 align-items-center">
-                <span class="format-float">
-                  ` + v.sum + `
-                </span>
-                <a href="/reward_details/` + v.name + `/` + v.period[0] + `/` + v.period[1] + `" class="navi btn btn-primary btn-sm">
-                <i class="fa fa-info"></i>
-                </a>
-              </span>
-            </div>
+                                      <span class="fs-5">
+                                        ` + ColumnFormater.capitalize(v.name) + `
+                                      </span>
+                                      <span class="d-flex justify-content-between gap-2 align-items-center">
+                                        <span class="format-float">
+                                          ` + v.sum + `
+                                        </span>
+                                        <a href="/reward_details/` + v.name + `/` + v.period[0] + `/` + v.period[1] + `" class="navi btn btn-primary btn-sm">
+                                        <i class="fa fa-info"></i>
+                                        </a>
+                                      </span>
+                                    </div>
 
 
-                `)
+                                `)
 
                             }
                         })
                     })
 
                     $("#tab" + rii).customHtml(`` + list.join("") + ``)
+                    phxApp.formatDate()
+                })
+            })
+
+
+
+        },
+        rewardSummary() {
+
+            $("rewardSummary").each((rii, v) => {
+
+                $(v).customHtml(`
+                      <div class="text-center mt-4">
+                        <div class="spinner-border loading" role="status">
+                          <span class="visually-hidden">Loading...</span>
+                        </div>
+                      </div>
+                        
+
+                      <div class="row gx-0 d-none loading">
+                        <div class="col-12">
+                          <div id="tabw` + rii + `">No rewards</div>
+                        </div>
+                      </div>
+                    `)
+
+                var isPrev = false
+
+                console.log(isPrev)
+
+                phxApp_.api("get_reward_summary_by_years", {
+                    user_id: memberApp_.user.id
+                }, null, (r) => {
+                    var list = []
+
+                    $(".spinner-border.loading").parent().remove()
+                    $(".loading").removeClass("d-none")
+                 console.log("testst")
+                 var years = Object.keys(r["years"])
+
+
+                      years.forEach((v, i) => {
+                              list.push(`
+
+                                    <div class="my-2 d-flex align-items-center justify-content-between">
+
+                                      <span class="fs-5">
+                                        ` + v + `
+                                      </span>
+                                      <span class="d-flex justify-content-between gap-2 align-items-center">
+                                        <div>
+                                        <span class="format-float">
+                                          ` + r["years"][v][0].sum + ` 
+                                        </span>
+                                        BP
+                                          </div>
+                                          <a class="btn btn-primary btn-sm" target="_blank" href="/pdf?type=commission&id=`+memberApp_.user.id+`&year=`+v+`">
+                                          Download
+                                        </a>
+                                      </span>
+                                    </div>
+
+
+                                `)
+                        })
+
+
+                      console.info(list)
+
+                    $("#tabw" + rii).customHtml(``+list.join("")+``)
                     phxApp.formatDate()
                 })
             })

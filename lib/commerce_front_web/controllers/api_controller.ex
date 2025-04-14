@@ -74,6 +74,12 @@ defmodule CommerceFrontWeb.ApiController do
 
     res =
       case params["scope"] do
+        "travel_fund_qualifiers" ->
+          Settings.travel_fund_qualifier(
+            params["year"] |> String.to_integer(),
+            params["month"] |> String.to_integer()
+          )
+
         "razer_pay" ->
           server_url = Application.get_env(:commerce_front, :endpoint)[:url]
 
@@ -438,6 +444,12 @@ defmodule CommerceFrontWeb.ApiController do
 
         "get_reward_summary" ->
           Settings.user_monthly_reward_summary(params["user_id"], params["is_prev"])
+
+        "get_reward_summary_by_years" ->
+          Settings.user_monthly_reward_summary_by_years(params["user_id"])
+
+        "get_reward_summary_by_years2" ->
+          Settings.user_monthly_reward_summary_by_years2(params["user_id"], params["is_prev"])
 
         "get_sale" ->
           Settings.get_sale!(params["id"])
@@ -1710,12 +1722,12 @@ defmodule CommerceFrontWeb.ApiController do
 
         for {item, index} <- columns |> Enum.with_index() do
           cond do
-            item |> String.contains?("!=") ->
-              [i, val] = item |> String.split("!=")
+            # item |> String.contains?("!=") ->
+            #   [i, val] = item |> String.split("!=")
 
-              """
-              |> where([a,b,c,d], a.#{i} != #{val}) 
-              """
+            #   """
+            #   |> where([a,b,c,d], a.#{i} != #{val}) 
+            #   """
 
             item |> String.contains?("_id^") ->
               item = item |> String.replace("^", "")
@@ -1766,11 +1778,17 @@ defmodule CommerceFrontWeb.ApiController do
                     # if possible, here need to add back the previous and statements
                     [i, value] =
                       if i |> String.contains?("=") do
-                        [i, value] = String.split(i, "=")
+                        if i |> String.contains?("!=") do
+                          [i, value] = String.split(i, "=")
+                        else
+                          [i, value] = String.split(i, "=")
+                        end
                       else
                         [i, ""]
                       end
 
+                    IO.inspect([i, value], label: "i, value")
+                    # ss = search string
                     ss =
                       if value != "" do
                         value
@@ -1779,51 +1797,60 @@ defmodule CommerceFrontWeb.ApiController do
                       end
 
                     check_id = fn tuple ->
+                      IO.inspect(tuple, label: "check id tuple")
+
                       if tuple |> is_tuple do
                         {prefix, i, ss} = tuple
 
-                        if i |> String.contains?("_id") do
-                          if ss == nil do
-                            tuple
-                          else
-                            case Integer.parse(ss) do
-                              {ss, _val} ->
-                                """
-                                #{prefix}.#{i} == ^#{ss} #{addon_search}
-                                """
-
-                              _ ->
-                                """
-                                ilike(a.#{i}, ^"%#{ss}%")  #{addon_search}
-                                """
-                            end
-                          end
+                        if i |> String.contains?("_id!") do
+                          """
+                          #{prefix}.#{i |> String.replace("!", "")} != ^"#{ss}"  #{addon_search}
+                          """
                         else
-                          with true <-
-                                 i |> String.contains?("id") || i in ["year", "month", "day"],
-                               false <- i |> String.contains?("uuid"),
-                               false <- i |> String.contains?("paid"),
-                               false <- i |> String.contains?("is_"),
-                               true <- ss != nil do
-                            case Integer.parse(ss) |> IO.inspect() do
-                              {ss, _val} ->
-                                """
-                                #{prefix}.#{i} == ^#{ss}  #{addon_search}
-                                """
+                          if i |> String.contains?("_id") do
+                            if ss == nil do
+                              tuple
+                            else
+                              case Integer.parse(ss) do
+                                {ss, _val} ->
+                                  """
+                                  #{prefix}.#{i} == ^#{ss} #{addon_search}
+                                  """
 
-                              _ ->
-                                """
-                                ilike(a.#{i}, ^"%#{ss}%")  #{addon_search}
-                                """
+                                _ ->
+                                  """
+                                  ilike(a.#{i}, ^"%#{ss}%")  #{addon_search}
+                                  """
+                              end
                             end
                           else
-                            _ ->
-                              tuple
+                            with true <-
+                                   i |> String.contains?("id") || i in ["year", "month", "day"],
+                                 false <- i |> String.contains?("uuid"),
+                                 false <- i |> String.contains?("paid"),
+                                 false <- i |> String.contains?("is_"),
+                                 true <- ss != nil do
+                              case Integer.parse(ss) |> IO.inspect() do
+                                {ss, _val} ->
+                                  """
+                                  #{prefix}.#{i} == ^#{ss}  #{addon_search}
+                                  """
+
+                                _ ->
+                                  """
+                                  ilike(a.#{i}, ^"%#{ss}%")  #{addon_search}
+                                  """
+                              end
+                            else
+                              _ ->
+                                tuple
+                            end
                           end
                         end
                       else
                         tuple
                       end
+                      |> IO.inspect(label: "last check id")
                     end
 
                     check_date = fn tuple ->
@@ -1840,6 +1867,7 @@ defmodule CommerceFrontWeb.ApiController do
                       else
                         tuple
                       end
+                      |> IO.inspect(label: "last check date")
                     end
 
                     check_bool = fn tuple ->
@@ -1849,6 +1877,23 @@ defmodule CommerceFrontWeb.ApiController do
                         if ss == "true" || ss == "false" do
                           """
                           #{prefix}.#{i} == ^#{ss}  #{addon_search}
+                          """
+                        else
+                          tuple
+                        end
+                      else
+                        tuple
+                      end
+                      |> IO.inspect(label: "last check bool")
+                    end
+
+                    check_bang = fn tuple ->
+                      if tuple |> is_tuple do
+                        {prefix, i, ss} = tuple
+
+                        if i |> String.contains?("!") do
+                          """
+                          #{prefix}.#{i |> String.replace("!", "")} != ^"#{ss}"  #{addon_search}
                           """
                         else
                           if ss == nil do
@@ -1864,11 +1909,13 @@ defmodule CommerceFrontWeb.ApiController do
                       else
                         tuple
                       end
+                      |> IO.inspect(label: "last check bang")
                     end
 
                     check_id.({prefix, i, ss})
                     |> check_date.()
                     |> check_bool.()
+                    |> check_bang.()
                   else
                     [i, value] =
                       if i |> String.contains?("=") do
@@ -1946,8 +1993,6 @@ defmodule CommerceFrontWeb.ApiController do
         |> Enum.join("")
       end
       |> IO.inspect()
-
-    Enum.map([1, 2, 4], fn x -> x end)
 
     preloads =
       if preloads == nil do

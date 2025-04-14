@@ -10,7 +10,7 @@ defmodule CommerceFront.Settings.Reward do
     field(:name, :string)
     field(:remarks, :binary)
     field(:sales_id, :integer)
-    # field(:user_id, :integer)
+
     belongs_to(:user, CommerceFront.Settings.User)
     field(:year, :integer)
 

@@ -1,0 +1,123 @@
+<style type="text/css">
+.text-sm {
+  font-size: 0.8rem;
+}
+
+.text-lg {
+  font-size: 24px;
+}
+
+.text-xl {
+  font-size: 32px;
+}
+
+.collapsed {
+  height: 0px !important;
+}
+
+.w-120 {
+  width: 120px;
+}
+
+.w-80 {
+  width: 80px;
+}
+
+.w-72 {
+  width: 72px;
+}
+
+.w-64 {
+  width: 64px;
+}
+
+.w-16 {
+  width: 64px;
+}
+
+.table th,
+.table td {
+  padding: 4px 16px;
+  vertical-align: middle;
+  border-top: 0px;
+}
+
+
+table td,
+table th {
+  border-width: 1px !important;
+  border-style: solid !important;
+  border-color: white !important;
+}
+</style>
+<div class="container" style="left: 0px; position: absolute;">
+  <title>HAHO ·
+    <%= @title %>
+  </title>
+  <%  
+  
+
+
+   %>
+  <div class="justify-center ">
+    <%= render("simple_header.html", conn: @conn) %>
+    <center style="">
+      <p class="text-center">TO WHOM IT MAY CONCERN.</p>
+      <div style="width: 620px;">
+        
+        This is to certify that, <%= @commission_data.user.fullname%> was contracted by HAHO LIFE SDN BHD as Independent Distributor with commissions. Year <%= @year %>'s income is break down as below: 
+      </div>
+      <table style="margin-top: 80px;">
+        <thead>
+          <tr>
+            
+            <th class="text-start text-left">Month</th>
+            <th class="text-end text-right" ><span style="padding-left: 100px;">Commission</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <%= for row <- @commission_data.months |> List.flatten  do %>
+
+          <tr>
+            
+            <td><%= row.month %></td>
+            <td class="text-end text-right"><span> <%= format_currency((row.sum * 5) |> Float.round(2)) %></span></td>
+
+
+          </tr>
+          <% end %>
+          
+        </tbody>
+        <tfoot>
+           <tr>
+            <td></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td>Total Commissions</td>
+            <td class="text-right text-end"><strong> <%= format_currency( Enum.reduce(@commission_data.months |> List.flatten, 0, & Float.round(&1.sum * 5,2) + &2))  %></strong></td>
+          </tr>
+
+         
+        </tfoot>
+      </table>
+
+      <div style="width: 620px; margin-top: 100px;">
+        
+        Should you require more information <br>
+        please contact support admins at +60 19-329 7627
+      </div>
+
+
+    </center>
+
+
+
+  </div>
+
+  <div class="" style="height: 300px; border-top: 1px solid grey; padding-top: 20px; margin-top: 80px;">
+    <center style="position: relative; bottom: 0px;">
+      *** This is computer generated, no signature required. ***
+    </center>
+  </div>
+</div>

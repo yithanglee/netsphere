@@ -1,0 +1,48 @@
+<div class="d card-body d-flex align-items-center justify-content-between" style="min-height: 20vh; margin-bottom: 30px;" id="company_header">
+  <style type="text/css">
+  table.header {
+    font-size: 90%;
+    width: 48vw;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  table.header td {
+    padding: 8px;
+  }
+
+  table td,
+  table th {
+    padding: 4px !important;
+  }
+  </style>
+  <table class="header ">
+    <tbody>
+      <tr>
+        <td colspan="3" class="text-center">
+          <div class="" style="
+                                  height: 60px;
+                                    background-repeat: no-repeat;
+                                    background-position: center;
+                                    background-size: contain;
+                                    background-image: url('/images/haho_long.png');
+                                
+                                  ">
+          </div>
+          <div>
+            <div>HAHO LIFE SDN BHD</div><small>(1498125-D) </small>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td colspan="3" class="text-center">J-2-10, Kuchai Business Park, No.2, Jalan 1/127,<br>Off Jalan Kuchai Lama,
+          58200 Kuala Lumpur, Malaysia.</td>
+      </tr>
+      <tr>
+        <td>Phone: +60 19-329 7627</td>
+        <td>Website: www.haho2u.com</td>
+        <td>Email: haho_support@gmail.com</td>
+      </tr>
+    </tbody>
+  </table>
+</div>

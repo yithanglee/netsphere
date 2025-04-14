@@ -274,8 +274,82 @@ defmodule CommerceFrontWeb.PageController do
     |> send_resp(200, pdf_binary)
   end
 
+  def pdf_preview(conn, %{"id" => id, "type" => "commission", "year" => year} = params) do
+    commission_data = CommerceFront.Settings.user_monthly_reward_summary_by_years(id, year)
+
+    # 516, 2024
+    conn
+    |> render("commission_pdf.html",
+      title: "Commission Summary",
+      year: year,
+      commission_data: commission_data,
+      layout: {CommerceFrontWeb.LayoutView, "blank.html"}
+    )
+  end
+
+  def pdf(conn, %{"id" => id, "type" => "commission", "year" => year} = params) do
+    commission_data = CommerceFront.Settings.user_monthly_reward_summary_by_years(id, year)
+
+    server_url = "http://localhost:4000"
+    server_url = Application.get_env(:commerce_front, :url)
+
+    html =
+      Phoenix.View.render_to_string(
+        CommerceFrontWeb.PageView,
+        "commission_pdf.html",
+        conn: conn,
+        year: year,
+        title: "Commission Summary",
+        commission_data: commission_data
+      )
+      |> String.replace("/images", "#{server_url}/images")
+
+    IO.inspect(server_url)
+
+    css = "<link rel='stylesheet' href='#{server_url}/css/app.css' >
+        <link rel='stylesheet' href='#{server_url}/css/all.css' >"
+
+    pdf_params = %{
+      "html" => "<!DOCTYPE html><html><head>#{css}</head><body>#{html}</body></html>"
+    }
+
+    IO.puts(pdf_params["html"])
+
+    pdf_binary =
+      PdfGenerator.generate_binary!(
+        pdf_params["html"],
+        size: "A4",
+        shell_params: [
+          "--page-width",
+          "100cm",
+          "--margin-left",
+          "5",
+          "--margin-right",
+          "5",
+          "--margin-top",
+          "5",
+          "--margin-bottom",
+          "5",
+          "--encoding",
+          "utf-8",
+          "--orientation",
+          "Portrait"
+        ],
+        delete_temporary: true
+      )
+
+    conn
+    |> put_resp_content_type("application/pdf")
+    |> put_resp_header(
+      "content-disposition",
+      "attachment; filename=\"CommissionSummary_#{params["id"]}.pdf\""
+    )
+    |> send_resp(200, pdf_binary)
+  end
+
   def pdf_preview(conn, %{"id" => id, "type" => "merchant"} = params) do
-    sale = CommerceFront.Settings.get_sale!(id) |> CommerceFront.Repo.preload(:merchant)
+    sale =
+      CommerceFront.Settings.get_sale!(id) |> CommerceFront.Repo.preload([:merchant, :country])
 
     conn
     |> render("co_pdf.html",
@@ -290,7 +364,7 @@ defmodule CommerceFrontWeb.PageController do
   def pdf(conn, %{"id" => id, "type" => "merchant"} = params) do
     sale =
       CommerceFront.Settings.get_sale!(id)
-      |> CommerceFront.Repo.preload(:merchant)
+      |> CommerceFront.Repo.preload([:country, :merchant])
 
     server_url = "http://localhost:4000"
     server_url = Application.get_env(:commerce_front, :url)
@@ -351,7 +425,9 @@ defmodule CommerceFrontWeb.PageController do
   end
 
   def pdf_preview(conn, %{"id" => id} = params) do
-    sale = CommerceFront.Settings.get_sale!(id)
+    sale =
+      CommerceFront.Settings.get_sale!(id)
+      |> CommerceFront.Repo.preload([:country, :merchant])
 
     conn
     |> render("co_pdf.html",
@@ -364,7 +440,9 @@ defmodule CommerceFrontWeb.PageController do
   end
 
   def pdf(conn, %{"id" => id} = params) do
-    sale = CommerceFront.Settings.get_sale!(id)
+    sale =
+      CommerceFront.Settings.get_sale!(id)
+      |> CommerceFront.Repo.preload([:country, :merchant])
 
     server_url = "http://localhost:4000"
     server_url = Application.get_env(:commerce_front, :url)
