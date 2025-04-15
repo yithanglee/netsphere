@@ -2150,7 +2150,7 @@ defmodule CommerceFront.Settings do
             if :fullname in Map.keys(smap) do
               smap.fullname
             else
-              # IEx.pry()
+
               smap.user.rank_name
             end
 
@@ -2718,7 +2718,7 @@ defmodule CommerceFront.Settings do
         end
 
         # after contribute you should be able to see the unilevel royalty bonus
-        # IEx.pry()
+
       end
 
       {:ok, nil}
@@ -3073,7 +3073,7 @@ defmodule CommerceFront.Settings do
                   gs_summary |> Map.put(:balance_right, gs_summary.total_right)
                 end
               else
-                # please test new 3 units 
+                # please test new 3 units
                 _ ->
                   if gs_summary.new_left != 0 || gs_summary.new_right != 0 do
                     if gs_summary.balance_left == 0 && gs_summary.balance_right == 0 do
@@ -3237,7 +3237,7 @@ defmodule CommerceFront.Settings do
       create_wallet_topup(params)
     end)
     |> Multi.run(:payment, fn _repo, %{topup: topup} ->
-      # change to razer 
+      # change to razer
       # res = Billplz.create_collection("Topup Order: #{topup.id}")
       # collection_id = Map.get(res, "id")
 
@@ -4174,8 +4174,8 @@ defmodule CommerceFront.Settings do
               end
 
             "merchant_point" ->
-              # when deduct the sponsor merchant point , 
-              # 23/12/2024  = need to register preferred shopper 
+              # when deduct the sponsor merchant point ,
+              # 23/12/2024  = need to register preferred shopper
               # ensure these merchant checkout registered member dont passs up point in the the placment tree
 
               # check sales person... register point sufficient
@@ -4212,10 +4212,14 @@ defmodule CommerceFront.Settings do
 
                 with true <- merchant_p.total >= form_drp,
                      true <- (rp.total >= sale.grand_total - form_drp) |> IO.inspect() do
+
+
+                      # 2025-04-14: merchant sales ... total point value is from grand total..
+
                   {:ok, sale} =
                     update_sale(sale, %{
                       status: :processing,
-                      total_point_value: sale.total_point_value - form_drp
+                      total_point_value: sale.grand_total - form_drp
                     })
 
                   if "sponsor" in Map.keys(params["user"]) do
@@ -4233,7 +4237,7 @@ defmodule CommerceFront.Settings do
                       wallet_type: "merchant"
                     })
                   else
-                    # when merchant upgrade need to deduct the shopper's sponsor MP... 
+                    # when merchant upgrade need to deduct the shopper's sponsor MP...
 
                     create_wallet_transaction(%{
                       user_id: sale.sales_person_id,
@@ -4695,7 +4699,7 @@ defmodule CommerceFront.Settings do
                   instalment = instalment_product |> Map.get(:instalment)
 
                   for item <- 1..instalment.no_of_months do
-                    # todo need to check the main package for delay 
+                    # todo need to check the main package for delay
                     due_date = Date.utc_today() |> Timex.shift(months: item + instalment.delay)
 
                     {:ok, member_instalment} =
@@ -4937,7 +4941,7 @@ defmodule CommerceFront.Settings do
           if params["stockist"] != nil || stockist_user != nil do
             {:ok, nil}
           else
-            # 22/3 pay to sponsor...   
+            # 22/3 pay to sponsor...
             # 23/5 pay to sales person
 
             unless "merchant" in Map.keys(params) do
@@ -6353,27 +6357,27 @@ defmodule CommerceFront.Settings do
 
     query3 = """
     WITH drp_data AS (
-    SELECT 
+    SELECT
         l.id,
         COALESCE(
             NULLIF(
                 regexp_replace(
-                    convert_from(p.webhook_details, 'UTF8'), 
-                    '^.*drp paid:\\s*([0-9.]+)\\s*.*$',  
+                    convert_from(p.webhook_details, 'UTF8'),
+                    '^.*drp paid:\\s*([0-9.]+)\\s*.*$',
                     '\\1'
-                ), 
+                ),
                 ''
-            )::float, 
+            )::float,
             0
         ) AS drp_paid,
         p.webhook_details
-    FROM 
+    FROM
         sales l
-    LEFT JOIN 
-        payments p 
-    ON 
-        p.sales_id = l.id 
-    WHERE 
+    LEFT JOIN
+        payments p
+    ON
+        p.sales_id = l.id
+    WHERE
         convert_from(p.webhook_details, 'UTF8') ILIKE '%drp%'
     )
     select
@@ -6396,8 +6400,8 @@ defmodule CommerceFront.Settings do
       left join payments p on p.sales_id = l.id
       full join drp_data dp on dp.id = l.id
       group by  to_char( l.inserted_at , 'YYYY') order by to_char( l.inserted_at , 'YYYY') desc ;
-      
-      
+
+
     """
 
     params = []
@@ -6422,27 +6426,27 @@ defmodule CommerceFront.Settings do
 
     query3 = """
     WITH drp_data AS (
-    SELECT 
+    SELECT
         l.id,
         COALESCE(
             NULLIF(
                 regexp_replace(
-                    convert_from(p.webhook_details, 'UTF8'), 
-                    '^.*drp paid:\\s*([0-9.]+)\\s*.*$',  
+                    convert_from(p.webhook_details, 'UTF8'),
+                    '^.*drp paid:\\s*([0-9.]+)\\s*.*$',
                     '\\1'
-                ), 
+                ),
                 ''
-            )::float, 
+            )::float,
             0
         ) AS drp_paid,
         p.webhook_details
-    FROM 
+    FROM
         sales l
-    LEFT JOIN 
-        payments p 
-    ON 
-        p.sales_id = l.id 
-    WHERE 
+    LEFT JOIN
+        payments p
+    ON
+        p.sales_id = l.id
+    WHERE
         convert_from(p.webhook_details, 'UTF8') ILIKE '%drp%'
     )
     select
@@ -6465,8 +6469,8 @@ defmodule CommerceFront.Settings do
       left join payments p on p.sales_id = l.id
       full join drp_data dp on dp.id = l.id
       group by  to_char( l.inserted_at , 'YYYY') order by to_char( l.inserted_at , 'YYYY') desc ;
-      
-      
+
+
     """
 
     params = []
@@ -6491,27 +6495,27 @@ defmodule CommerceFront.Settings do
 
     query3 = """
     WITH drp_data AS (
-    SELECT 
+    SELECT
         l.id,
         COALESCE(
             NULLIF(
                 regexp_replace(
-                    convert_from(p.webhook_details, 'UTF8'), 
-                    '^.*drp paid:\\s*([0-9.]+)\\s*.*$',  
+                    convert_from(p.webhook_details, 'UTF8'),
+                    '^.*drp paid:\\s*([0-9.]+)\\s*.*$',
                     '\\1'
-                ), 
+                ),
                 ''
-            )::float, 
+            )::float,
             0
         ) AS drp_paid,
         p.webhook_details
-    FROM 
+    FROM
         sales l
-    LEFT JOIN 
-        payments p 
-    ON 
-        p.sales_id = l.id 
-    WHERE 
+    LEFT JOIN
+        payments p
+    ON
+        p.sales_id = l.id
+    WHERE
         convert_from(p.webhook_details, 'UTF8') ILIKE '%drp%'
     )
     select
@@ -6534,8 +6538,8 @@ defmodule CommerceFront.Settings do
       left join payments p on p.sales_id = l.id
       full join drp_data dp on dp.id = l.id
       group by  to_char( l.inserted_at , 'YYYY') order by to_char( l.inserted_at , 'YYYY') desc ;
-      
-      
+
+
     """
 
     params = []
@@ -7993,11 +7997,11 @@ defmodule CommerceFront.Settings do
     from
     group_sales_summaries gss
     left join users u on u.id = gss.user_id
-    where 
+    where
     gss.month = $1
     and gss.year = $2
     group by
-    u.username, 
+    u.username,
     gss.user_id,
     gss.month,
     gss.year ;
@@ -8057,7 +8061,7 @@ defmodule CommerceFront.Settings do
     instalment = instalment_product |> Map.get(:instalment)
 
     for item <- 1..instalment.no_of_months do
-      # todo need to check the main package for delay 
+      # todo need to check the main package for delay
       due_date = Date.utc_today() |> Timex.shift(months: item + instalment.delay)
 
       {:ok, member_instalment} =

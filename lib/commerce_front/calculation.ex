@@ -354,7 +354,7 @@ defmodule CommerceFront.Calculation do
 
           index + 1
 
-          # check upline's weak leg 
+          # check upline's weak leg
         end
 
         if check != nil do
@@ -812,7 +812,7 @@ defmodule CommerceFront.Calculation do
           |> IO.inspect()
 
         # if date == ~D[2023-11-26] && summary.user.username == "damien" do
-        #   IEx.pry()
+
         # end
 
         multi_query
@@ -989,8 +989,8 @@ defmodule CommerceFront.Calculation do
             sales_id: 0,
             is_paid: false,
             remarks:
-              "#{date}|user_cap:#{user_cap}||left(#{left_d |> Map.get(:username)}): 
-            before: #{left_d_latest_gs.new_left + left_d_latest_gs.new_right} |+ c/f(#{map.user.username}) #{prev_summary.balance_left} = #{summary.total_left}, |matched: #{paired}, after: #{changeset.balance_left} ||right(#{right_d |> Map.get(:username)}): 
+              "#{date}|user_cap:#{user_cap}||left(#{left_d |> Map.get(:username)}):
+            before: #{left_d_latest_gs.new_left + left_d_latest_gs.new_right} |+ c/f(#{map.user.username}) #{prev_summary.balance_left} = #{summary.total_left}, |matched: #{paired}, after: #{changeset.balance_left} ||right(#{right_d |> Map.get(:username)}):
             before: #{right_d_latest_gs.new_left + right_d_latest_gs.new_right} |+ c/f(#{map.user.username}) #{prev_summary.balance_right} = #{summary.total_right}, |matched: #{paired}, after: #{changeset.balance_right}||#{paired} * #{0.1} = #{bonus}|",
             name: "team bonus",
             amount: final_pay,
@@ -1108,11 +1108,11 @@ defmodule CommerceFront.Calculation do
     from
     group_sales_summaries gss
     left join users u on u.id = gss.user_id
-    where 
+    where
     gss.month = $1
     and gss.year = $2
     group by
-    u.username, 
+    u.username,
     gss.user_id,
     gss.month,
     gss.year ;
@@ -1218,7 +1218,7 @@ defmodule CommerceFront.Calculation do
             index
           end
 
-          # check upline's weak leg 
+          # check upline's weak leg
         end
 
         if check != nil do
@@ -1233,7 +1233,7 @@ defmodule CommerceFront.Calculation do
 
   @doc """
   D）Elite Leader CTO sharing 5%
-  Ever month weak team pv achieved 
+  Ever month weak team pv achieved
   1,500PV-1star-1%
   3,000PV-2stars-1%+1%
   10,000PV-3stars-1%+1%+1%
@@ -1280,11 +1280,11 @@ defmodule CommerceFront.Calculation do
     from
     group_sales_summaries gss
     left join users u on u.id = gss.user_id
-    where 
+    where
     gss.month = $1
     and gss.year = $2
     group by
-    u.username, 
+    u.username,
     gss.user_id,
     gss.month,
     gss.year ;
@@ -1386,9 +1386,9 @@ defmodule CommerceFront.Calculation do
   the remaining 2600 also need to calculate how many points, like minus another 1500 to get 1 point
 
 
-  12000 
+  12000
 
-  5000 - 6 
+  5000 - 6
 
   5000 - 6
 
@@ -1413,11 +1413,11 @@ defmodule CommerceFront.Calculation do
     from
     group_sales_summaries gss
     left join users u on u.id = gss.user_id
-    where 
+    where
     gss.month = $1
     and gss.year = $2
     group by
-    u.username, 
+    u.username,
     gss.user_id,
     gss.month,
     gss.year ;
@@ -1447,8 +1447,8 @@ defmodule CommerceFront.Calculation do
     |> Multi.run(:calculation, fn _repo, %{} ->
       travel_qualifier =
         for weak_leg <- users_weak_leg do
-          # assuming this weak amount is 7600, 
-          # after 
+          # assuming this weak amount is 7600,
+          # after
           weak_amount =
             if weak_leg.left > weak_leg.right do
               weak_leg.right
@@ -1541,8 +1541,8 @@ defmodule CommerceFront.Calculation do
   @doc """
 
   month end calculate, because, after daily payout,
-  there's 10% deducted until BP1000, 
-  will put a note for 
+  there's 10% deducted until BP1000,
+  will put a note for
   month nov 23' - product wallet points 1000
   month dec 23' - product wallet points 1000
   month jan 24' - product wallet points 1000
@@ -1566,11 +1566,11 @@ defmodule CommerceFront.Calculation do
     from
     group_sales_summaries gss
     left join users u on u.id = gss.user_id
-    where 
+    where
     gss.month = $1
     and gss.year = $2
     group by
-    u.username, 
+    u.username,
     gss.user_id,
     gss.month,
     gss.year ;
@@ -1671,8 +1671,8 @@ defmodule CommerceFront.Calculation do
             |> List.first()
 
           if weak_leg != nil do
-            # assuming this weak amount is 7600, 
-            # after 
+            # assuming this weak amount is 7600,
+            # after
             weak_amount =
               if weak_leg.left > weak_leg.right do
                 weak_leg.right
@@ -1719,8 +1719,8 @@ defmodule CommerceFront.Calculation do
 
   @doc """
 
-  if drp_amount  = 250 
-  250 * 0.01 = 2.5 
+  if drp_amount  = 250
+  250 * 0.01 = 2.5
   to 10 uplines, compress upline
 
   6/12/23

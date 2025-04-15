@@ -7,9 +7,9 @@ use Mix.Config
 # watchers to your application. For example, we use it
 # with webpack to recompile .js and .css sources.
 config :commerce_front, CommerceFrontWeb.Endpoint,
-  http: [port: 4000],
+  http: [port: 4700],
   https: [
-    port: 4001,
+    port: 4701,
     cipher_suite: :strong,
     keyfile: "priv/cert/selfsigned_key.pem",
     certfile: "priv/cert/selfsigned.pem"
@@ -22,7 +22,7 @@ config :commerce_front, CommerceFrontWeb.Endpoint,
 config :commerce_front, CommerceFront.Repo,
   username: "postgres",
   password: "postgres",
-  database: "#{System.get_env("SNAME")}_dev",
+  database: "#{System.get_env("SNAME")}_prod",
   # hostname: "139.162.60.209",
   port: "5432",
   show_sensitive_data_on_connection_error: true,
