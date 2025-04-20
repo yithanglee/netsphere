@@ -2150,7 +2150,6 @@ defmodule CommerceFront.Settings do
             if :fullname in Map.keys(smap) do
               smap.fullname
             else
-
               smap.user.rank_name
             end
 
@@ -2718,7 +2717,6 @@ defmodule CommerceFront.Settings do
         end
 
         # after contribute you should be able to see the unilevel royalty bonus
-
       end
 
       {:ok, nil}
@@ -4212,9 +4210,7 @@ defmodule CommerceFront.Settings do
 
                 with true <- merchant_p.total >= form_drp,
                      true <- (rp.total >= sale.grand_total - form_drp) |> IO.inspect() do
-
-
-                      # 2025-04-14: merchant sales ... total point value is from grand total..
+                  # 2025-04-14: merchant sales ... total point value is from grand total..
 
                   {:ok, sale} =
                     update_sale(sale, %{
@@ -4702,15 +4698,30 @@ defmodule CommerceFront.Settings do
                     # todo need to check the main package for delay
                     due_date = Date.utc_today() |> Timex.shift(months: item + instalment.delay)
 
+                    mi_check =
+                      Repo.all(
+                        from(mi in CommerceFront.Settings.MemberInstalment,
+                          where:
+                            mi.instalment_id == ^instalment.id and
+                              mi.month_no == ^item and
+                              mi.user_id == ^user.id and
+                              mi.product_id == ^instalment_product.id
+                        )
+                      )
+
                     {:ok, member_instalment} =
-                      CommerceFront.Settings.create_member_instalment(%{
-                        due_date: due_date,
-                        instalment_id: instalment.id,
-                        is_paid: false,
-                        month_no: item,
-                        product_id: instalment_product.id,
-                        user_id: user.id
-                      })
+                      if mi_check == [] do
+                        CommerceFront.Settings.create_member_instalment(%{
+                          due_date: due_date,
+                          instalment_id: instalment.id,
+                          is_paid: false,
+                          month_no: item,
+                          product_id: instalment_product.id,
+                          user_id: user.id
+                        })
+                      else
+                        {:ok, List.first(mi_check)}
+                      end
 
                     instalment_products =
                       instalment_product
@@ -7716,7 +7727,8 @@ defmodule CommerceFront.Settings do
           where:
             mi.user_id == ^user_id and
               mi.is_paid == ^false,
-          preload: [:product, :user, :instalment, member_instalment_product: :product]
+          preload: [:product, :user, :instalment, member_instalment_product: :product],
+          order_by: [asc: mi.id]
         )
       )
       |> List.first()
@@ -8040,9 +8052,13 @@ defmodule CommerceFront.Settings do
   end
 
   @doc """
-
   CommerceFront.Settings.regenerate_instalment(80, 595)
-
+  595 80
+  CommerceFront.Settings.regenerate_instalment(80, 595)
+  528 78
+  CommerceFront.Settings.regenerate_instalment(78, 528)
+  552 77
+  CommerceFront.Settings.regenerate_instalment(77, 552)
   """
 
   def regenerate_instalment(instalment_product_id, user_id) do
@@ -8064,15 +8080,30 @@ defmodule CommerceFront.Settings do
       # todo need to check the main package for delay
       due_date = Date.utc_today() |> Timex.shift(months: item + instalment.delay)
 
+      mi_check =
+        Repo.all(
+          from(mi in CommerceFront.Settings.MemberInstalment,
+            where:
+              mi.instalment_id == ^instalment.id and
+                mi.month_no == ^item and
+                mi.user_id == ^user.id and
+                mi.product_id == ^instalment_product.id
+          )
+        )
+
       {:ok, member_instalment} =
-        CommerceFront.Settings.create_member_instalment(%{
-          due_date: due_date,
-          instalment_id: instalment.id,
-          is_paid: false,
-          month_no: item,
-          product_id: instalment_product.id,
-          user_id: user.id
-        })
+        if mi_check == [] do
+          CommerceFront.Settings.create_member_instalment(%{
+            due_date: due_date,
+            instalment_id: instalment.id,
+            is_paid: false,
+            month_no: item,
+            product_id: instalment_product.id,
+            user_id: user.id
+          })
+        else
+          {:ok, List.first(mi_check)}
+        end
 
       instalment_products =
         instalment_product
