@@ -428,6 +428,7 @@ defmodule CommerceFrontWeb.PageController do
     sale =
       CommerceFront.Settings.get_sale!(id)
       |> CommerceFront.Repo.preload([:country, :merchant])
+      
 
     conn
     |> render("co_pdf.html",

@@ -625,7 +625,8 @@ defmodule CommerceFrontWeb.ApiController do
     append_cache_request = fn conn ->
       if Map.get(conn.params, "scope") in [
            "countries",
-           # "get_ranks",
+           "get_ranks",
+           "slides",
            "list_pick_up_point_by_country",
            # "list_user_sales_addresses_by_username",
            "translation"
@@ -2106,5 +2107,12 @@ defmodule CommerceFrontWeb.ApiController do
     conn
     |> put_resp_content_type("application/json")
     |> send_resp(200, Jason.encode!(%{status: "already deleted"}))
+  end
+
+  # Handle OPTIONS requests for CORS preflight
+  def options(conn, _params) do
+    conn
+    |> put_resp_content_type("application/json")
+    |> send_resp(200, "")
   end
 end

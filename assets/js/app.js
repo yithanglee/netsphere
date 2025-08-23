@@ -21,12 +21,9 @@ var useSw = false,
   isDev = window.location.hostname == "localhost";
 
 if (isDev) {
-
   // phxApp_.post("admin_menus", { scope: "admin_menus", list: MENUS })
   useSw = false
 }
-
-
 
 if ('serviceWorker' in navigator && useSw) {
   navigator.serviceWorker.register('/sw.js')
@@ -36,10 +33,6 @@ if ('serviceWorker' in navigator && useSw) {
     .catch(error => {
       console.error('Service Worker registration failed:', error);
     });
-
-
-
-
 }
 
 
@@ -74,16 +67,11 @@ try {
 }
 $.fn.extend({
   customHtml: async function(newHtml) {
-
     var translation_map = Object.keys(translationRes);
     var v2 = translation_map.reduce((acc, key) => {
-
       var regex = new RegExp(key, "g");
-
       return acc.replace(regex, translationRes[key]);
     }, newHtml);
-
-
     return this.html(v2);
   },
   customAppend: async function(newHtml) {
@@ -252,19 +240,6 @@ var reloadStrategies = {
   css: cssStrategy,
   page: pageStrategy
 };
-// if (isDev) {
-
-//   const rsocket = new Socket("/phoenix/live_reload/socket", { params: { token: window.userToken } });
-//   rsocket.connect();
-//   var chan = rsocket.channel('phoenix:live_reload', {})
-//   chan.on('assets_change', function(msg) {
-//     var reloadStrategy = reloadStrategies[msg.asset_type] || reloadStrategies.page;
-//     setTimeout(function() { reloadStrategy(chan); }, 1000);
-//   });
-//   chan.join();
-// }
-
-
 
 $(document).on("click", "a.navi", function(event) {
   phxApp.show()

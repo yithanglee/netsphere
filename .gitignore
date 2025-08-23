@@ -28,3 +28,7 @@ commerce_front-*.tar
 /priv/static/
 
 /media
+
+.env_haho
+.env_sehat
+.env_netsphere

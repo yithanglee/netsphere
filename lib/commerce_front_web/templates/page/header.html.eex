@@ -113,7 +113,20 @@ has_merchant = @merchant != nil
           <td>
           
             <span id="chosen_pay_to">
-              <%= @sales |> Map.get(:user) |> Map.get(:fullname)%></span>
+
+              <%
+
+              sales_person = @sales.sales_person 
+              user = @sales.user
+              fuser = if user == nil do 
+                sales_person
+              else
+                user
+              end 
+
+            %>
+
+              <%= fuser  |> Map.get(:fullname)%></span>
           </td>
         </tr>
         <tr >

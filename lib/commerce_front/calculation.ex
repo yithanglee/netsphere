@@ -81,12 +81,14 @@ defmodule CommerceFront.Calculation do
       upline_rank = matrix |> Enum.filter(&(&1.rank == upline.rank)) |> List.first()
 
       if upline_rank != nil do
-        last_month_sum = Settings.last_month_sales(upline.parent)
+        # last_month_sum = Settings.last_month_sales(upline.parent)
 
-        if upline_rank.rank in ["PreferredShopper", "铜级套餐", "银级套餐", "金级套餐"] &&
-             last_month_sum < 36 do
-          index
-        else
+        # if upline_rank.rank in ["PreferredShopper", "铜级套餐", "银级套餐", "金级套餐"] &&
+        #      last_month_sum < 36 do
+        #   index
+        # else
+        # # prev code here 
+        # end
           if index < 8 do
             IO.inspect("current index at #{index}")
 
@@ -131,7 +133,10 @@ defmodule CommerceFront.Calculation do
           end
 
           index + 1
-        end
+
+
+
+
       else
         index
       end
@@ -226,10 +231,10 @@ defmodule CommerceFront.Calculation do
             IO.inspect("there is paid royalty bonus ")
           end
 
-          0
+          nil 
         end
       else
-        prev_perc
+        {prev_perc, accumulated_perc}
       end
     end
 

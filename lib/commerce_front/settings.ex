@@ -4616,7 +4616,7 @@ defmodule CommerceFront.Settings do
       |> Multi.run(:ewallets, fn _repo, %{user: user} ->
         if params["upgrade"] != nil do
         else
-          wallets = ["bonus", "product", "register", "direct_recruitment"]
+          wallets = ["bonus", "product", "register", "direct_recruitment", "travel"]
 
           for wallet_type <- wallets do
             CommerceFront.Settings.create_wallet_transaction(%{
@@ -4651,8 +4651,12 @@ defmodule CommerceFront.Settings do
       |> Multi.run(:member_instalment, fn _repo, %{sale: sale, user: user} ->
         sale = sale |> Repo.preload(:sales_items)
 
-        unless "merchant" in Map.keys(params) do
-          for item <- sale.sales_items do
+        with false <- "merchant" in Map.keys(params),
+             true <- sale != nil,
+             sales_items <- sale.sales_items do
+          IO.inspect(sales_items, label: "sales_items")
+
+          for item <- sales_items do
             product = get_product_by_name(item |> Map.get(:item_name))
 
             cond do
@@ -4746,6 +4750,9 @@ defmodule CommerceFront.Settings do
                 nil
             end
           end
+        else
+          _ ->
+            nil
         end
 
         {:ok, nil}
@@ -4986,14 +4993,15 @@ defmodule CommerceFront.Settings do
               params["scope"]
             )
 
-            create_wallet_transaction(%{
-              user_id: user.id,
-              amount: 1152.00,
-              remarks: "Stockist Upgrade - Additional DRP",
-              wallet_type: "direct_recruitment"
-            })
+            # jun 17: robert say no more u1, u2 , now give more DT2
+            # create_wallet_transaction(%{
+            #   user_id: user.id,
+            #   amount: 1152.00,
+            #   remarks: "Stockist Upgrade - Additional DRP",
+            #   wallet_type: "direct_recruitment"
+            # })
 
-            CommerceFront.Settings.convert_to_stockist(user |> Map.put(:placement, placement))
+            # CommerceFront.Settings.convert_to_stockist(user |> Map.put(:placement, placement))
           else
             {:ok, nil}
           end
@@ -5011,20 +5019,24 @@ defmodule CommerceFront.Settings do
                                      placement: placement,
                                      sales_person: sales_person
                                    } ->
-        {:ok, register_params} = sale.registration_details |> Jason.decode()
+        if sale != nil do
+          {:ok, register_params} = sale.registration_details |> Jason.decode()
 
-        scope = register_params |> Map.get("scope")
+          scope = register_params |> Map.get("scope")
 
-        if scope == "link_register" do
-          # when the payment got through only then pay the additional20% BP to the share link owner...
-          # aka sponsor...
+          if scope == "link_register" do
+            # when the payment got through only then pay the additional20% BP to the share link owner...
+            # aka sponsor...
 
-          create_wallet_transaction(%{
-            user_id: sale.sales_person_id,
-            amount: sale.grand_total * 0.2,
-            remarks: "Sales: #{sale.id}| Share link pay back as cash commission",
-            wallet_type: "bonus"
-          })
+            create_wallet_transaction(%{
+              user_id: sale.sales_person_id,
+              amount: sale.grand_total * 0.2,
+              remarks: "Sales: #{sale.id}| Share link pay back as cash commission",
+              wallet_type: "bonus"
+            })
+          end
+        else
+          nil
         end
 
         {:ok, nil}
@@ -8049,6 +8061,25 @@ defmodule CommerceFront.Settings do
       |> List.first()
 
     freebie = mi |> Repo.preload(:freebie) |> Map.get(:freebie)
+  end
+
+  def reseed_travel_wallet() do
+    users = Repo.all(User)
+
+    checks = Repo.all(from(w in Ewallet, where: w.wallet_type == "travel"))
+
+    for user <- users do
+      check = Enum.filter(checks, &(&1.user_id == user.id))
+
+      if check == [] do
+        CommerceFront.Settings.create_wallet_transaction(%{
+          user_id: user.id,
+          amount: 0.00,
+          remarks: "initial",
+          wallet_type: "travel"
+        })
+      end
+    end
   end
 
   @doc """

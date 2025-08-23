@@ -14,8 +14,8 @@ use Mix.Config
 #   http: [port: 2578]
 
 config :commerce_front, CommerceFrontWeb.Endpoint,
-  url: [host: "#{System.get_env("PROD_URL_ENDPOINT")}", port: 2578],
-  http: [port: 2578],
+  url: [host: "#{System.get_env("PROD_URL_ENDPOINT")}", port: 2538],
+  http: [port: 2538],
   check_origin: [
     "https://#{System.get_env("PROD_URL_ENDPOINT")}",
     "http://#{System.get_env("PROD_URL_ENDPOINT")}"

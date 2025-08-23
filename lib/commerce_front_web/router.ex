@@ -19,6 +19,23 @@ defmodule CommerceFrontWeb.Router do
     plug :fetch_session
     plug :fetch_flash
     plug :protect_from_forgery
+
+
+
+        plug CORSPlug,
+   
+      origin: [
+        "https://fonts.gstatic.com",
+        "https://svt.damienslab.com",
+        "https://test_svt.damienslab.com",
+        "http://svt.damienslab.com",
+        "https://admin.haho2u.com",
+        "http://admin.haho2u.com",
+        "http://test_svt.damienslab.com",
+        "http://localhost:5174",
+        "http://localhost:5173"
+      ]
+
     # plug :put_secure_browser_headers, %{"content-security-policy" => @content_security_policy}
   end
 
@@ -34,6 +51,7 @@ defmodule CommerceFrontWeb.Router do
     plug :accepts, ["json"]
 
     plug CORSPlug,
+      headers: ["phx-request", "authorization", "x-csrf-token"],
       origin: [
         "https://fonts.gstatic.com",
         "https://svt.damienslab.com",
@@ -77,10 +95,13 @@ defmodule CommerceFrontWeb.Router do
 
     get "/webhook", ApiController, :get
     post "/webhook", ApiController, :post
+    post "/webhook/login", ApiController, :post
+    options "/webhook/login", ApiController, :options
     options("/:model", ApiController, :datatable)
     get("/:model", ApiController, :datatable)
     post("/:model", ApiController, :form_submission)
-    options("/:model/:id", ApiController, :delete_data)
+
+        options "/*path", PageController, :index
     delete("/:model/:id", ApiController, :delete_data)
   end
 
@@ -100,6 +121,7 @@ defmodule CommerceFrontWeb.Router do
     pipe_through :api
 
     post "/webhook/login", ApiController, :post
+    options "/*path", PageController, :index
   end
 
   scope "/api", CommerceFrontWeb do
