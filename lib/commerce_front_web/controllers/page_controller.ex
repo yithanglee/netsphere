@@ -106,9 +106,9 @@ defmodule CommerceFrontWeb.PageController do
           Enum.reduce(Map.keys(translation_map), bin, &translate.(&1, &2)) |> IO.inspect()
 
         append_cache_request = fn conn ->
-          # conn
-          # |> put_resp_header("cache-control", "max-age=900, must-revalidate")
           conn
+          |> put_resp_header("cache-control", "max-age=900, must-revalidate")
+          # conn
         end
 
         conn

@@ -208,6 +208,58 @@ defmodule CommerceFront do
     Repo.delete_all(from(u in Settings.User, where: u.username in ^samples1))
   end
 
+  def seed_data() do
+    # CommerceFront.Settings.create_country(%{name: "Thailand", alias: "TH", currency: "THB", conversion: 1})
+    # CommerceFront.Settings.create_country(%{name: "Malaysia", alias: "MY", currency: "MYR", conversion: 1})
+    # owner = Settings.get_admin_staff()
+
+    # Settings.create_staff(%{
+    #   name: "admin",
+    #   username: "admin",
+    #   password: "admin",
+    #   role_id: owner.id
+    # })
+    # |> IO.inspect()
+
+    # CommerceFront.Settings.update_svt_menus()
+
+
+    CommerceFront.Settings.create_rank(%{
+      name: "Bronze",
+      retail_price: 100,
+      register_point: 100,
+      point_value: 70
+    })
+
+
+    CommerceFront.Settings.create_rank(%{
+      name: "Shopper",
+      retail_price: 0,
+      register_point: 0,
+      point_value: 0
+    })
+    CommerceFront.Settings.create_rank(%{
+      name: "Silver",
+      retail_price: 600,
+      register_point: 600,
+      point_value: 420
+    })
+
+    CommerceFront.Settings.create_rank(%{
+      name: "Gold",
+      retail_price: 1200,
+      register_point: 1200,
+      point_value: 840
+    })
+
+    CommerceFront.Settings.create_rank(%{
+      name: "Diamond",
+      retail_price: 3600,
+      register_point: 3600,
+      point_value: 2520
+    })
+  end
+
   def get_order() do
     pid = Process.whereis(:rest_1)
     Agent.get(pid, fn x -> x end)
