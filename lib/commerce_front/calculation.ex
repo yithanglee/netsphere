@@ -89,54 +89,50 @@ defmodule CommerceFront.Calculation do
         # else
         # # prev code here 
         # end
-          if index < 8 do
-            IO.inspect("current index at #{index}")
+        if index < 8 do
+          IO.inspect("current index at #{index}")
 
-            max =
-              matrix |> Enum.filter(&(&1.rank == upline.rank)) |> List.first() |> Map.get(:max)
+          max =
+            matrix |> Enum.filter(&(&1.rank == upline.rank)) |> List.first() |> Map.get(:max)
 
-            perc = (merchant.commission_perc / 8) |> Float.round(4)
+          perc = (merchant.commission_perc / 8) |> Float.round(4)
 
-            if index < max do
-              amount = (perc * sale.total_point_value) |> Float.round(2)
+          if index < max do
+            amount = (perc * sale.total_point_value) |> Float.round(2)
 
-              CommerceFront.Settings.create_reward(%{
-                sales_id: sale.id,
-                is_paid: false,
-                remarks:
-                  "sales-#{sale.id} on #{y}-#{m}-#{d}|commission perc: #{perc}|level: #{index + 1}|upline rank: #{upline.rank} | #{perc} * #{sale.total_point_value} ",
-                name: "merchant sales level bonus",
-                amount: amount,
-                user_id: upline.parent_id,
-                day: d,
-                month: m,
-                year: y
-              })
-            else
-              IO.inspect("not qualify, will pay to unpaid")
+            CommerceFront.Settings.create_reward(%{
+              sales_id: sale.id,
+              is_paid: false,
+              remarks:
+                "sales-#{sale.id} on #{y}-#{m}-#{d}|commission perc: #{perc}|level: #{index + 1}|upline rank: #{upline.rank} | #{perc} * #{sale.total_point_value} ",
+              name: "merchant sales level bonus",
+              amount: amount,
+              user_id: upline.parent_id,
+              day: d,
+              month: m,
+              year: y
+            })
+          else
+            IO.inspect("not qualify, will pay to unpaid")
 
-              amount = (perc * sale.total_point_value) |> Float.round(2)
+            amount = (perc * sale.total_point_value) |> Float.round(2)
 
-              CommerceFront.Settings.create_reward(%{
-                sales_id: sale.id,
-                is_paid: false,
-                remarks:
-                  "sales-#{sale.id} on #{y}-#{m}-#{d}|commission perc: #{perc}|level: #{index + 1}| #{perc} * #{sale.total_point_value} ",
-                name: "merchant sales level bonus",
-                amount: amount,
-                user_id: unpaid_node.parent_id,
-                day: d,
-                month: m,
-                year: y
-              })
-            end
+            CommerceFront.Settings.create_reward(%{
+              sales_id: sale.id,
+              is_paid: false,
+              remarks:
+                "sales-#{sale.id} on #{y}-#{m}-#{d}|commission perc: #{perc}|level: #{index + 1}| #{perc} * #{sale.total_point_value} ",
+              name: "merchant sales level bonus",
+              amount: amount,
+              user_id: unpaid_node.parent_id,
+              day: d,
+              month: m,
+              year: y
+            })
           end
+        end
 
-          index + 1
-
-
-
-
+        index + 1
       else
         index
       end
@@ -231,7 +227,7 @@ defmodule CommerceFront.Calculation do
             IO.inspect("there is paid royalty bonus ")
           end
 
-          nil 
+          nil
         end
       else
         {prev_perc, accumulated_perc}
@@ -466,9 +462,10 @@ defmodule CommerceFront.Calculation do
 
     matrix = [
       # %{rank: "Shopper", l1: 0.0, calculated: false},
-      %{rank: "铜级套餐", l1: 0.2, calculated: false},
-      %{rank: "银级套餐", l1: 0.2, l2: 0.1, calculated: false},
-      %{rank: "金级套餐", l1: 0.2, l2: 0.1, l3: 0.1, calculated: false}
+      %{rank: "Bronze", l1: 0.08, calculated: false},
+      %{rank: "Silver", l1: 0.08, calculated: false},
+      %{rank: "Gold", l1: 0.08, calculated: false},
+      %{rank: "Diamond", l1: 0.08, calculated: false}
     ]
 
     run_calc = fn {upline, index}, {calc_index, eval_matrix, remainder_point_value} ->
@@ -678,16 +675,17 @@ defmodule CommerceFront.Calculation do
           CommerceFront.Settings.update_group_sales_summary(summary, changeset)
         end)
         |> Multi.run(String.to_atom("bonus_#{summary.user_id}"), fn _repo, %{} ->
-          bonus = paired * 0.1
+          matrix = [
+            %{rank: "Bronze", cap: 100, perc: 0.12},
+            %{rank: "Silver", cap: 600, perc: 0.14},
+            %{rank: "Gold", cap: 1200, perc: 0.15},
+            %{rank: "Diamond", cap: 3600, perc: 0.16}
+          ]
 
           user = summary.user |> Repo.preload(:rank)
           rank = user |> Map.get(:rank)
-
-          matrix = [
-            %{rank: "铜级套餐", cap: 100},
-            %{rank: "银级套餐", cap: 500},
-            %{rank: "金级套餐", cap: 1500}
-          ]
+          calc_perc = matrix |> Enum.filter(&(&1.rank == rank.name)) |> List.first()
+          bonus = paired * calc_perc.perc
 
           {{y, m, d}, _time} = NaiveDateTime.to_erl(sale.inserted_at)
 
@@ -897,16 +895,17 @@ defmodule CommerceFront.Calculation do
           CommerceFront.Settings.update_group_sales_summary(summary, changeset)
         end)
         |> Multi.run(String.to_atom("bonus_#{summary.user_id}"), fn _repo, %{} ->
-          bonus = paired * 0.1
+          matrix = [
+            %{rank: "Bronze", cap: 100, perc: 0.12},
+            %{rank: "Silver", cap: 600, perc: 0.14},
+            %{rank: "Gold", cap: 1200, perc: 0.15},
+            %{rank: "Diamond", cap: 3600, perc: 0.16}
+          ]
 
           user = summary.user |> Repo.preload(:rank)
           rank = user |> Map.get(:rank)
-
-          matrix = [
-            %{rank: "铜级套餐", cap: 100},
-            %{rank: "银级套餐", cap: 500},
-            %{rank: "金级套餐", cap: 1500}
-          ]
+          calc_perc = matrix |> Enum.filter(&(&1.rank == rank.name)) |> List.first()
+          bonus = paired * calc_perc.perc
 
           {y, m, d} = date |> Date.to_erl()
 
@@ -996,7 +995,7 @@ defmodule CommerceFront.Calculation do
             remarks:
               "#{date}|user_cap:#{user_cap}||left(#{left_d |> Map.get(:username)}):
             before: #{left_d_latest_gs.new_left + left_d_latest_gs.new_right} |+ c/f(#{map.user.username}) #{prev_summary.balance_left} = #{summary.total_left}, |matched: #{paired}, after: #{changeset.balance_left} ||right(#{right_d |> Map.get(:username)}):
-            before: #{right_d_latest_gs.new_left + right_d_latest_gs.new_right} |+ c/f(#{map.user.username}) #{prev_summary.balance_right} = #{summary.total_right}, |matched: #{paired}, after: #{changeset.balance_right}||#{paired} * #{0.1} = #{bonus}|",
+            before: #{right_d_latest_gs.new_left + right_d_latest_gs.new_right} |+ c/f(#{map.user.username}) #{prev_summary.balance_right} = #{summary.total_right}, |matched: #{paired}, after: #{changeset.balance_right}||#{paired} * #{calc_perc.perc} = #{bonus}|",
             name: "team bonus",
             amount: final_pay,
             user_id: last_pgsd.to_user_id,
@@ -1175,12 +1174,15 @@ defmodule CommerceFront.Calculation do
               end
 
             matrix = [
-              %{amount: 500, l1: 0.1},
-              %{amount: 1000, l1: 0.1, l2: 0.1},
-              %{amount: 1500, l1: 0.1, l2: 0.1, l3: 0.1}
+              %{rank: "Bronze", l1: 0.03},
+              %{rank: "Silver", l1: 0.03, l2: 0.03},
+              %{rank: "Gold", l1: 0.03, l2: 0.03, l3: 0.04},
+              %{rank: "Diamond", l1: 0.03, l2: 0.03, l3: 0.04, l4: 0.05}
             ]
 
-            map = Enum.filter(matrix, &(&1.amount <= weak_amount)) |> List.last()
+            map = matrix |> Enum.filter(&(&1.rank == upline.rank)) |> List.first()
+
+            # map = Enum.filter(matrix, &(&1.amount <= weak_amount)) |> List.last()
 
             if map != nil do
               if index < 4 do
@@ -1195,6 +1197,9 @@ defmodule CommerceFront.Calculation do
                     3 ->
                       map |> Map.get(:l3, 0)
 
+                    4 ->
+                      map |> Map.get(:l4, 0)
+
                     _ ->
                       0
                   end
@@ -1205,7 +1210,7 @@ defmodule CommerceFront.Calculation do
                   sales_id: 0,
                   is_paid: false,
                   remarks:
-                    "#{check.sum |> :erlang.float_to_binary(decimals: 2)} * #{constant} = #{bonus}||lvl:#{index}||#{user.username} team bonus at #{month}-#{year}: #{check.sum |> :erlang.float_to_binary(decimals: 2)}||#{weak_leg.username} leg: #{weak_leg.left} vs #{weak_leg.right}",
+                    "#{check.sum |> :erlang.float_to_binary(decimals: 2)} * #{constant} = #{bonus}||lvl:#{index}||#{user.username} team bonus at #{month}-#{year}: #{check.sum |> :erlang.float_to_binary(decimals: 2)}",
                   name: "matching bonus",
                   amount: bonus |> Float.round(2),
                   user_id: upline.parent_id,
@@ -1286,6 +1291,7 @@ defmodule CommerceFront.Calculation do
     group_sales_summaries gss
     left join users u on u.id = gss.user_id
     where
+    u.id is not null and
     gss.month = $1
     and gss.year = $2
     group by
@@ -1304,12 +1310,12 @@ defmodule CommerceFront.Calculation do
       for row <- rows do
         Enum.zip(columns |> Enum.map(&(&1 |> String.to_atom())), row) |> Enum.into(%{})
       end
-      |> List.insert_at(0, %{
-        left: 50001,
-        right: 50000,
-        user_id: unpaid_node.parent_id,
-        username: unpaid_node.parent
-      })
+      # |> List.insert_at(0, %{
+      #   left: 50001,
+      #   right: 50000,
+      #   user_id: unpaid_node.parent_id,
+      #   username: unpaid_node.parent
+      # })
 
     Repo.delete_all(
       from(r in Reward,
@@ -1325,11 +1331,12 @@ defmodule CommerceFront.Calculation do
       # 1star pool = 8k * 0.01  ?
 
       matrix = [
-        %{name: "1star", qualify: 1500},
-        %{name: "2star", qualify: 3000},
-        %{name: "3star", qualify: 10000},
-        %{name: "4star", qualify: 30000},
-        %{name: "5star", qualify: 50000}
+        %{name: "all", qualify: 0},
+        # %{name: "1star", qualify: 1500},
+        # %{name: "2star", qualify: 3000},
+        # %{name: "3star", qualify: 10000},
+        # %{name: "4star", qualify: 30000},
+        # %{name: "5star", qualify: 50000}
       ]
 
       for %{name: star_name, qualify: amount} = star <- matrix do
@@ -1353,7 +1360,7 @@ defmodule CommerceFront.Calculation do
         count = Enum.count(one_star_qualifier)
 
         if count > 0 do
-          one_star_amount = total_sales_pv * 0.01 / count
+          one_star_amount = total_sales_pv * 0.03 / count
 
           for weak_leg <- one_star_qualifier do
             weak_amount =
@@ -1367,7 +1374,7 @@ defmodule CommerceFront.Calculation do
               sales_id: 0,
               is_paid: false,
               remarks:
-                "#{total_sales_pv} * 0.01/ #{count} = #{one_star_amount |> :erlang.float_to_binary(decimals: 2)}|weak_leg: #{weak_amount}|pool qualifiers: #{count}|#{star_name}",
+                "#{total_sales_pv} * 0.03/ #{count} = #{one_star_amount |> :erlang.float_to_binary(decimals: 2)}|weak_leg: #{weak_amount}|pool qualifiers: #{count}|#{star_name}",
               name: "elite leader",
               amount: one_star_amount |> Float.round(2),
               user_id: weak_leg.user_id,
@@ -1618,7 +1625,7 @@ defmodule CommerceFront.Calculation do
         left_join: u in CommerceFront.Settings.User,
         on: u.id == ew.user_id,
         where: ew.wallet_type == ^:product,
-        where: u.username != "haho_unpaid",
+        where: u.username != "netsphere_unpaid",
         where: wt.amount > 0.0,
         where: wt.inserted_at > ^datetime and wt.inserted_at < ^end_datetime,
         group_by: [ew.user_id, u.username],

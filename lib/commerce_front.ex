@@ -209,19 +209,19 @@ defmodule CommerceFront do
   end
 
   def seed_data() do
-    # CommerceFront.Settings.create_country(%{name: "Thailand", alias: "TH", currency: "THB", conversion: 1})
-    # CommerceFront.Settings.create_country(%{name: "Malaysia", alias: "MY", currency: "MYR", conversion: 1})
-    # owner = Settings.get_admin_staff()
+    CommerceFront.Settings.create_country(%{name: "Thailand", alias: "TH", currency: "THB", conversion: 1})
+    CommerceFront.Settings.create_country(%{name: "Malaysia", alias: "MY", currency: "MYR", conversion: 1})
+    owner = CommerceFront.Settings.get_admin_staff()
 
-    # Settings.create_staff(%{
-    #   name: "admin",
-    #   username: "admin",
-    #   password: "admin",
-    #   role_id: owner.id
-    # })
-    # |> IO.inspect()
+    CommerceFront.Settings.create_staff(%{
+      name: "admin",
+      username: "admin",
+      password: "admin",
+      role_id: owner.id
+    })
+    |> IO.inspect()
 
-    # CommerceFront.Settings.update_svt_menus()
+    CommerceFront.Settings.update_svt_menus()
 
 
     CommerceFront.Settings.create_rank(%{

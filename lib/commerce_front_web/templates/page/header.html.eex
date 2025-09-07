@@ -47,17 +47,17 @@ has_merchant = @merchant != nil
       <%= if has_merchant do %>
       <tr>
         <td colspan="3" class="text-center">
-      <%= if @merchant.img_url != nil do  %>
-          <div class="" style="
-                                  height: 60px;
-                                    background-repeat: no-repeat;
-                                    background-position: center;
-                                    background-size: contain;
-                                    background-image: url('<%= @merchant.img_url %>');
-                                
-                                  ">
-          </div>
-      <% end %>
+          <%= if @merchant.img_url != nil do  %>
+              <div class="" style="
+                                      height: 60px;
+                                        background-repeat: no-repeat;
+                                        background-position: center;
+                                        background-size: contain;
+                                        background-image: url('<%= @merchant.img_url %>');
+                                    
+                                      ">
+              </div>
+          <% end %>
           <div>
             <div><%= @merchant.name %></div><small>(<%= @merchant.company_reg_no %>) </small>
           </div>
@@ -75,7 +75,7 @@ has_merchant = @merchant != nil
 
       <tr>
         <td colspan="3" class="text-center">
-          <div class="" style="
+          <!-- <div class="" style="
                                   height: 60px;
                                     background-repeat: no-repeat;
                                     background-position: center;
@@ -83,19 +83,18 @@ has_merchant = @merchant != nil
                                     background-image: url('/images/haho_long.png');
                                 
                                   ">
-          </div>
+          </div> -->
           <div>
-            <div>HAHO LIFE SDN BHD</div><small>(1498125-D) </small>
+            <div>Netsphere Mall</div><small></small>
           </div>
         </td>
       </tr>
       <tr>
-        <td colspan="3" class="text-center">J-2-10, Kuchai Business Park, No.2, Jalan 1/127,<br>Off Jalan Kuchai Lama,
-          58200 Kuala Lumpur, Malaysia.</td>
+        <td colspan="3" class="text-center"></td>
       </tr>
       <tr>
-        <td>Phone: +60 19-329 7627</td>
-        <td>Email: haho_support@gmail.com</td>
+        <td></td>
+        <td></td>
         <td></td>
       </tr>
       <% end %>

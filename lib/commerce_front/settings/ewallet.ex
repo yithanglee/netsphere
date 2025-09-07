@@ -14,6 +14,7 @@ defmodule CommerceFront.Settings.Ewallet do
      travel
      merchant
      merchant_bonus
+     token
     )
   )
 

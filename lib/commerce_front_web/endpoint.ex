@@ -15,14 +15,14 @@ defmodule CommerceFrontWeb.Endpoint do
     longpoll: false
 
   # Serve at "/" the static files from "priv/static" directory.
-  #
+  # can remove the html from the only list
   # You should set gzip to true if you are running phx.digest
   # when deploying your static files in production.
   plug Plug.Static,
     at: "/",
     from: :commerce_front,
     gzip: false,
-    only: ~w(sw.js  js  css fonts images vendor  favicon.ico webfonts robots.txt manifest.json)
+    only: ~w(sw.js   js  css fonts images vendor  favicon.ico webfonts robots.txt manifest.json)
 
 
 

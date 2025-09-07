@@ -1,3 +1,128 @@
+## Frontend Architecture (Vite + Phoenix)
+
+### Overview
+- The Vite app uses a lightweight, custom router defined in `vite_front/src/main.js` (`route_list`).
+- Pages are plain static HTML files served by Phoenix from `netsphere/priv/static/html/v2/*.html`.
+- Navigation calls `phxApp_.html(page)` to fetch and inject the static HTML into `#content`.
+- Static HTML can contain custom elements (e.g., `<products></products>`). After navigation, `commerceApp_.render()` scans the DOM and executes matching component functions to populate those elements.
+
+### Key files
+- `vite_front/src/main.js`: Registers routes and boots the app (calls `phxApp_.navigateTo()` on load).
+- `vite_front/src/phx_app.js`:
+  - Exposes config via Vite envs: `VITE_PHX_ENDPOINT`, `VITE_PHX_HTTP_PROTOCOL`, `VITE_PHX_WS_PROTOCOL`, `VITE_PHX_COOKIE`.
+  - `html(page)`: synchronously fetches Phoenix static HTML: `${PHX_HTTP_PROTOCOL}${PHX_ENDPOINT}/html/<lang>/<page>`.
+  - `navigateTo(route)`: resolves route → loads nav + page HTML → calls `navigateCallback()`.
+  - `navigateCallback()`: restores user/cart, calls `commerceApp_.render()`, formats UI.
+  - HTTP helpers: `api(scope, params, ...)` (GET), `post(scope, params, ...)` (POST), `form(...)`, `modal(...)`, `toast(...)`, `notify(...)`.
+- `vite_front/src/commerce_app.js`:
+  - Manages cart state, product listing, and page widgets.
+  - `render()`: finds custom tags and invokes the component with the same name to populate them (e.g., `<products>` → `components.products()`).
+  - `components`: collection of functions, one per custom element (e.g., `products`, `product`, `cartItems`, etc.).
+- Static pages: `netsphere/priv/static/html/v2/*.html` (e.g., `landing.html` includes `<products></products>`).
+
+### Routing flow
+1. `route_list` in `vite_front/src/main.js` holds `{ html, title, route, [public], [skipNav] }` entries.
+2. `phxApp_.navigateTo("/path")` matches a route, loads nav + `html`, sets `<title>`, updates history.
+3. `navigateCallback()` runs, which calls `commerceApp_.render()`.
+4. `commerceApp_.render()` looks for matching custom elements and renders components into them.
+
+Example route entry in `vite_front/src/main.js`:
+```js
+{ html: "landing.html", title: "Home", route: "/home", public: true }
+```
+
+`phx_app.js` HTML fetcher (simplified):
+```js
+html(page) {
+  const url = this.endpoint + "/html/" + langPrefix + "/" + page;
+  let res = "";
+  $.ajax({ async: false, method: "get", url }).done(j => { res = j; });
+  return res;
+}
+```
+
+### Components and custom elements
+- In any static HTML, you can declare a custom tag and provide a component function with the same name under `commerceApp_.components`.
+- After each navigation, `commerceApp_.render()` runs and populates all discovered tags.
+
+Example (`netsphere/priv/static/html/v2/landing.html`):
+```html
+<section>
+  <div class="container p-4">
+    <div class="d-flex flex-column align-items-center justify-content-center mt-4">
+      <span class="text-sm text-primary">New Arrivals</span>
+      <div class="fs-2 fw-bold border-bottom border-5 border-success">Products</div>
+    </div>
+    <products></products>
+  </div>
+  <!-- The <products> tag will be rendered by commerceApp_.components.products() -->
+  
+</section>
+```
+
+Example component (`vite_front/src/commerce_app.js`):
+```js
+components: {
+  products() {
+    $("products").customHtml(`...loading markup...`).then(() => {
+      // Fetch and render your product grid/list
+    });
+  }
+}
+```
+
+### Add a new page (step-by-step)
+1) Create the static HTML file under `netsphere/priv/static/html/v2/`, e.g. `about.html`.
+   - Optionally add custom elements like `<aboutContent></aboutContent>`.
+
+2) Add a component in `vite_front/src/commerce_app.js` matching your custom tag:
+```js
+components: {
+  aboutContent() {
+    $("aboutContent").customHtml(`<div class="p-4">About content here</div>`);
+  }
+}
+```
+
+3) Register the route in `vite_front/src/main.js` `addRoutes()`:
+```js
+{ html: "about.html", title: "About", route: "/about", public: true }
+```
+
+4) Navigate to the route (e.g., clicking a link with class `navi` or calling `phxApp_.navigateTo('/about')`).
+
+### Calling backend APIs
+- Use `phxApp_.api(scope, params, failedCb?, successCb?)` for GETs to `/svt_api/webhook?scope=<scope>`.
+- Use `phxApp_.post(scope, params, failedCb?, successCb?)` for POSTs to the same webhook endpoint.
+- For CRUD on modules, `phxApp_.createForm()` and related helpers generate forms and submit to `/svt_api/<ModuleName>`.
+- CSRF tokens are handled via `phxApp_.csrf_()` and injected where needed.
+
+### Environment variables (Vite)
+Define these in your Vite environment (.env, .env.local, etc.):
+```bash
+VITE_PHX_ENDPOINT=your-phoenix-hostname:4000
+VITE_PHX_HTTP_PROTOCOL=http://
+VITE_PHX_WS_PROTOCOL=ws://
+VITE_PHX_COOKIE=phx_session
+```
+`phx_app.js` builds `phxApp_.endpoint = VITE_PHX_HTTP_PROTOCOL + VITE_PHX_ENDPOINT`.
+
+### Run the app
+- Phoenix (from `netsphere/`):
+  - `mix deps.get`
+  - `mix phx.server`
+- Vite frontend (from `vite_front/`):
+  - Install dependencies and run your usual Vite dev/build scripts (ensure env vars above are set). The frontend will query the Phoenix endpoint configured by the Vite envs.
+
+### Troubleshooting
+- If a page shows but custom elements remain empty, ensure:
+  - The custom tag exactly matches a function name under `commerceApp_.components`.
+  - `commerceApp_.render()` is called (it runs from `phxApp_.navigateCallback()`).
+  - The static HTML filename exists under `netsphere/priv/static/html/v2/` and is referenced in the route.
+  - Vite envs point to the correct Phoenix host and scheme.
+
+---
+
 # CommerceFront
 
 To start your Phoenix server:

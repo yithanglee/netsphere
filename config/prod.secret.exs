@@ -48,6 +48,9 @@ config :commerce_front, :billplz,
   endpoint: System.get_env("BILLPLZ_API_ENDPOINT_PROD"),
   callback: System.get_env("BILLPLZ_API_CALLBACK_URL_PROD")
 
+
+
+
 config :commerce_front, :razer,
   vkey: System.get_env("RAZER_VKEY_PROD"),
   mid: System.get_env("RAZER_MID_PROD"),
@@ -55,33 +58,29 @@ config :commerce_front, :razer,
 
 config :commerce_front, CommerceFront.Mailer,
   adapter: Bamboo.SMTPAdapter,
-  server: "smtp.zoho.com",
-  hostname: "haho2u.com",
-  # port: 25,
-  port: 465,
-  # or {:system, "SMTP_USERNAME"}
-  username: "support@haho2u.com",
-  # or {:system, "SMTP_PASSWORD"}
-  password: "jakk@cT2",
-  # can be `:always` or `:never`
-  tls: :never,
-  # or {:system, "ALLOWED_TLS_VERSIONS"} w/ comma separated values (e.g. "tlsv1.1,tlsv1.2")
-  allowed_tls_versions: [:tlsv1, :"tlsv1.1", :"tlsv1.2"],
+  server: "localhost",
+  hostname: "mail.damienslab.com",
+  port: 25,
+  username: "ubuntu",
+  password: "unwanted2",
+  tls: :always,
+  allowed_tls_versions: [:"tlsv1.2"],
   tls_log_level: :error,
-  # optional, can be `:verify_peer` or `:verify_none`
   tls_verify: :verify_none,
-  # optional, path to the ca truststore
-  # tls_cacertfile: "/somewhere/on/disk",
-  # optional, DER-encoded trusted certificates
-  # tls_cacerts: "…",
-  # optional, tls certificate chain depth
-  # tls_depth: 3,
-  # optional, tls verification function
-  # tls_verify_fun: {&:ssl_verify_hostname.verify_fun/3, check_hostname: "example.com"},
-  # can be `true`
-  ssl: true,
+  ssl: false,
   retries: 1,
-  # can be `true`
   no_mx_lookups: false,
-  # can be `:always`. If your smtp relay requires authentication set it to `:always`.
   auth: :if_available
+
+
+  config :rustler_precompiled, :force_build, ex_secp256k1: true
+  config :rustler_precompiled, :force_build, ex_keccak: true
+
+config :commerce_front, :nowpayments,
+  endpoint: "https://api.nowpayments.io",
+  api_key: System.get_env("NOWPAYMENTS_API_KEY"),
+  price_currency: "USD", # how you price internally
+  callback: System.get_env("NOWPAYMENTS_CALLBACK_URL_PROD"),
+  success_url: System.get_env("NOWPAYMENTS_SUCCESS_URL_PROD"),
+  cancel_url: System.get_env("NOWPAYMENTS_CANCEL_URL_PROD")
+

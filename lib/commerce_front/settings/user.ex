@@ -31,7 +31,7 @@ defmodule CommerceFront.Settings.User do
     field(:is_stockist, :boolean, default: false)
     has_one(:placement, CommerceFront.Settings.Placement)
     field(:stockist_user_id, :integer)
-
+    has_one(:crypto_wallet, CommerceFront.Settings.CryptoWallet)
     has_many(:stockist_users, CommerceFront.Settings.User, foreign_key: :stockist_user_id)
     has_many(:ewallets, CommerceFront.Settings.Ewallet)
     has_many(:parent_ewallets, through: [:sponsor, :ewallets])

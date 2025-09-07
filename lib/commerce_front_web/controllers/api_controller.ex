@@ -74,6 +74,10 @@ defmodule CommerceFrontWeb.ApiController do
 
     res =
       case params["scope"] do
+        "crypto_wallet" ->
+          Settings.get_crypto_wallet_by_user_id(id)
+          |> BluePotion.sanitize_struct()
+
         "travel_fund_qualifiers" ->
           Settings.travel_fund_qualifier(
             params["year"] |> String.to_integer(),
@@ -84,6 +88,19 @@ defmodule CommerceFrontWeb.ApiController do
           server_url = Application.get_env(:commerce_front, :endpoint)[:url]
 
           "#{server_url}/test_razer?chan=#{params["channel"]}&amt=#{params["amt"]}&ref_no=#{params["id"]}"
+
+        "nowpayments_pay" ->
+          case NowPayments.create_invoice(
+                 params["id"],
+                 params["amt"],
+                 %{pay_currency: "USDT", pay_chain: "polygon"}
+               ) do
+            %{status: :ok, url: url} ->
+              url
+
+            %{status: :error, reason: reason} ->
+              %{status: "error", reason: "NowPayments: #{inspect(reason)}"}
+          end
 
         "razer_list" ->
           case Application.get_env(:commerce_front, :release) do
@@ -481,22 +498,43 @@ defmodule CommerceFrontWeb.ApiController do
 
           payment = Settings.get_payment_by_billplz_code(params["id"])
 
-          if payment.webhook_details == nil do
+          sample = %{
+            payment_status: "waiting",
+            raw: %{
+              "actually_paid" => 0,
+              "burning_percent" => "null",
+              "created_at" => "2025-09-02T13:43:16.493Z",
+              "invoice_id" => 5_561_061_957,
+              "order_description" => "Order NETSTOPUP17",
+              "order_id" => "NETSTOPUP17",
+              "outcome_amount" => 1181.698599,
+              "outcome_currency" => "usdtmatic",
+              "pay_address" => "0x79C4E17B920a8326739cD2839B59c0b02E9d5dB5",
+              "pay_amount" => 1187.650266,
+              "pay_currency" => "usdtmatic",
+              "payin_extra_id" => nil,
+              "payin_hash" => nil,
+              "payment_id" => 5_820_908_317,
+              "payment_status" => "waiting",
+              "payout_hash" => nil,
+              "price_amount" => 1200,
+              "price_currency" => "usd",
+              "purchase_id" => 6_076_072_117,
+              "type" => "crypto2crypto",
+              "updated_at" => "2025-09-02T13:43:16.493Z"
+            },
+            status: :ok
+          }
+
+          webhook_details = NowPayments.get_payment_status(params["id"])
+
+          if webhook_details.payment_status == "waiting" do
             %{
               status: "error",
-              reason: "Payment havent process by bank, please check again at a later time."
+              reason: "Payment havent process by platform, please check again at a later time."
             }
           else
-            tranID =
-              payment.webhook_details |> Jason.decode!() |> Map.get("tranID") |> IO.inspect()
-
-            res =
-              Razer.enquire_transaction(
-                tranID,
-                payment.amount |> :erlang.float_to_binary(decimals: 2)
-              )
-
-            with true <- res["StatCode"] == "00",
+            with true <- webhook_details.payment_status == "finished",
                  true <- payment != nil,
                  true <- payment.sales != nil,
                  sales <- payment.sales,
@@ -510,7 +548,7 @@ defmodule CommerceFrontWeb.ApiController do
               end
             else
               _ ->
-                with true <- res["StatCode"] == "00",
+                with true <- webhook_details.payment_status == "finished",
                      true <- payment != nil,
                      true <- payment.wallet_topup != nil do
                   case Settings.approve_topup(%{"id" => payment.wallet_topup.id})
@@ -591,7 +629,7 @@ defmodule CommerceFrontWeb.ApiController do
           if starter != nil do
             check =
               CommerceFront.Settings.check_uplines(params["username"])
-              |> Enum.filter(&(&1.parent == starter))
+              # |> Enum.filter(&(&1.parent == starter))
 
             if check != [] do
               Settings.display_place_tree(params["username"], params["full"])
@@ -728,6 +766,53 @@ defmodule CommerceFrontWeb.ApiController do
     json(conn, %{})
   end
 
+  def nowpayments_payment(conn, params) do
+    IO.inspect(params)
+
+    order_id =
+      params["order_id"] || params["orderId"] || params["order"]
+
+    payment = Settings.get_payment_by_billplz_code(order_id)
+
+    if payment != nil do
+      payment |> Settings.update_payment(%{webhook_details: Jason.encode!(params)})
+    end
+
+    paid? = params["payment_status"] in ["finished", "confirmed"]
+
+    res =
+      with true <- paid?,
+           true <- payment != nil,
+           true <- payment.sales != nil,
+           sales <- payment.sales,
+           {:ok, register_params} <- sales.registration_details |> Jason.decode() do
+        case Settings.register(register_params["user"], sales) do
+          {:ok, multi_res} ->
+            %{status: "ok", res: multi_res |> BluePotion.sanitize_struct()}
+
+          _ ->
+            %{status: "error"}
+        end
+      else
+        _ ->
+          case paid? && payment != nil && payment.wallet_topup != nil do
+            true ->
+              case Settings.approve_topup(%{"id" => payment.wallet_topup.id}) do
+                {:ok, tp} ->
+                  %{status: "ok", res: tp |> BluePotion.sanitize_struct()}
+
+                _ ->
+                  %{status: "error"}
+              end
+
+            _ ->
+              %{status: "ok"}
+          end
+      end
+
+    json(conn, res)
+  end
+
   def payment(conn, params) do
     payment = Settings.get_payment_by_billplz_code(params["id"])
 
@@ -782,6 +867,84 @@ defmodule CommerceFrontWeb.ApiController do
   def post(conn, params) do
     res =
       case params["scope"] do
+        "send_email_pin" ->
+          email = Map.get(params, "email")
+          name = Map.get(params, "name", email)
+          from_email = Map.get(params, "from_email", "admin@netspheremall.com")
+
+          code =
+            (:rand.uniform(899_999) + 100_000) |> Integer.to_string() |> IO.inspect(label: "code")
+
+          pid = Process.whereis(:email_pin_store)
+
+          pid =
+            if pid == nil do
+              {:ok, pid} = Agent.start_link(fn -> %{} end)
+              Process.register(pid, :email_pin_store)
+              pid
+            else
+              pid
+            end
+
+          expires_at = DateTime.utc_now() |> DateTime.add(600, :second) |> DateTime.to_unix()
+
+          Agent.update(pid, fn state ->
+            Map.put(state, String.downcase(email), %{
+              code: code,
+              attempts: 0,
+              expires_at: expires_at
+            })
+          end)
+
+          # CommerceFront.Email.send_verification_email(email, from_email, %{}, %{name: name, pin: code})
+          Elixir.Task.start_link(CommerceFront.Email, :send_verification_email, [
+            email,
+            from_email,
+            %{},
+            %{name: name, pin: code}
+          ])
+
+          %{status: "ok"}
+
+        "verify_email_pin" ->
+          email = Map.get(params, "email") |> String.downcase()
+          code = Map.get(params, "code")
+
+          pid = Process.whereis(:email_pin_store)
+
+          if pid == nil do
+            %{status: "error", reason: "No code found"}
+          else
+            entry = Agent.get(pid, fn state -> Map.get(state, email) end)
+
+            cond do
+              entry == nil ->
+                %{status: "error", reason: "No code found"}
+
+              entry.expires_at < DateTime.utc_now() |> DateTime.to_unix() ->
+                Agent.update(pid, fn state -> Map.delete(state, email) end)
+                %{status: "error", reason: "Code expired"}
+
+              entry.code == code ->
+                Agent.update(pid, fn state -> Map.delete(state, email) end)
+                %{status: "ok"}
+
+              true ->
+                attempts = entry.attempts + 1
+
+                Agent.update(pid, fn state ->
+                  Map.put(state, email, %{entry | attempts: attempts})
+                end)
+
+                if attempts >= 5 do
+                  Agent.update(pid, fn state -> Map.delete(state, email) end)
+                  %{status: "error", reason: "Too many attempts"}
+                else
+                  %{status: "error", reason: "Incorrect code"}
+                end
+            end
+          end
+
         "sponsor_pay_instalment" ->
           sample = %{
             "id" => 27,
@@ -1051,7 +1214,7 @@ defmodule CommerceFrontWeb.ApiController do
                {:ok, register_params} <- sales.registration_details |> Jason.decode() do
             case Settings.register(register_params["user"], sales) do
               {:ok, multi_res} ->
-                %{status: "ok", res: multi_res |> BluePotion.sanitize_struct()}
+                %{status: "ok", res: multi_res |> BluePotion.sanitize_struct() |> IO.inspect(label: "sanitize")}
 
               _ ->
                 %{status: "error"}
@@ -1194,28 +1357,128 @@ defmodule CommerceFrontWeb.ApiController do
           # get the billplz link first, then make payment
           # create the sales first
           # Settings.register(params["user"])
-          case Settings.create_sales_transaction(params) |> IO.inspect() do
+          sample =
+            %{
+              "_csrf_token" => "",
+              "scope" => "link_register",
+              "user" => %{
+                "country_id" => "",
+                "email" => "buyer@jimatlabs.com",
+                "fullname" => "LEE YIT HANG",
+                "password" => "[FILTERED]",
+                "payment" => %{"channel" => "", "method" => "razer"},
+                "phone" => "0122664254",
+                "pick_up_point_id" => "",
+                "pin" => "290558",
+                "placement" => %{"position" => ""},
+                "rank_id" => "",
+                "sales_person_id" => "1",
+                "share_code" => "c3fa8d2e-b1fa-446c-bfa6-06aaf750c844",
+                "sponsor" => "",
+                "username" => "nph03"
+              }
+            }
+
+          share_link =
+            if params["user"]["share_code"] != nil do
+              CommerceFront.Settings.get_share_link_by_code(params["user"]["share_code"])
+              |> Repo.preload(:user)
+            end
+
+          sponsor =
+            CommerceFront.Settings.get_user_by_username(share_link.user.username)
+            |> Repo.preload(:rank)
+            |> IO.inspect(label: "sponsor")
+
+          params =
+            params
+            |> Kernel.get_and_update_in(
+              ["user", "sales_person_id"],
+              &{&1, sponsor.id}
+            )
+            |> elem(1)
+
+          params =
+            params
+            |> Kernel.get_and_update_in(
+              ["user", "placement", "position"],
+              &{&1, share_link.position}
+            )
+            |> elem(1)
+
+          params =
+            params
+            |> Kernel.get_and_update_in(
+              ["user", "sponsor"],
+              &{&1, sponsor.username}
+            )
+            |> elem(1)
+
+          IO.inspect(params)
+
+          sample = %{
+            "_csrf_token" => "",
+            "scope" => "link_register",
+            "user" => %{
+              "country_id" => "",
+              "email" => "buyer@jimatlabs.com",
+              "fullname" => "LEE YIT HANG",
+              "password" => "123",
+              "payment" => %{"channel" => "", "method" => "razer"},
+              "phone" => "0122664254",
+              "pick_up_point_id" => "",
+              "pin" => "997341",
+              "placement" => %{"position" => "left"},
+              "rank_id" => "",
+              "sales_person_id" => 1,
+              "share_code" => "c3fa8d2e-b1fa-446c-bfa6-06aaf750c844",
+              "sponsor" => "",
+              "username" => "nph03"
+            }
+          }
+
+          case Settings.register_without_products(params["user"])
+               |> IO.inspect(label: "register_without_products") do
             {:ok, multi_res} ->
-              %{status: "ok", res: multi_res.payment |> BluePotion.sanitize_struct()}
+              user = multi_res.user
+              wallet_info = ZkEvm.Wallet.generate_wallet
+              Settings.create_crypto_wallet(%{
+                user_id: user.id, 
+                address: wallet_info.address, 
+                private_key: wallet_info.private_key, 
+                public_key: wallet_info.public_key
+                }) |> IO.inspect(label: "create_crypto_wallet")
+              token = Settings.member_token(user.id)
+              Settings.create_session_user(%{"cookie" => token, "user_id" => user.id})
 
-            {:error, :payment, "not sufficient", passed_cg} ->
-              %{status: "error", reason: "wallet balance not sufficient"}
+              %{status: "ok", res: user |> BluePotion.sanitize_struct() |> Map.put(:token, token)}
 
-            {:error, "Too much drp used."} ->
-              %{status: "error", reason: "Too much drp used."}
-
-            {:error, "Please enter a password."} ->
-              %{status: "error", reason: "Please enter a password."}
-
-            {:error, "Please check cart items."} ->
-              %{status: "error", reason: "Please check cart items."}
-
-            {:error, "Sponsor cannot be Shopper to register new member."} ->
-              %{status: "error", reason: "sponsor cannot be Shopper to register new member."}
-
-            _ ->
+            {:error, reason} ->
               %{status: "error", reason: "Please contact admin."}
           end
+
+        # case Settings.create_sales_transaction(params) |> IO.inspect() do
+        #   {:ok, multi_res} ->
+        #     %{status: "ok", res: multi_res.payment |> BluePotion.sanitize_struct()}
+
+        #   {:error, :payment, "not sufficient", passed_cg} ->
+        #     %{status: "error", reason: "wallet balance not sufficient"}
+
+        #   {:error, "Too much drp used."} ->
+        #     %{status: "error", reason: "Too much drp used."}
+
+        #   {:error, "Please enter a password."} ->
+        #     %{status: "error", reason: "Please enter a password."}
+
+        #   {:error, "Please check cart items."} ->
+        #     %{status: "error", reason: "Please check cart items."}
+
+        #   {:error, "Sponsor cannot be Shopper to register new member."} ->
+        #     %{status: "error", reason: "sponsor cannot be Shopper to register new member."}
+
+        #   _ ->
+        #     %{status: "error", reason: "Please contact admin."}
+        # end
 
         "register" ->
           # get the billplz link first, then make payment
@@ -1412,7 +1675,34 @@ defmodule CommerceFrontWeb.ApiController do
     params
   end
 
+  def client_ip(conn) do
+    xff =
+      conn
+      |> Plug.Conn.get_req_header("x-forwarded-for")
+      |> List.first()
+
+    x_real_ip =
+      conn
+      |> Plug.Conn.get_req_header("x-real-ip")
+      |> List.first()
+
+    cf_ip =
+      conn
+      |> Plug.Conn.get_req_header("cf-connecting-ip")
+      |> List.first()
+
+    cond do
+      is_binary(cf_ip) -> String.trim(cf_ip)
+      is_binary(x_real_ip) -> String.trim(x_real_ip)
+      is_binary(xff) -> xff |> String.split(",", parts: 2) |> List.first() |> String.trim()
+      is_tuple(conn.remote_ip) -> conn.remote_ip |> :inet.ntoa() |> to_string()
+      true -> nil
+    end
+  end
+
   def form_submission(conn, params) do
+    client_ip = client_ip(conn)
+
     model = Map.get(params, "model")
     params = Map.delete(params, "model")
 

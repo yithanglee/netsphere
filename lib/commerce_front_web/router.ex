@@ -21,6 +21,7 @@ defmodule CommerceFrontWeb.Router do
     plug(:protect_from_forgery)
 
     plug(CORSPlug,
+      headers: ["*"],
       origin: [
         "https://netspheremall.com",
         "https://www.netspheremall.com",
@@ -32,6 +33,7 @@ defmodule CommerceFrontWeb.Router do
         "http://admin.haho2u.com",
         "http://test_svt.damienslab.com",
         "http://localhost:5174",
+        "http://localhost:5274",
         "http://localhost:5173"
       ]
     )
@@ -64,6 +66,7 @@ defmodule CommerceFrontWeb.Router do
         "http://admin.netspheremall.com",
         "http://test_svt.damienslab.com",
         "http://localhost:5174",
+        "http://localhost:5274",
         "http://localhost:5173"
       ]
     )
@@ -89,6 +92,7 @@ defmodule CommerceFrontWeb.Router do
         "https://test_svt.damienslab.com",
         "http://test_svt.damienslab.com",
         "http://localhost:5174",
+        "http://localhost:5274",
         "http://localhost:5173"
       ]
     )
@@ -122,6 +126,7 @@ defmodule CommerceFrontWeb.Router do
   scope "/api", CommerceFrontWeb do
     pipe_through(:plain_api)
     post("/payment/razer", ApiController, :razer_payment)
+    post("/payment/nowpayments", ApiController, :nowpayments_payment)
     post("/payment/billplz", ApiController, :payment)
   end
 
@@ -144,7 +149,7 @@ defmodule CommerceFrontWeb.Router do
     post("/:model", ApiController, :form_submission)
     delete("/:model/:id", ApiController, :delete_data)
   end
-
+  # if dev can comment this
   scope "/html/:lang", CommerceFrontWeb do
     pipe_through([:browser])
     get("/*path", PageController, :html)

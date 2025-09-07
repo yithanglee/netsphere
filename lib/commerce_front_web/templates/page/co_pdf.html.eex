@@ -176,7 +176,7 @@ table td, table th {
               </td>
             </tr>
 
-            <tr class="fw-bold">
+            <!-- <tr class="fw-bold">
               <td colspan="4" class="text-end">
               <%= if has_merchant do %>
                 MP
@@ -187,7 +187,7 @@ table td, table th {
               <td class="text-end">
                 <%=  drp_amount |> :erlang.float_to_binary(decimals: 2) %>
               </td>
-            </tr>
+            </tr> -->
 
             <tr class="fw-bold">
               <td colspan="4" class="text-end">
@@ -213,14 +213,14 @@ table td, table th {
             </tr>
 
 
-            <tr class="fw-bold">
+            <!-- <tr class="fw-bold">
               <td colspan="4" class="text-end">
                 Grand Total In Local Currency (<%= currency %>)
               </td>
               <td class="text-end">
                 <%= @sale.grand_total * conversion_rate |> :erlang.float_to_binary(decimals: 2) %>
               </td>
-            </tr>
+            </tr> -->
           </tbody>
         </table>
       </center>

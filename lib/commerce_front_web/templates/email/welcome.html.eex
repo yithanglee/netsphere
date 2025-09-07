@@ -4,6 +4,10 @@
 <br>
 Welcome onboard!
 
+<%= if Map.get(@user, :pin) do %>
+<p>Your 6-digit PIN is: <strong><%= Map.get(@user, :pin) %></strong></p>
+<% end %>
+
 <br> <br> <br> <br>
 <div class="col-md-4 col-md-offset-1">
   <img style="height: 56px;" class="footer-logo" src="" alt="">

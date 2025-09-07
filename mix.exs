@@ -42,6 +42,11 @@ defmodule CommerceFront.MixProject do
        override: true, git: "https://github.com/yithanglee/blue_potion"},
       {:cors_plug, "~> 1.0"},
       {:distillery, "~> 2.1"},
+      {:ethereumex, "~> 0.10"},   # JSON-RPC client
+      {:ex_keccak, "~> 0.1"},     # Keccak hashing
+      {:ex_abi, "~> 0.5"},        # ABI encoding/decoding
+      {:ex_sha3, "~> 0.1"},       # Keccak hashing
+      {:ex_secp256k1, "0.7.4"},   # ECDSA signing for transactions
       {:mime, "~> 1.0"},
       {:phoenix, "~> 1.5.13"},
       {:phoenix_ecto, "~> 4.1"},
@@ -57,11 +62,13 @@ defmodule CommerceFront.MixProject do
       {:jason, "~> 1.0"},
       {:plug_cowboy, "~> 2.0"},
       {:poison, "~> 3.0"},
+      {:rustler, ">= 0.0.0", optional: true},
       {:mogrify, "~> 0.9.1"},
       {:sweet_xml, "~> 0.7"},
       {:web_push_encryption, "~> 0.3"},
       {:timex, "~> 3.0"},
-      {:quantum, "~> 2.0"}
+      {:quantum, "~> 2.0"},
+      
     ]
   end
 

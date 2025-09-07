@@ -89,4 +89,14 @@ config :commerce_front, :razer,
   mid: System.get_env("RAZER_MID"),
   endpoint: System.get_env("RAZER_ENDPOINT")
 
-config :commerce_front, CommerceFront.Mailer, adapter: Bamboo.LocalAdapter
+config :commerce_front, :nowpayments,
+  endpoint: "https://api.nowpayments.io",
+  api_key: System.get_env("NOWPAYMENTS_API_KEY"),
+  price_currency: "USD", # how you price internally
+  callback: System.get_env("NOWPAYMENTS_CALLBACK_URL"),
+  success_url: System.get_env("NOWPAYMENTS_SUCCESS_URL"),
+  cancel_url: System.get_env("NOWPAYMENTS_CANCEL_URL")
+
+
+
+# config :commerce_front, CommerceFront.Mailer, adapter: Bamboo.LocalAdapter

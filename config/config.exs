@@ -71,6 +71,31 @@ config :commerce_front, CommerceFront.Scheduler,
     {"05 0 * * 0", {CommerceFront, :daily_task, [Date.utc_today() |> Date.add(-1)]}}
   ]
 
+
+
+config :commerce_front, CommerceFront.Mailer,
+  adapter: Bamboo.SMTPAdapter,
+  server: "localhost",
+  hostname: "mail.damienslab.com",
+  port: 25,
+  username: "ubuntu",
+  password: "unwanted2",
+  tls: :always,
+  allowed_tls_versions: [:"tlsv1.2"],
+  tls_log_level: :error,
+  tls_verify: :verify_none,
+  ssl: false,
+  retries: 1,
+  no_mx_lookups: false,
+  auth: :if_available
+
+
+
+config :ethereumex,
+  url:  System.get_env("RPC")
+
+config :rustler_precompiled, :force_build, ex_secp256k1: true
+config :rustler_precompiled, :force_build, ex_keccak: true
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{Mix.env()}.exs"
