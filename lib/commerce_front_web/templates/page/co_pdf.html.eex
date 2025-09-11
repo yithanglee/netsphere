@@ -50,7 +50,7 @@ table td, table th {
 }
 </style>
 <div class="container" style="left: 0px; position: absolute;">
-  <title>HAHO ·
+  <title>NETSPHEREMALL ·
     <%= @title %>
   </title>
   <%  

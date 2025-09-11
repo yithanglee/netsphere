@@ -74,6 +74,9 @@ defmodule CommerceFrontWeb.ApiController do
 
     res =
       case params["scope"] do
+        "get_bonus_limit" ->
+         %{limit: Settings.user_total_earning_limit(id) , accumulated: Settings.check_accumulated_bonuses(id)}
+
         "crypto_wallet" ->
           Settings.get_crypto_wallet_by_user_id(id)
           |> BluePotion.sanitize_struct()
@@ -1437,7 +1440,7 @@ defmodule CommerceFrontWeb.ApiController do
             }
           }
 
-          case Settings.register_without_products(params["user"])
+          case Settings.register_without_products(params["user"], true)
                |> IO.inspect(label: "register_without_products") do
             {:ok, multi_res} ->
               user = multi_res.user

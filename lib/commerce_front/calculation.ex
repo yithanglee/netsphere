@@ -498,7 +498,7 @@ defmodule CommerceFront.Calculation do
         end
 
       with true <- calc_table != nil,
-           true <- calc_index < 4,
+           true <- calc_index < 2,
            list <-
              eval_matrix
              |> Enum.reject(&(&1.calculated == true))

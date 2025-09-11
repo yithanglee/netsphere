@@ -2295,7 +2295,7 @@ defmodule CommerceFront.Settings do
     end
   end
 
-  def register_without_products(params) do
+  def register_without_products(params, skip_placement \\ false) do
     multi =
       Multi.new()
       # |> Multi.run(:sales_person, fn _repo, %{} ->
@@ -2305,7 +2305,14 @@ defmodule CommerceFront.Settings do
       |> Multi.run(:user, fn _repo, %{} ->
         rank = CommerceFront.Settings.lowest_rank()
 
-        create_user(params |> Map.merge(%{"rank_name" => rank.name, "rank_id" => rank.id}))
+        create_user(
+          params
+          |> Map.merge(%{
+            "rank_name" => rank.name,
+            "rank_id" => rank.id,
+            "preferred_position" => params["placement"]["position"]
+          })
+        )
       end)
       |> Multi.run(:ewallets, fn _repo, %{user: user} ->
         wallets = ["bonus", "product", "register", "token"]
@@ -2331,15 +2338,19 @@ defmodule CommerceFront.Settings do
         })
       end)
       |> Multi.run(:placement, fn _repo, %{user: user} ->
-        {position, parent_p} =
-          determine_position(params["sponsor"], true, params["placement"]["position"])
+        unless skip_placement do
+          {position, parent_p} =
+            determine_position(params["sponsor"], true, params["placement"]["position"])
 
-        create_placement(%{
-          parent_user_id: parent_p.user_id,
-          parent_placement_id: parent_p.id,
-          position: position,
-          user_id: user.id
-        })
+          create_placement(%{
+            parent_user_id: parent_p.user_id,
+            parent_placement_id: parent_p.id,
+            position: position,
+            user_id: user.id
+          })
+        else
+          {:ok, nil}
+        end
       end)
       |> Repo.transaction()
       |> IO.inspect()
@@ -4575,8 +4586,9 @@ defmodule CommerceFront.Settings do
 
           # upgrade_target_user.rank.retail_price
           total_pv =
-            c1 +
-              sales.subtotal
+            (c1 +
+               sales.subtotal)
+            |> IO.inspect(label: "sales.subtotal")
 
           # determine wat rank he reached based on new pv...
           new_rank =
@@ -4584,6 +4596,7 @@ defmodule CommerceFront.Settings do
             |> Enum.sort_by(& &1.retail_price)
             |> Enum.filter(&(&1.retail_price <= total_pv))
             |> List.last()
+            |> IO.inspect(label: "new_rank")
 
           prm = %{
             rank_id: new_rank.id,
@@ -4599,14 +4612,21 @@ defmodule CommerceFront.Settings do
                upgrade_target_user
                |> Map.put(:old_rank, upgrade_target_user.rank)}
             else
-  
-              {:ok, upgrade_target_user} =
-                CommerceFront.Settings.update_user(upgrade_target_user, prm)
+              # cannt upgrade to lower rank...
 
-              {:ok,
-               upgrade_target_user
-               |> Map.put(:rank, new_rank)
-               |> Map.put(:old_rank, upgrade_target_user.rank)}
+              if upgrade_target_user.rank.retail_price > new_rank.retail_price do
+                {:ok,
+                 upgrade_target_user
+                 |> Map.put(:old_rank, upgrade_target_user.rank)}
+              else
+                {:ok, upgrade_target_user} =
+                  CommerceFront.Settings.update_user(upgrade_target_user, prm)
+
+                {:ok,
+                 upgrade_target_user
+                 |> Map.put(:rank, new_rank)
+                 |> Map.put(:old_rank, upgrade_target_user.rank)}
+              end
             end
           end
         else
@@ -4617,27 +4637,14 @@ defmodule CommerceFront.Settings do
       end)
       |> Multi.run(:ewallets, fn _repo, %{user: user} ->
         if params["upgrade"] != nil do
-          if user.old_rank.name == "Shopper" do
-            amount = user.rank.retail_price * 0.35
+          amount = sales.subtotal * 0.35
 
-            CommerceFront.Settings.create_wallet_transaction(%{
-              user_id: user.id,
-              amount: amount,
-              remarks: "package redeem",
-              wallet_type: "token"
-            })
-          else
-            if user.old_rank != user.rank do
-              amount = (user.rank.retail_price - user.old_rank.retail_price) * 0.35
-
-              CommerceFront.Settings.create_wallet_transaction(%{
-                user_id: user.id,
-                amount: amount,
-                remarks: "package redeem",
-                wallet_type: "token"
-              })
-            end
-          end
+          CommerceFront.Settings.create_wallet_transaction(%{
+            user_id: user.id,
+            amount: amount,
+            remarks: "package redeem",
+            wallet_type: "token"
+          })
         else
           wallets = ["bonus", "product", "register", "token"]
 
@@ -4654,10 +4661,6 @@ defmodule CommerceFront.Settings do
         {:ok, nil}
       end)
       |> Multi.run(:sale, fn _repo, %{user: user} ->
-        # rank = get_rank!(params["rank_id"])
-        # pv = rank.point_value
-
-        # # need to check if DRP was used
         if params["stockist"] != nil do
           {:ok, nil}
         else
@@ -4670,115 +4673,6 @@ defmodule CommerceFront.Settings do
           })
         end
         |> IO.inspect()
-      end)
-      |> Multi.run(:member_instalment, fn _repo, %{sale: sale, user: user} ->
-        sale = sale |> Repo.preload(:sales_items)
-
-        with false <- "merchant" in Map.keys(params),
-             true <- sale != nil,
-             sales_items <- sale.sales_items do
-          IO.inspect(sales_items, label: "sales_items")
-
-          for item <- sales_items do
-            product = get_product_by_name(item |> Map.get(:item_name))
-
-            cond do
-              product.is_instalment ->
-                mi =
-                  Repo.all(
-                    from(mi in CommerceFront.Settings.MemberInstalment,
-                      where:
-                        mi.user_id == ^user.id and mi.product_id == ^product.id and
-                          mi.is_paid == ^false
-                    )
-                  )
-                  |> List.first()
-
-                freebie = mi |> Repo.preload(:freebie) |> Map.get(:freebie)
-
-                if freebie != nil do
-                  CommerceFront.Settings.update_sale(sale, %{has_freebies: true})
-                end
-
-                CommerceFront.Settings.update_member_instalment(mi, %{is_paid: true})
-
-              item.remarks != nil ->
-                check = item.remarks |> String.contains?("instalment_product_id:")
-
-                if check do
-                  instalment_product_id =
-                    item.remarks |> String.replace("instalment_product_id:", "")
-
-                  instalment_product =
-                    Repo.all(
-                      from(p in CommerceFront.Settings.Product,
-                        where: p.id == ^instalment_product_id
-                      ),
-                      preload: [:instalment, :instalment_packages, :instalment_products]
-                    )
-                    |> List.first()
-                    |> Repo.preload(:instalment)
-
-                  instalment = instalment_product |> Map.get(:instalment)
-
-                  for item <- 1..instalment.no_of_months do
-                    # todo need to check the main package for delay
-                    due_date = Date.utc_today() |> Timex.shift(months: item + instalment.delay)
-
-                    mi_check =
-                      Repo.all(
-                        from(mi in CommerceFront.Settings.MemberInstalment,
-                          where:
-                            mi.instalment_id == ^instalment.id and
-                              mi.month_no == ^item and
-                              mi.user_id == ^user.id and
-                              mi.product_id == ^instalment_product.id
-                        )
-                      )
-
-                    {:ok, member_instalment} =
-                      if mi_check == [] do
-                        CommerceFront.Settings.create_member_instalment(%{
-                          due_date: due_date,
-                          instalment_id: instalment.id,
-                          is_paid: false,
-                          month_no: item,
-                          product_id: instalment_product.id,
-                          user_id: user.id
-                        })
-                      else
-                        {:ok, List.first(mi_check)}
-                      end
-
-                    instalment_products =
-                      instalment_product
-                      |> Repo.preload([:instalment_products])
-                      |> Map.get(:instalment_products)
-
-                    freebie =
-                      instalment_products
-                      |> Enum.filter(&(&1.month_no == item))
-                      |> List.first()
-
-                    if freebie != nil do
-                      CommerceFront.Settings.create_member_instalment_product(%{
-                        member_instalment_id: member_instalment.id,
-                        instalment_product_id: freebie.id
-                      })
-                    end
-                  end
-                end
-
-              true ->
-                nil
-            end
-          end
-        else
-          _ ->
-            nil
-        end
-
-        {:ok, nil}
       end)
       |> Multi.run(:referral, fn _repo, %{user: user} ->
         if params["upgrade"] != nil do
@@ -4817,6 +4711,15 @@ defmodule CommerceFront.Settings do
             {:ok, nil}
 
           params["stockist"] != nil ->
+            if sales.subtotal >= 3600 do
+              contribute_group_sales(
+                user.username,
+                sales.total_point_value / 3,
+                sale,
+                placement
+              )
+            end
+
             {:ok, nil}
 
           true ->
@@ -4839,6 +4742,14 @@ defmodule CommerceFront.Settings do
             {:ok, nil}
 
           params["stockist"] != nil ->
+            if sales.subtotal >= 3600 do
+              contribute_referral_group_sales(
+                sales_person.username,
+                sales.total_point_value / 3,
+                sale
+              )
+            end
+
             {:ok, nil}
 
           true ->
@@ -4856,13 +4767,26 @@ defmodule CommerceFront.Settings do
       |> Multi.run(:sharing_bonus, fn _repo,
                                       %{pgsd: pgsd, user: user, sale: sale, referral: referral} ->
         if params["stockist"] != nil do
+          IO.inspect(sales, label: "sale")
+
+          # CommerceFront.Calculation.sharing_bonus(user.username, sales.total_point_value , sales, referral)
+          if sales.subtotal >= 3600 do
+            sharing_bonus(user.username, sales.total_point_value / 3, sales, referral)
+          else
+          end
+
           {:ok, nil}
         else
           if sale.total_point_value > 0 do
             unless "merchant" in Map.keys(params) do
               uplines = CommerceFront.Settings.check_uplines(user.username)
               referral = get_referral_by_username(List.first(uplines).child)
-              sharing_bonus(user.username, sale.total_point_value, sale, referral)
+
+              if sale.subtotal >= 3600 do
+                sharing_bonus(user.username, sale.total_point_value / 3, sale, referral)
+              else
+                sharing_bonus(user.username, sale.total_point_value, sale, referral)
+              end
             else
               {:ok, nil}
             end
@@ -4871,136 +4795,6 @@ defmodule CommerceFront.Settings do
           end
         end
       end)
-      # |> Multi.run(:stockist_register_bonus, fn _repo,
-      #                                           %{
-      #                                             sales_person: sales_person,
-      #                                             pgsd: pgsd,
-      #                                             user: user,
-      #                                             sale: sale,
-      #                                             referral: referral,
-      #                                             stockist_user: stockist_user
-      #                                           } ->
-      #   unless "merchant" in Map.keys(params) do
-      #     if sales_person.is_stockist && sale != nil do
-      #       # stockist_register_bonus(sales_person, user.username, sale.total_point_value, sale)
-
-      #       if sale.total_point_value > 0 do
-      #         stockist_register_bonus(sales_person, user.username, sale.total_point_value, sale)
-      #       else
-      #         if stockist_user != nil do
-      #           # todo
-
-      #           ra =
-      #             stockist_register_bonus(
-      #               stockist_user,
-      #               user.username,
-      #               sale.subtotal |> :erlang.trunc(),
-      #               sale
-      #             )
-
-      #           rb =
-      #             biz_incentive_bonus(
-      #               sales_person,
-      #               user.username,
-      #               sale.subtotal |> :erlang.trunc(),
-      #               sale
-      #             )
-
-      #           rc =
-      #             CommerceFront.Calculation.matching_biz_incentive_bonus(
-      #               Date.utc_today().month,
-      #               Date.utc_today().year
-      #             )
-
-      #           IO.inspect([ra, rb, rc])
-      #         else
-      #         end
-
-      #         {:ok, nil}
-      #       end
-      #     else
-      #       unpaid_user = CommerceFront.Settings.unpaid_user()
-
-      #       if sale != nil do
-      #         if sale.total_point_value > 0 do
-      #           stockist_register_bonus(unpaid_user, user.username, sale.total_point_value, sale)
-      #         else
-      #           if stockist_user != nil do
-      #             # todo
-
-      #             ra =
-      #               stockist_register_bonus(
-      #                 stockist_user,
-      #                 user.username,
-      #                 sale.subtotal |> :erlang.trunc(),
-      #                 sale
-      #               )
-
-      #             rb =
-      #               biz_incentive_bonus(
-      #                 sales_person,
-      #                 user.username,
-      #                 sale.subtotal |> :erlang.trunc(),
-      #                 sale
-      #               )
-
-      #             rc = matching_biz_incentive_bonus(Date.utc_today().month, Date.utc_today().year)
-
-      #             IO.inspect([ra, rb, rc])
-      #           else
-      #           end
-
-      #           {:ok, nil}
-      #         end
-      #       end
-
-      #       {:ok, nil}
-      #     end
-      #   else
-      #     {:ok, nil}
-      #   end
-      # end)
-      # |> Multi.run(:special_share_reward, fn _repo,
-      #                                        %{
-      #                                          pgsd: pgsd,
-      #                                          user: user,
-      #                                          sale: sale,
-      #                                          sales_person: sales_person,
-      #                                          placement: placement,
-      #                                          referral: referral,
-      #                                          stockist_user: stockist_user
-      #                                        } ->
-      #   if params["upgrade"] != nil do
-      #     unless "merchant" in Map.keys(params) do
-      #       special_share_reward(
-      #         referral.parent_user_id,
-      #         sale.total_point_value,
-      #         sale,
-      #         params["scope"]
-      #       )
-      #     end
-
-      #     {:ok, nil}
-      #   else
-      #     if params["stockist"] != nil || stockist_user != nil do
-      #       {:ok, nil}
-      #     else
-      #       # 22/3 pay to sponsor...
-      #       # 23/5 pay to sales person
-
-      #       unless "merchant" in Map.keys(params) do
-      #         special_share_reward(
-      #           referral.parent_user_id,
-      #           sale.total_point_value,
-      #           sale,
-      #           params["scope"]
-      #         )
-      #       end
-
-      #       {:ok, nil}
-      #     end
-      #   end
-      # end)
       |> Multi.run(:stockist, fn _repo,
                                  %{
                                    user: user,
@@ -5012,7 +4806,10 @@ defmodule CommerceFront.Settings do
              true <- sale.subtotal >= 3600,
              true <- user.is_stockist == false do
           unless "merchant" in Map.keys(params) do
-            CommerceFront.Settings.convert_to_stockist(user |> Map.put(:placement, placement))
+            CommerceFront.Settings.convert_to_stockist(
+              user |> Map.put(:placement, placement),
+              sale
+            )
           else
             {:ok, nil}
           end
@@ -5363,31 +5160,38 @@ defmodule CommerceFront.Settings do
       end
     end
   end
-# todo 2025:09:06: need to add the reward limit [team bonus], max their current package pv x 9. 
+
+  def check_accumulated_bonuses(user_id) do
+    Repo.all(
+      from(r in CommerceFront.Settings.Reward, where: r.user_id == ^user_id, select: r.amount)
+    )
+    |> IO.inspect(label: "check_accumulated_bonuses")
+    |> List.first()
+  end
+
+  def user_total_sales(user_id) do
+    res =
+      Repo.all(from(s in Sale, where: s.user_id == ^user_id, select: sum(s.total_point_value)))
+      |> List.first()
+
+    res || 0
+  end
+
+  def user_total_earning_limit(user_id) do
+    user_total_sales(user_id) * 9
+  end
+
+  def has_exceed_bonus_limit(user_id) do
+    user = CommerceFront.Settings.get_user!(user_id)
+
+    user_total_earning_limit(user_id) < check_accumulated_bonuses(user_id)
+  end
+
+  # todo 2025:09:06: need to add the reward limit [team bonus], max their current package pv x 9. 
   def pay_unpaid_bonus(date, bonus_list) do
     {y, m, d} = date |> Date.to_erl()
 
-    # matrix = ["team bonus", "matching bonus", "elite leader"]
-    matrix = ["team bonus"]
-
-    month_rewards =
-      Repo.all(
-        from(r in Reward,
-          where:
-            r.month == ^m and
-              r.year == ^y,
-          select: %{sum: sum(r.amount), bonus: r.name, user_id: r.user_id},
-          group_by: [r.user_id, r.name]
-        )
-      )
-
-    check_this_month_reward = fn user_id, month_rewards ->
-      month_rewards
-      |> Enum.filter(&(&1.user_id == user_id))
-      |> Enum.filter(&(&1.bonus in matrix))
-      |> Enum.map(& &1.sum)
-      |> Enum.sum()
-    end
+    matrix = ["sharing bonus", "team bonus", "matching bonus", "elite leader"]
 
     for bonus <- bonus_list do
       rewards =
@@ -5432,19 +5236,20 @@ defmodule CommerceFront.Settings do
               end
 
             true ->
-              total_this_month = check_this_month_reward.(reward.user_id, month_rewards)
+              # here change to check if total rewards is more than all the sales paid * 9
+              total_bonuses = check_accumulated_bonuses(reward.user_id)
 
               {amount, remarks} =
                 if bonus not in matrix do
-                  {reward.amount, "month total: #{total_this_month}|pay: 100%"}
+                  {reward.amount, "month total: #{total_bonuses}|pay: 100%"}
                 else
                   if username == "netsphere_unpaid" do
-                    {reward.amount, "month total: #{total_this_month}|pay: 100%"}
+                    {reward.amount, "accumulated total: #{total_bonuses}|pay: 100%"}
                   else
-                    if total_this_month > 10000 do
-                      {reward.amount, "month total: #{total_this_month}|pay: 100%"}
+                    unless has_exceed_bonus_limit(reward.user_id) do
+                      {reward.amount, "accumulated total: #{total_bonuses}|pay: 70%"}
                     else
-                      {reward.amount * 0.9, "month total: #{total_this_month}|pay: 90%"}
+                      {reward.amount * 0.0, "accumulated total: #{total_bonuses}|pay: 0%"}
                     end
                   end
                 end
@@ -5459,15 +5264,14 @@ defmodule CommerceFront.Settings do
 
               case create_wallet_transaction(params) do
                 {:ok, wt} ->
-                  if total_this_month <= 10000 && bonus in matrix &&
+                  if bonus in matrix &&
                        username != "netsphere_unpaid" do
                     params2 = %{
                       reward_id: reward.id,
                       user_id: user_id,
-                      amount: (reward.amount * 0.1) |> Float.round(2),
-                      remarks:
-                        reward.remarks <> "|" <> "month total: #{total_this_month}|pay: 10%",
-                      wallet_type: "product"
+                      amount: (reward.amount * 0.3) |> Float.round(2),
+                      remarks: reward.remarks <> "|" <> "month total: #{total_bonuses}|pay: 30%",
+                      wallet_type: "register"
                     }
 
                     create_wallet_transaction(params2)
@@ -5712,6 +5516,40 @@ defmodule CommerceFront.Settings do
           wallet_type: "register"
         })
       end)
+      |> Multi.run(:placement, fn _repo, %{} ->
+        # maybe check if the user has a placement already
+        check =
+          Repo.all(from(p in Placement, where: p.user_id == ^topup.user_id))
+
+        if check == [] do
+          user = get_user!(topup.user_id)
+
+          sponsor =
+            CommerceFront.Settings.check_uplines(user.username, :referral)
+            |> List.first()
+            |> Map.get(:parent)
+
+          preferred_position = fn ->
+            if user.preferred_position == "auto" do
+              nil
+            else
+              user.preferred_position
+            end
+          end
+
+          {position, parent_p} =
+            determine_position(sponsor, true, preferred_position.())
+
+          create_placement(%{
+            parent_user_id: parent_p.user_id,
+            parent_placement_id: parent_p.id,
+            position: position,
+            user_id: user.id
+          })
+        else
+          {:ok, nil}
+        end
+      end)
       |> Repo.transaction()
       |> IO.inspect()
       |> case do
@@ -5735,7 +5573,7 @@ defmodule CommerceFront.Settings do
     end
   end
 
-  def convert_to_stockist(user) do
+  def convert_to_stockist(user, sale) do
     CommerceFront.Settings.User.changeset(user, %{is_stockist: true}) |> Repo.update()
     # create the other 2 nodes first..
     # then append them under the current account?
@@ -5754,7 +5592,7 @@ defmodule CommerceFront.Settings do
             "fullname" => user.fullname,
             "phone" => user.phone
           },
-          %CommerceFront.Settings.Sale{}
+          sale
         )
 
       unit_3 =
@@ -5770,7 +5608,7 @@ defmodule CommerceFront.Settings do
             "fullname" => user.fullname,
             "phone" => user.phone
           },
-          %CommerceFront.Settings.Sale{}
+          sale
         )
 
       updated_parent = user |> Repo.preload(stockist_users: [placement: [:parent]])
