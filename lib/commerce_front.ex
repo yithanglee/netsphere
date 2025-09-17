@@ -68,32 +68,27 @@ defmodule CommerceFront do
     IO.inspect("changed to... #{preferred_date} at #{NaiveDateTime.utc_now()}")
     {y, m, d} = preferred_date |> Date.to_erl()
     end_of_month = Timex.end_of_month(date)
+    end_of_week = Timex.end_of_week(date, :mon)
     CommerceFront.Calculation.daily_team_bonus(date)
     # can only run once
     CommerceFront.Settings.carry_forward_entry(date)
-    # this will form the weak leg
 
-    # CommerceFront.Settings.pay_unpaid_bonus(date, [
-    #   "sharing bonus",
-    #   "team bonus",
-    #   "stockist register bonus",
-    #   "drp sales level bonus"
-    # ])
+
+    if end_of_week == date do
+      CommerceFront.Calculation.matching_bonus_week(date)
+      # CommerceFront.Settings.pay_unpaid_bonus(date, [
+      #   "matching bonus",
+      # ])
+    end
+
 
     if end_of_month == date do
-      CommerceFront.Calculation.matching_bonus(m, y)
+      # CommerceFront.Calculation.matching_bonus(m, y)
+      # changed to weekly
       CommerceFront.Calculation.elite_leader(m, y)
-      CommerceFront.Calculation.travel_fund(m, y)
-
       CommerceFront.Settings.pay_unpaid_bonus(date, [
-        "matching bonus",
         "elite leader",
-        "travel fund"
       ])
-
-      CommerceFront.Calculation.repurchase_bonus(m, y)
-
-      CommerceFront.Settings.pay_unpaid_bonus(date, ["repurchase bonus"])
     end
   end
 

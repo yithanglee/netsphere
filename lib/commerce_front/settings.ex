@@ -3517,10 +3517,10 @@ defmodule CommerceFront.Settings do
     # shipping_fee =
     # if CommerceFront.Settings.get_malaysia().id ==
     #      String.to_integer(params["user"]["country_id"]) do
-    #   if params["user"]["pick_up_point_id"] != nil &&
-    #        params["user"]["pick_up_point_id"] != "" do
-    #     0
-    #   else
+    # if params["user"]["pick_up_point_id"] != nil &&
+    #      params["user"]["pick_up_point_id"] != "" do
+    #   0
+    # else
     #     if params["scope"] == "merchant_checkout" do
     #       # Float.ceil(total_rp / 200) * 2
     #       total_rp * 0.025
@@ -3711,7 +3711,13 @@ defmodule CommerceFront.Settings do
             acc + product.base_shipping_fee * product.qty
           end
 
-          total_shipping_fee = Enum.reduce(res, 0, &calc_shipping_fee.(&1, &2))
+          total_shipping_fee =
+            if params["user"]["pick_up_point_id"] != nil &&
+                 params["user"]["pick_up_point_id"] != "" do
+              0
+            else
+              Enum.reduce(res, 0, &calc_shipping_fee.(&1, &2))
+            end
 
           total_pv =
             with true <- params["user"]["rank_id"] != nil,
@@ -3768,25 +3774,34 @@ defmodule CommerceFront.Settings do
             "product_point" ->
               wallets = CommerceFront.Settings.list_ewallets_by_user_id(sale.sales_person_id)
               pp = wallets |> Enum.filter(&(&1.wallet_type == :product)) |> List.first()
+              rp = wallets |> Enum.filter(&(&1.wallet_type == :register)) |> List.first()
 
               check_sufficient = fn subtotal ->
                 # deduct the ewallet
 
-                with true <- (pp.total >= sale.subtotal) |> IO.inspect() do
+                with true <- (pp.total >= sale.subtotal) |> IO.inspect(),
+                     true <- (rp.total >= sale.shipping_fee) |> IO.inspect() do
                   {:ok, sale} = update_sale(sale, %{total_point_value: 0, status: :processing})
 
                   create_wallet_transaction(%{
                     user_id: sale.sales_person_id,
-                    amount: sale.grand_total * -1,
+                    amount: sale.subtotal * -1,
                     remarks: "#{title}: #{sale.id}",
                     wallet_type: "product"
+                  })
+
+                  create_wallet_transaction(%{
+                    user_id: sale.sales_person_id,
+                    amount: sale.shipping_fee * -1,
+                    remarks: "#{title}: #{sale.id} - Shipping fee",
+                    wallet_type: "register"
                   })
 
                   create_payment(%{
                     payment_method: "product_point",
                     amount: sale.grand_total,
                     sales_id: sale.id,
-                    webhook_details: "pp paid: #{subtotal}"
+                    webhook_details: "pp paid: #{subtotal}||rp paid: #{sale.shipping_fee}"
                   })
 
                   {:ok, sale}
@@ -3895,48 +3910,48 @@ defmodule CommerceFront.Settings do
                     wallet_type: "register"
                   })
 
-                  if params["scope"] == "register" || params["scope"] == "link_register" do
-                    sponsor_username =
-                      Jason.decode!(sale.registration_details)
-                      |> Kernel.get_in(["user", "sponsor"])
+                  # if params["scope"] == "register" || params["scope"] == "link_register" do
+                  #   sponsor_username =
+                  #     Jason.decode!(sale.registration_details)
+                  #     |> Kernel.get_in(["user", "sponsor"])
 
-                    sponsor = CommerceFront.Settings.get_user_by_username(sponsor_username)
+                  #   sponsor = CommerceFront.Settings.get_user_by_username(sponsor_username)
 
-                    # create_wallet_transaction(%{
-                    #   user_id: sponsor.id,
-                    #   amount: (subtotal * 0.5) |> Float.round(2),
-                    #   remarks: "#{title}: #{sale.id}",
-                    #   wallet_type: "merchant"
-                    # })
-                  end
+                  #   create_wallet_transaction(%{
+                  #     user_id: sponsor.id,
+                  #     amount: (subtotal * 0.5) |> Float.round(2),
+                  #     remarks: "#{title}: #{sale.id}",
+                  #     wallet_type: "merchant"
+                  #   })
+                  # end
 
-                  if params["scope"] == "upgrade" do
-                    target_user =
-                      if params["user"]["upgrade"] == "" do
-                        CommerceFront.Settings.get_user!(params["user"]["sales_person_id"])
-                      else
-                        CommerceFront.Settings.get_user_by_username(params["user"]["upgrade"])
-                      end
+                  # if params["scope"] == "upgrade" do
+                  #   target_user =
+                  #     if params["user"]["upgrade"] == "" do
+                  #       CommerceFront.Settings.get_user!(params["user"]["sales_person_id"])
+                  #     else
+                  #       CommerceFront.Settings.get_user_by_username(params["user"]["upgrade"])
+                  #     end
 
-                    referral =
-                      Repo.all(
-                        from(r in CommerceFront.Settings.Referral,
-                          where: r.user_id == ^target_user.id
-                        )
-                      )
-                      |> List.first()
+                  #   referral =
+                  #     Repo.all(
+                  #       from(r in CommerceFront.Settings.Referral,
+                  #         where: r.user_id == ^target_user.id
+                  #       )
+                  #     )
+                  #     |> List.first()
 
-                    sponsor = CommerceFront.Settings.get_user!(referral.parent_user_id)
+                  #   sponsor = CommerceFront.Settings.get_user!(referral.parent_user_id)
 
-                    if sponsor != nil do
-                      # create_wallet_transaction(%{
-                      #   user_id: sponsor.id,
-                      #   amount: (subtotal * 0.5) |> Float.round(2),
-                      #   remarks: "#{title}: #{sale.id}",
-                      #   wallet_type: "merchant"
-                      # })
-                    end
-                  end
+                  #   if sponsor != nil do
+                  #     create_wallet_transaction(%{
+                  #       user_id: sponsor.id,
+                  #       amount: (subtotal * 0.5) |> Float.round(2),
+                  #       remarks: "#{title}: #{sale.id}",
+                  #       wallet_type: "merchant"
+                  #     })
+                  #   end
+                  # end
 
                   create_payment(%{
                     payment_method: "only_register_point",
@@ -4649,12 +4664,23 @@ defmodule CommerceFront.Settings do
           wallets = ["bonus", "product", "register", "token"]
 
           for wallet_type <- wallets do
-            CommerceFront.Settings.create_wallet_transaction(%{
-              user_id: user.id,
-              amount: 0.00,
-              remarks: "initial",
-              wallet_type: wallet_type
-            })
+            if wallet_type != "token" do
+              CommerceFront.Settings.create_wallet_transaction(%{
+                user_id: user.id,
+                amount: 0.00,
+                remarks: "initial",
+                wallet_type: wallet_type
+              })
+            else
+              amount = sales.subtotal * 0.35
+
+              CommerceFront.Settings.create_wallet_transaction(%{
+                user_id: user.id,
+                amount: amount,
+                remarks: "package redeem",
+                wallet_type: "token"
+              })
+            end
           end
         end
 
@@ -4708,23 +4734,39 @@ defmodule CommerceFront.Settings do
       |> Multi.run(:pgsd, fn _repo, %{user: user, sale: sale, placement: placement} ->
         cond do
           params["stockist_user_id"] != nil ->
-            {:ok, nil}
-
-          params["stockist"] != nil ->
             if sales.subtotal >= 3600 do
               contribute_group_sales(
                 user.username,
                 sales.total_point_value / 3,
-                sale,
+                sales,
                 placement
               )
             end
 
             {:ok, nil}
 
+          params["stockist"] != nil ->
+            {:ok, nil}
+
           true ->
             unless "merchant" in Map.keys(params) do
-              contribute_group_sales(user.username, sale.total_point_value, sale, placement)
+              # sale = CommerceFront.Settings.get_sale!(9)
+              #      placement = CommerceFront.Settings.get_placement_by_username("SUZIE")
+              # CommerceFront.Settings.contribute_group_sales("SUZIE", -840, sale, placement)
+
+              #      placement = CommerceFront.Settings.get_placement_by_username("SUZIE")
+              # CommerceFront.Settings.contribute_group_sales("SUZIE", -840, sale, placement)
+
+              #      placement = CommerceFront.Settings.get_placement_by_username("SUZIE-U2")
+              # CommerceFront.Settings.contribute_group_sales("SUZIE-U2", 840, sale, placement)
+
+              #      placement = CommerceFront.Settings.get_placement_by_username("SUZIE-U3")
+              # CommerceFront.Settings.contribute_group_sales("SUZIE-U3", 840, sale, placement)
+              if sale.subtotal >= 3600 do
+                contribute_group_sales(user.username, sale.total_point_value / 3, sale, placement)
+              else
+                contribute_group_sales(user.username, sale.total_point_value, sale, placement)
+              end
             else
               {:ok, nil}
             end
@@ -4739,26 +4781,30 @@ defmodule CommerceFront.Settings do
                              } ->
         cond do
           params["stockist_user_id"] != nil ->
-            {:ok, nil}
-
-          params["stockist"] != nil ->
             if sales.subtotal >= 3600 do
               contribute_referral_group_sales(
                 sales_person.username,
                 sales.total_point_value / 3,
-                sale
+                sales
               )
             end
 
             {:ok, nil}
 
+          params["stockist"] != nil ->
+            {:ok, nil}
+
           true ->
             unless "merchant" in Map.keys(params) do
-              contribute_referral_group_sales(
-                sales_person.username,
-                sale.total_point_value,
-                sale
-              )
+              if sale.subtotal >= 3600 do
+                contribute_referral_group_sales(user.username, sale.total_point_value / 3, sale)
+              else
+                contribute_referral_group_sales(
+                  sales_person.username,
+                  sale.total_point_value,
+                  sale
+                )
+              end
             else
               {:ok, nil}
             end
@@ -4779,12 +4825,16 @@ defmodule CommerceFront.Settings do
         else
           if sale.total_point_value > 0 do
             unless "merchant" in Map.keys(params) do
-              uplines = CommerceFront.Settings.check_uplines(user.username)
-              referral = get_referral_by_username(List.first(uplines).child)
+              # uplines = CommerceFront.Settings.check_uplines(user.username)
+              # referral = get_referral_by_username(List.first(uplines).child)
 
               if sale.subtotal >= 3600 do
                 sharing_bonus(user.username, sale.total_point_value / 3, sale, referral)
               else
+                # sale = CommerceFront.Settings.get_sale!(9)
+                # referral = CommerceFront.Settings.get_referral_by_username(sale.user.username)
+                # CommerceFront.Calculation.sharing_bonus(sale.user.username, sale.total_point_value, sale, referral)
+                #
                 sharing_bonus(user.username, sale.total_point_value, sale, referral)
               end
             else
@@ -4842,6 +4892,38 @@ defmodule CommerceFront.Settings do
               remarks: "Sales: #{sale.id}| Share link pay back as cash commission",
               wallet_type: "bonus"
             })
+          end
+        else
+          nil
+        end
+
+        {:ok, nil}
+      end)
+      |> Multi.run(:product_point_allocation, fn _repo,
+                                                 %{
+                                                   user: user,
+                                                   sale: sale,
+                                                   placement: placement,
+                                                   sales_person: sales_person
+                                                 } ->
+        if sale != nil do
+          sale = sale |> Repo.preload(:sales_items)
+
+          if sale.sales_items != nil do
+            for sale_item <- sale.sales_items do
+              product = get_product_by_name(sale_item.item_name)
+              amount = product.point_value * sale_item.qty
+
+              if product.name |> String.contains?("Product Point Package") do
+                create_wallet_transaction(%{
+                  user_id: user.id,
+                  amount: amount,
+                  remarks: "Sales: #{sale.id}| Product point allocation",
+                  wallet_type: "product"
+                })
+              else
+              end
+            end
           end
         else
           nil
@@ -5171,7 +5253,7 @@ defmodule CommerceFront.Settings do
 
   def user_total_sales(user_id) do
     res =
-      Repo.all(from(s in Sale, where: s.user_id == ^user_id, select: sum(s.total_point_value)))
+      Repo.all(from(s in Sale, where: s.user_id == ^user_id, select: sum(s.subtotal)))
       |> List.first()
 
     res || 0
@@ -5184,7 +5266,11 @@ defmodule CommerceFront.Settings do
   def has_exceed_bonus_limit(user_id) do
     user = CommerceFront.Settings.get_user!(user_id)
 
-    user_total_earning_limit(user_id) < check_accumulated_bonuses(user_id)
+    if user.stockist_user_id != nil do
+      false
+    else
+      user_total_earning_limit(user_id) < check_accumulated_bonuses(user_id)
+    end
   end
 
   # todo 2025:09:06: need to add the reward limit [team bonus], max their current package pv x 9. 
@@ -5265,13 +5351,14 @@ defmodule CommerceFront.Settings do
               case create_wallet_transaction(params) do
                 {:ok, wt} ->
                   if bonus in matrix &&
-                       username != "netsphere_unpaid" do
+                       username != "netsphere_unpaid" &&
+                       has_exceed_bonus_limit(reward.user_id) != true do
                     params2 = %{
                       reward_id: reward.id,
                       user_id: user_id,
                       amount: (reward.amount * 0.3) |> Float.round(2),
                       remarks: reward.remarks <> "|" <> "month total: #{total_bonuses}|pay: 30%",
-                      wallet_type: "register"
+                      wallet_type: "token"
                     }
 
                     create_wallet_transaction(params2)
@@ -7724,6 +7811,162 @@ defmodule CommerceFront.Settings do
   end
 
   def delete_crypto_wallet(%CryptoWallet{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.Asset
+
+  def list_assets() do
+    Repo.all(Asset)
+  end
+
+  def get_asset!(id) do
+    Repo.get!(Asset, id)
+  end
+
+  def create_asset(params \\ %{}) do
+    Asset.changeset(%Asset{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_asset(model, params) do
+    Asset.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_asset(%Asset{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.AssetTranche
+
+  def list_asset_tranches() do
+    Repo.all(AssetTranche)
+  end
+  def list_asset_tranches_by_asset_id(asset_id) do
+    Repo.all(from(at in AssetTranche, where: at.asset_id == ^asset_id)  )
+  end
+  def get_asset_tranche!(id) do
+    Repo.get!(AssetTranche, id)
+  end
+
+  def create_asset_tranche(params \\ %{}) do
+    AssetTranche.changeset(%AssetTranche{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_asset_tranche(model, params) do
+    AssetTranche.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_asset_tranche(%AssetTranche{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.Balance
+
+  def list_balances() do
+    Repo.all(Balance)
+  end
+
+  def get_balance!(id) do
+    Repo.get!(Balance, id)
+  end
+
+  def create_balance(params \\ %{}) do
+    Balance.changeset(%Balance{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_balance(model, params) do
+    Balance.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_balance(%Balance{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.Holding
+
+  def list_holdings() do
+    Repo.all(Holding)
+  end
+
+  def get_holding!(id) do
+    Repo.get!(Holding, id)
+  end
+
+  def create_holding(params \\ %{}) do
+    Holding.changeset(%Holding{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_holding(model, params) do
+    Holding.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_holding(%Holding{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.Order
+
+  def list_orders() do
+    Repo.all(Order)
+  end
+
+  def get_order!(id) do
+    Repo.get!(Order, id)
+  end
+
+  def create_order(params \\ %{}) do
+    Order.changeset(%Order{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_order(model, params) do
+    Order.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_order(%Order{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.Trade
+
+  def list_trades() do
+    Repo.all(Trade)
+  end
+
+  def get_trade!(id) do
+    Repo.get!(Trade, id)
+  end
+
+  def create_trade(params \\ %{}) do
+    Trade.changeset(%Trade{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_trade(model, params) do
+    Trade.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_trade(%Trade{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.LedgerEntry
+
+  def list_ledger_entries() do
+    Repo.all(LedgerEntry)
+  end
+
+  def get_ledger_entry!(id) do
+    Repo.get!(LedgerEntry, id)
+  end
+
+  def create_ledger_entry(params \\ %{}) do
+    LedgerEntry.changeset(%LedgerEntry{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_ledger_entry(model, params) do
+    LedgerEntry.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_ledger_entry(%LedgerEntry{} = model) do
     Repo.delete(model)
   end
 

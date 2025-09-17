@@ -520,14 +520,14 @@ defmodule CommerceFront.Calculation do
             remarks:
               "sales-#{sale.id}|#{remainder_point_value} * #{perc} = #{bonus}|lvl:#{calc_index}/#{rank.name}|skipped to: lv#{index}",
             name: "sharing bonus",
-            amount: bonus,
+            amount: bonus |> Float.round(2),
             user_id: user.id,
             day: Date.utc_today().day,
             month: Date.utc_today().month,
             year: Date.utc_today().year
           })
 
-        CommerceFront.Settings.pay_to_bonus_wallet(r)
+        # CommerceFront.Settings.pay_to_bonus_wallet(r)
 
         new_matrix_item =
           matrix |> Enum.find(&(&1.rank == rank.name)) |> Map.put(:calculated, true)
@@ -1229,6 +1229,182 @@ defmodule CommerceFront.Calculation do
           end
 
           # check upline's weak leg
+        end
+
+        if check != nil do
+          Enum.reduce(uplines, 1, &calc.(&1, &2))
+        end
+      end
+
+      {:ok, nil}
+    end)
+    |> Repo.transaction()
+  end
+
+  @doc """
+  Weekly version of matching bonus calculation.
+
+  - Aggregates users' team bonus earned within a week [start_date, end_date]
+  - Aggregates users' weak-leg PV within the same week from `group_sales_summaries`
+  - Pays matching bonus to uplines based on the same rank matrix, using the week's end date
+  - Idempotent for a given week: deletes existing weekly entries in that date range before recalculation
+
+  Example:
+    matching_bonus_week(~D[2025-09-08]) # Calculates for week of 2025-09-08 (Mon..Sun)
+  """
+  def matching_bonus_week(date \\ Date.utc_today()) do
+    week_start = Timex.beginning_of_week(date, :mon)
+    week_end = Timex.end_of_week(date, :mon)
+
+    subquery = """
+    select
+      u.username,
+      r.user_id,
+      sum(r.amount),
+      min(make_date(r.year, r.month, r.day)) as start_on,
+      max(make_date(r.year, r.month, r.day)) as end_on
+    from
+      rewards r
+    left join users u on
+      u.id = r.user_id
+    where
+      r.name = 'team bonus'
+      and make_date(r.year, r.month, r.day) >= $1::date
+      and make_date(r.year, r.month, r.day) <= $2::date
+    group by
+      u.username,
+      r.user_id;
+    """
+
+    {:ok, %Postgrex.Result{columns: columns, rows: rows}} =
+      Ecto.Adapters.SQL.query(Repo, subquery, [week_start, week_end])
+
+    team_bonuses =
+      for row <- rows do
+        Enum.zip(columns |> Enum.map(&(&1 |> String.to_atom())), row) |> Enum.into(%{})
+      end
+
+    subquery2 = """
+    select
+    sum(gss.new_left) as left,
+    sum(gss.new_right) as right,
+    u.username,
+    gss.user_id
+    from
+    group_sales_summaries gss
+    left join users u on u.id = gss.user_id
+    where
+    make_date(gss.year, gss.month, gss.day) >= $1::date
+    and make_date(gss.year, gss.month, gss.day) <= $2::date
+    group by
+    u.username,
+    gss.user_id;
+    """
+
+    {:ok, %Postgrex.Result{columns: columns2, rows: rows2}} =
+      Ecto.Adapters.SQL.query(Repo, subquery2, [week_start, week_end])
+
+    unpaid_node = unpaid_node()
+
+    users_weak_leg =
+      for row <- rows2 do
+        Enum.zip(columns2 |> Enum.map(&(&1 |> String.to_atom())), row) |> Enum.into(%{})
+      end
+      |> List.insert_at(0, %{
+        left: 1501,
+        right: 1500,
+        user_id: unpaid_node.parent_id,
+        username: unpaid_node.parent
+      })
+
+    # Delete existing weekly matching bonus in range for idempotency
+    Repo.delete_all(
+      from(r in Reward,
+        where:
+          r.name == ^"matching bonus" and
+            fragment(
+              "make_date(?, ?, ?) between ? and ?",
+              r.year,
+              r.month,
+              r.day,
+              ^week_start,
+              ^week_end
+            )
+      )
+    )
+
+    users = Repo.all(from(u in User, order_by: [desc: u.id]))
+
+    {y, m, d} = week_end |> Date.to_erl()
+
+    Multi.new()
+    |> Multi.run(:calculation, fn _repo, %{} ->
+      for user <- users do
+        uplines =
+          Settings.check_uplines(user.username, :referal)
+          |> Enum.reverse()
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> List.insert_at(0, unpaid_node)
+          |> Enum.reverse()
+
+        check = team_bonuses |> Enum.filter(&(&1.user_id == user.id)) |> List.first()
+
+        calc = fn upline, index ->
+          weak_leg =
+            users_weak_leg |> Enum.filter(&(&1.user_id == upline.parent_id)) |> List.first()
+
+          if weak_leg != nil do
+            weak_amount =
+              if weak_leg.left > weak_leg.right do
+                weak_leg.right
+              else
+                weak_leg.left
+              end
+
+            matrix = [
+              %{rank: "Bronze", l1: 0.03},
+              %{rank: "Silver", l1: 0.03, l2: 0.03},
+              %{rank: "Gold", l1: 0.03, l2: 0.03, l3: 0.04},
+              %{rank: "Diamond", l1: 0.03, l2: 0.03, l3: 0.04, l4: 0.05}
+            ]
+
+            map = matrix |> Enum.filter(&(&1.rank == upline.rank)) |> List.first()
+
+            if map != nil do
+              if index < 4 do
+                constant =
+                  case index do
+                    1 -> map |> Map.get(:l1, 0)
+                    2 -> map |> Map.get(:l2, 0)
+                    3 -> map |> Map.get(:l3, 0)
+                    4 -> map |> Map.get(:l4, 0)
+                    _ -> 0
+                  end
+
+                bonus = check.sum * constant
+
+                CommerceFront.Settings.create_reward(%{
+                  sales_id: 0,
+                  is_paid: false,
+                  remarks:
+                    "#{check.sum |> :erlang.float_to_binary(decimals: 2)} * #{constant} = #{bonus}||lvl:#{index}||#{user.username} team bonus week #{week_start}..#{week_end}: #{check.sum |> :erlang.float_to_binary(decimals: 2)}",
+                  name: "matching bonus",
+                  amount: bonus |> Float.round(2),
+                  user_id: upline.parent_id,
+                  day: d,
+                  month: m,
+                  year: y
+                })
+              end
+
+              index + 1
+            else
+              index
+            end
+          else
+            index
+          end
         end
 
         if check != nil do

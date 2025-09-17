@@ -2,6 +2,7 @@ defmodule CommerceFrontWeb.ApiController do
   use CommerceFrontWeb, :controller
 
   alias CommerceFront.{Repo, Settings}
+  alias CommerceFront.Market.Primary
 
   def stream_get(conn, params) do
     final =
@@ -74,8 +75,32 @@ defmodule CommerceFrontWeb.ApiController do
 
     res =
       case params["scope"] do
+        "list_assets" ->
+          Settings.list_assets() |> BluePotion.sanitize_struct()
+
+        "primary_buy_quote" ->
+          asset_id = params["asset_id"] |> to_string() |> String.to_integer()
+          qty = params["qty"] |> to_string() |> Decimal.new()
+          q = Primary.quote_buy(asset_id, qty)
+
+          %{
+            lines:
+              Enum.map(q.lines, fn l ->
+                %{
+                  asset_tranche_id: l.asset_tranche_id,
+                  qty: to_string(l.qty),
+                  unit_price: to_string(l.unit_price)
+                }
+              end),
+            filled_qty: to_string(q.filled_qty),
+            total_cost: to_string(q.total_cost)
+          }
+
         "get_bonus_limit" ->
-         %{limit: Settings.user_total_earning_limit(id) , accumulated: Settings.check_accumulated_bonuses(id)}
+          %{
+            limit: Settings.user_total_earning_limit(id),
+            accumulated: Settings.check_accumulated_bonuses(id)
+          }
 
         "crypto_wallet" ->
           Settings.get_crypto_wallet_by_user_id(id)
@@ -321,6 +346,9 @@ defmodule CommerceFrontWeb.ApiController do
 
         "get_product_countries" ->
           Settings.get_product!(params["id"]) |> BluePotion.sanitize_struct()
+
+        "get_asset_tranches" ->
+          Settings.list_asset_tranches_by_asset_id(params["id"]) |> BluePotion.sanitize_struct()
 
         "get_role_app_routes" ->
           Settings.get_role!(params["id"]) |> BluePotion.sanitize_struct()
@@ -632,7 +660,8 @@ defmodule CommerceFrontWeb.ApiController do
           if starter != nil do
             check =
               CommerceFront.Settings.check_uplines(params["username"])
-              # |> Enum.filter(&(&1.parent == starter))
+
+            # |> Enum.filter(&(&1.parent == starter))
 
             if check != [] do
               Settings.display_place_tree(params["username"], params["full"])
@@ -868,8 +897,50 @@ defmodule CommerceFrontWeb.ApiController do
   end
 
   def post(conn, params) do
+    token = params |> Map.get("token")
+
+    %{id: id} =
+      with true <- token != nil,
+           decoded <- token |> decode_token,
+           true <- decoded != nil do
+        decoded
+      else
+        _ ->
+          %{id: 0}
+      end
+
     res =
       case params["scope"] do
+        "primary_buy_execute" ->
+          sample = %{
+            "asset_id" => "1",
+            "idempotency_key" => "ba05b7d2-5958-4529-b99e-90063befd55b",
+            "qty" => "420000",
+            "scope" => "primary_buy_execute",
+            "token" =>
+              "SFMyNTY.g2gDdAAAAAFkAAJpZGEYbgYAzmBpTZkBYgABUYA.KA2v59RHBK0I022qwESz6mlizPabZqTBIoNRjz4Vftg"
+          }
+
+
+
+          asset_id = params["asset_id"] |> to_string() |> String.to_integer()
+          qty = params["qty"] |> to_string() |> Decimal.new()
+          idemp = params["idempotency_key"] || Ecto.UUID.generate()
+
+          case CommerceFront.Market.Primary.execute_primary_buy(id, asset_id, qty, idemp) do
+            {:ok, r} ->
+              %{
+                status: "ok",
+                order_id: r.order_id,
+                filled_qty: to_string(r.filled_qty),
+                total_cost: to_string(r.total_cost),
+                status2: Atom.to_string(r.status)
+              }
+
+            {:error, reason} ->
+              %{status: "error", reason: inspect(reason)}
+          end
+
         "send_email_pin" ->
           email = Map.get(params, "email")
           name = Map.get(params, "name", email)
@@ -1217,7 +1288,10 @@ defmodule CommerceFrontWeb.ApiController do
                {:ok, register_params} <- sales.registration_details |> Jason.decode() do
             case Settings.register(register_params["user"], sales) do
               {:ok, multi_res} ->
-                %{status: "ok", res: multi_res |> BluePotion.sanitize_struct() |> IO.inspect(label: "sanitize")}
+                %{
+                  status: "ok",
+                  res: multi_res |> BluePotion.sanitize_struct() |> IO.inspect(label: "sanitize")
+                }
 
               _ ->
                 %{status: "error"}
@@ -1444,13 +1518,16 @@ defmodule CommerceFrontWeb.ApiController do
                |> IO.inspect(label: "register_without_products") do
             {:ok, multi_res} ->
               user = multi_res.user
-              wallet_info = ZkEvm.Wallet.generate_wallet
+              wallet_info = ZkEvm.Wallet.generate_wallet()
+
               Settings.create_crypto_wallet(%{
-                user_id: user.id, 
-                address: wallet_info.address, 
-                private_key: wallet_info.private_key, 
+                user_id: user.id,
+                address: wallet_info.address,
+                private_key: wallet_info.private_key,
                 public_key: wallet_info.public_key
-                }) |> IO.inspect(label: "create_crypto_wallet")
+              })
+              |> IO.inspect(label: "create_crypto_wallet")
+
               token = Settings.member_token(user.id)
               Settings.create_session_user(%{"cookie" => token, "user_id" => user.id})
 

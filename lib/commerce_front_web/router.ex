@@ -149,10 +149,16 @@ defmodule CommerceFrontWeb.Router do
     post("/:model", ApiController, :form_submission)
     delete("/:model/:id", ApiController, :delete_data)
   end
+  
   # if dev can comment this
-  scope "/html/:lang", CommerceFrontWeb do
-    pipe_through([:browser])
-    get("/*path", PageController, :html)
+  if Mix.env() == :dev do 
+
+  else    
+    scope "/html/:lang", CommerceFrontWeb do
+      pipe_through([:browser])
+      get("/*path", PageController, :html)
+    end
+
   end
 
   scope "/", CommerceFrontWeb do
