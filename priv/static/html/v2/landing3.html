@@ -1,0 +1,83 @@
+<!-- full bg slideshow -->
+<div>
+</div>
+<div class="gx-0 w-100 d-lg-none d-block p-4 rounded-4" id="ss">
+  <!--   <div class="" style="
+                    min-height: 400px;
+                    background-repeat: no-repeat;
+                    background-position: right;
+                    background-size: cover;
+                    background-image: url('/images/15.jpg');
+                    ">
+  </div>
+  <div class="" style="
+                    min-height: 400px;
+                    background-repeat: no-repeat;
+                    background-position: right;
+                    background-size: cover;
+                    background-image: url('/images/16.jpg');
+                    ">
+  </div> -->
+</div>
+<div class="gx-0 w-100 d-none d-lg-block" id="ss2">
+
+</div>
+<section class="d-flex flex-column justify-content-center align-items-center">
+  <div class="container p-4">
+
+    <div class="d-flex flex-column align-items-center justify-content-center mt-4">
+      <div class="fs-2 fw-bold"> Products</div>
+    </div>
+    <products></products>
+    <div style="height: 10vh;"></div>
+  </div>
+</section>
+<script type="text/javascript">
+  $(document).ready(() => {
+
+    phxApp.api("slides", {}, null, (list) => {
+
+      $("#ss").html('')
+      $("#ss2").html('')
+
+      list.forEach((s, i) => {
+
+
+        $("#ss").append(
+          `
+        <div class="rounded" style="
+                          min-height: 400px;
+                          background-repeat: no-repeat;
+                          background-position: center;
+                          background-size: cover;
+                          background-image: url('` + s.mobile_img_url + `');
+                          ">
+        </div>
+
+        `
+        )
+
+
+        $("#ss2").append(`
+        <div style="max-height: 50vh;">
+          <img style="object-fit: contain;width: 100%;object-position: center;height: 60vh;" class="img-fluid" src="` + s.img_url + `">
+        </div>
+      `)
+      })
+
+
+      $("#ss").slick({
+        arrows: false,
+        dots: true
+      })
+
+
+      $("#ss2").slick({
+        arrows: false,
+        dots: true
+      })
+    })
+
+
+  })
+</script>

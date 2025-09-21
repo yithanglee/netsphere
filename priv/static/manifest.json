@@ -1,0 +1,16 @@
+{
+  "short_name": "Haho2u",
+  "name": "Haho2u App",
+  "description": "Health for All, Happiness all Over",
+  "icons": [
+  {
+    "src": "/images/haho2u_icon.png",
+    "type": "image/png",
+    "sizes": "192x192"
+  }],
+  "start_url": "/home",
+  "background_color": "#20534B",
+  "display": "standalone",
+  "scope": "/",
+  "theme_color": "#3F51B5"
+}

@@ -1,0 +1,298 @@
+/* This file is for your main application css. */
+/*@import "./phoenix.css";*/
+@import "./bootstrap_cyborg.css";
+@import "./all.css";
+
+/*.table > :not(caption) > * > * {
+  padding: .5rem .5rem;
+  color: white;
+  background-color: var(--bs-table-bg);
+  border-bottom-width: var(--bs-border-width);
+  box-shadow: inset 0 0 0 9999px var(--bs-table-bg-state,var(--bs-table-bg-type,var(--bs-table-accent-bg)));
+}
+.text-secondary {
+  --bs-text-opacity: 1;
+  color: rgba(var(--bs-white-rgb),var(--bs-text-opacity)) !important;
+}*/
+ /* [data-bs-theme='dark'] .btn-primary {
+  --bs-btn-color: #fff;
+  --bs-btn-bg: #2c3e50;
+  --bs-btn-border-color: #2c3e50;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: #253544;
+  --bs-btn-hover-border-color: #233240;
+  --bs-btn-focus-shadow-rgb: 76,91,106;
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: #233240;
+  --bs-btn-active-border-color: #212f3c;
+  --bs-btn-active-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125);
+  --bs-btn-disabled-color: #fff;
+  --bs-btn-disabled-bg: #2c3e50;
+  --bs-btn-disabled-border-color: #2c3e50;
+  background: linear-gradient(45deg, rgb(86, 253, 197) 0%, rgb(218, 216, 216) 100%);
+  border: 0px;
+}
+.btn:hover {
+  color: var(--bs-btn-hover-color);
+  background: linear-gradient(45deg, rgb(86, 253, 197) 0%, rgb(218, 216, 216) 100%);
+  border-color: #18bc9c00;
+} */
+.jstree-container-ul:nth-child(1) {
+  padding-bottom: 10vh;
+}
+
+.jstree-container-ul.jstree-children {
+  width: 600px;
+  overflow-x: scroll;
+  overflow-y: hidden
+}
+.jstree-node:nth-child(1) {
+  width: 1200px;
+}
+.dataTables_info {
+  padding-top: 0px ;
+}
+.toast ul {
+  list-style: none;
+  padding-left: 0px;
+}
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.transform-75 {
+  transform: scale(0.75, 0.75);
+}
+
+.pagination {
+  margin: 16px 8px !important;
+}
+
+wallet a {
+  text-decoration: none;
+}
+
+.sub {
+  top: 32px;
+  height: 180px;
+  width: 230px;
+}
+
+.su {
+  height: 180px;
+  width: 240px;
+}
+
+.background-p, .foreground-p {
+  height: 140px;
+}
+
+@media (min-width: 576px) {
+.dataTables_info {
+  padding-top: 0px !important;
+}
+  .transform-75 {
+    transform: scale(1, 1);
+  }
+
+
+
+.background-p, .foreground-p {
+  height: 240px;
+}
+
+
+  .sub {
+    top: 16px;
+    width: 310px;
+    height: 220px;
+  }
+
+  .su {
+    height: 210px;
+    width: 320px;
+  }
+}
+
+
+.font-sm,
+.text-sm {
+  font-size: 80%;
+}
+
+table.info tr td {
+  line-height: 16px;
+}
+
+small {
+  font-size: 70%;
+}
+
+.node {
+  background: #fff;
+}
+
+.scrollable {
+  min-height: 90vh;
+  overflow: hidden;
+}
+
+#chartdiv {
+/*  background-color: grey ;*/
+  width: 600px;
+  height: 900px;
+}
+
+.mt-8 {
+  margin-top: 10vh;
+}
+
+.rounded-xl {
+  border-radius: 10vw;
+}
+
+i.fa {
+  height: 16px;
+  width: 18px;
+}
+
+.wrapper-ring {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.50) no-repeat center center;
+  z-index: 10000;
+
+}
+
+.lds-ripple {
+  width: 80px;
+  height: 80px;
+  z-index: 10000;
+  position: absolute;
+  top: 45%;
+  left: 45%;
+}
+
+.lds-ripple div {
+  position: absolute;
+  border: 4px solid #fdd;
+  opacity: 1;
+  border-radius: 50%;
+  animation: lds-ripple 1s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+}
+
+.lds-ripple div:nth-child(2) {
+  animation-delay: -0.5s;
+}
+
+@keyframes lds-ripple {
+  0% {
+    top: 36px;
+    left: 36px;
+    width: 0;
+    height: 0;
+    opacity: 1;
+  }
+
+  100% {
+    top: 0px;
+    left: 0px;
+    width: 72px;
+    height: 72px;
+    opacity: 0;
+  }
+}
+
+
+.nav-link {
+	display: block;
+	padding: var(--bs-nav-link-padding-y) var(--bs-nav-link-padding-x);
+	font-size: var(--bs-nav-link-font-size);
+	font-weight: var(--bs-nav-link-font-weight);
+	color: rgb(255, 255, 255);
+	text-decoration: none;
+	background: none;
+	border: 0;
+	transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+}
+
+a {
+	color: rgb(255, 255, 255);
+	text-decoration: underline;
+}
+
+.card {
+	--bs-card-spacer-y: 1rem;
+	--bs-card-spacer-x: 1rem;
+	--bs-card-title-spacer-y: 0.5rem;
+	--bs-card-title-color: ;
+	--bs-card-subtitle-color: ;
+	--bs-card-border-width: var(--bs-border-width);
+	--bs-card-border-color: var(--bs-border-color-translucent);
+	--bs-card-border-radius: var(--bs-border-radius);
+	--bs-card-box-shadow: ;
+	--bs-card-inner-border-radius: calc(var(--bs-border-radius) - (var(--bs-border-width)));
+	--bs-card-cap-padding-y: 0.5rem;
+	--bs-card-cap-padding-x: 1rem;
+	--bs-card-cap-bg: rgba(var(--bs-body-color-rgb), 0.03);
+	--bs-card-cap-color: ;
+	--bs-card-height: ;
+	--bs-card-color: ;
+	--bs-card-bg: #28282800;
+	--bs-card-img-overlay-padding: 1rem;
+	--bs-card-group-margin: 0.75rem;
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	height: var(--bs-card-height);
+	color: var(--bs-body-color);
+	word-wrap: break-word;
+	background-color: var(--bs-card-bg);
+	background-clip: border-box;
+	border: var(--bs-card-border-width) solid var(--bs-card-border-color);
+	border-radius: var(--bs-card-border-radius);
+}
+
+.btn-outline-light {
+	--bs-btn-color: #222;
+	--bs-btn-border-color: #fff;
+	--bs-btn-hover-color: #fff;
+	--bs-btn-hover-bg: #222;
+	--bs-btn-hover-border-color: #222;
+	--bs-btn-focus-shadow-rgb: 34, 34, 34;
+	--bs-btn-active-color: #fff;
+	--bs-btn-active-bg: #222;
+	--bs-btn-active-border-color: #222;
+	--bs-btn-active-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125);
+	--bs-btn-disabled-color: #222;
+	--bs-btn-disabled-bg: transparent;
+	--bs-btn-disabled-border-color: #222;
+	--bs-gradient: none;
+}
+
+.bg-glass {
+  background-color: inherit !important; /* Let Bootstrap's bg-[color] control the base color */
+  background-clip: padding-box;
+  backdrop-filter: blur(10px); /* The "frosted glass" effect */
+  -webkit-backdrop-filter: blur(10px); /* Safari support */
+  opacity: 0.85; /* Adjust transparency as needed */
+  border-radius: 0.5rem; /* Optional: keeps the glass rounded */
+}
+
+.form-group, .form-floating {
+	border-bottom: 1px solid #ffffff3d;
+  margin-bottom: 1rem;
+}
+
+.jstree-default .jstree-clicked {
+	background: #beebff;
+	border-radius: 2px;
+	box-shadow: inset 0 0 1px #999999;
+	color: black;
+}

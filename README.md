@@ -6,6 +6,10 @@
 - Navigation calls `phxApp_.html(page)` to fetch and inject the static HTML into `#content`.
 - Static HTML can contain custom elements (e.g., `<products></products>`). After navigation, `commerceApp_.render()` scans the DOM and executes matching component functions to populate those elements.
 
+
+
+sudo apt-get update -y | cat && sudo apt-get install -y build-essential automake autoconf libtool pkg-config cmake git curl libgmp-dev libssl-dev | cat && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal | cat && source $HOME/.cargo/env && rustc --version | cat && cargo --version | cat
+
 ### Key files
 - `vite_front/src/main.js`: Registers routes and boots the app (calls `phxApp_.navigateTo()` on load).
 - `vite_front/src/phx_app.js`:

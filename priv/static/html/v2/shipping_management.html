@@ -1,0 +1,104 @@
+<section class=" p-4">
+    <div class="card ">
+        <div class="card-body ">
+            <div class="d-flex flex-lg-row flex-column justify-content-between align-items-center">
+                <h3>Shipping Management</h3>
+                <div class="d-flex gap-2">
+
+
+                </div>
+            </div>
+            <div class="container gx-0">
+
+                <div class="row gx-0 " style="margin-top: 8vh;">
+                    <div class="col-lg-6 col-12">
+
+                        <div id="tab1x">
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+    </div>
+</section>
+
+
+
+<script type="text/javascript">
+
+    $(document).ready(function () {
+        var random_id = '1x',
+            customCols = [];
+        user_sales_addressSource = new phoenixModel({
+            xcard: (params) => {
+
+                var data = params,
+                    showBtn = '';
+
+                var card = `
+            <div  class="m-2 d-flex flex-column gap-2" >
+          
+                <div class="d-flex flex-column justify-content-center gap-2 mt-4">
+                <div class="font-sm fw-bold text-start">Address</div>
+                <div class="d-flex flex-column justify-content-center ">
+                    ` + data.line1 + `, ` + data.line2 + `, ` + data.city + `, ` + data.postcode + `, 
+                    ` + data.state + ` ` + (data.country || '') + ` 
+
+                </div>
+                <div class="font-sm fw-bold text-start">Contact</div>
+                <div class="d-flex flex-column justify-content-center ">
+                    ` + data.fullname + `<br>` + data.phone + `
+                </div>
+            
+
+            
+                </div>
+            </div>
+            `
+                return card
+            },
+            data: { user_id: phxApp.user.id },
+            grid_class: "col-6 col-lg-3",
+            dom: `
+
+                                                    <"row px-4"
+                                                    <"col-lg-6 col-12"i>
+                                                    <"col-12 col-lg-6">
+                                                    >
+                                                    <"row grid_view ">
+                                                    <"list_view d-none"t>
+                                                    <"row transform-75 px-4"
+                                                    <"col-lg-6 col-12">
+                                                    <"col-lg-6 col-12"p>
+                                                    >
+
+                                                `,
+            columns: [
+
+                { label: 'id', data: 'id' },
+                { label: 'Name', data: 'fullname', showSubtitle: true, subtitle: "phone" },
+                { label: 'id', data: 'phone', className: "d-none" },
+                { label: 'Line1', data: 'line1', className: "", showSubtitle: true, subtitle: "line2" },
+                { label: 'Line2', data: 'line2', className: "d-none" },
+                { label: 'Action', data: 'id' }
+
+            ],
+            moduleName: "UserSalesAddress",
+            link: "UserSalesAddress",
+            customCols: customCols,
+            buttons: [{
+                name: "Edit",
+                iconName: "fa fa-edit",
+                color: "btn-sm btn-outline-warning",
+                onClickFunction: phxApp.editData,
+                fnParams: {
+
+                }
+            },],
+            tableSelector: "#" + random_id
+        })
+        user_sales_addressSource.load(random_id, "#tab1x")
+    })
+</script>

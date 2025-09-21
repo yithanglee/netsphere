@@ -1,0 +1,114 @@
+<div class="row gx-0 ">
+  <div class="col-lg-10 col-12 offset-lg-1">
+   
+  </div>
+</div>
+<form action="javascript:void(0);" id="register">
+  <input type="hidden" name="_csrf_token" id="need-token" value="">
+  <input type="hidden" name="user[sales_person_id]">
+  <input type="hidden" name="user[rank_id]">
+  <input type="hidden" name="user[country_id]">
+  <input type="hidden" name="user[pick_up_point_id]">
+  <input type="hidden" name="user[placement][position]">
+  <input type="hidden" name="user[sponsor]">
+  <input type="hidden" name="user[share_code]">
+  <input type="hidden" class="btn-check" name="user[payment][method]" value="razer">
+  <input type="hidden" class="btn-check" name="user[payment][channel]" >
+  <section class="row gx-0">
+ 
+    <div class="col-12 col-lg-8  offset-lg-2 p-4">
+      <div class="card ">
+        <div class="card-body ">
+          <div class="mb-4">Registration Details</div>
+          <div class="form-group" id="register-step-1">
+            <label class="form-label ms-1 text-secondary">Account Details</label>
+            <div class="form-floating mb-3">
+              <input type="text" autocomplete="off" class="form-control-plaintext" id="floatingInput" required placeholder="kkm88" name="user[username]" autocomplete="off">
+              <label for="floatingInput">Username</label>
+            </div>
+            <div class="form-floating mb-3">
+              <input type="email" class="form-control-plaintext" value="a@1.com" id="floatingInput" placeholder="name@example.com" name="user[email]">
+              <label for="floatingInput">Email address</label>
+            </div>
+            <div class="form-floating">
+              <input type="password" autocomplete="off" required class="form-control-plaintext" id="floatingPassword" placeholder="Password" autocomplete="off" name="user[password]">
+              <label for="floatingPassword">Password</label>
+            </div>
+
+
+            <label class="form-label ms-1 text-secondary">Contact Details</label>
+            <div class="form-floating mb-3">
+              <input type="text" required class="form-control-plaintext" value="1" id="floatingInput" placeholder="+6012 2266 1234" name="user[phone]">
+              <label for="floatingInput">Phone</label>
+            </div>
+            <div class="form-floating mb-3">
+              <input type="text" class="form-control-plaintext" value="1" id="floatingInput" placeholder="YAP KIM SOON" name="user[fullname]">
+              <label for="floatingInput">Full Name (as per IC)</label>
+            </div>
+
+
+          </div>
+          <div class="form-group d-none" id="register-step-2">
+            <label class="form-label ms-1 text-secondary">Email Verification</label>
+            <div class="form-floating mt-3">
+              <input type="text" class="form-control-plaintext" id="floatingPin" placeholder="6-digit PIN" name="user[pin]" inputmode="numeric" pattern="\d{6}" maxlength="6" minlength="6" required autocomplete="one-time-code">
+              <label for="floatingPin">Enter 6-digit PIN</label>
+              <div class="form-text">We sent a code to your email. The code expires in 10 minutes.</div>
+            </div>
+            <div class="d-flex gap-2 mt-3">
+              <button type="button" class="btn btn-outline-secondary" id="resendPinBtn">Resend code</button>
+              <button type="button" class="btn btn-primary" id="verifyPinBtn">Verify & Complete</button>
+            </div>
+          </div>
+          <div class="form-group mt-2">
+
+          </div>
+          <div class="d-lg-none d-block ">
+            <button type="button" class="btn btn-primary w-100" id="nextBtn">Next</button>
+          </div>
+          <div class="d-none d-lg-block text-end">
+            <button type="button" class="btn btn-primary" id="nextBtn">Next</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</form>
+<script type="text/javascript">
+  (function(){
+    function getEmail(){ return $("input[name='user[email]']").val(); }
+    function getName(){ return $("input[name='user[fullname]']").val() || getEmail(); }
+
+    $("#nextBtn").on("click", function(){
+      // simple front validation for step 1
+      var form = $(this).closest("form")[0];
+
+
+      // request PIN
+      phxApp.post("send_email_pin", { email: getEmail(), name: getName() }, null, function(r){
+        if(r.status==="ok"){
+          $("#register-step-1").addClass("d-none");
+          $("#register-step-2").removeClass("d-none");
+          $("#nextBtn").addClass("d-none");
+        }
+      });
+    });
+
+    $("#resendPinBtn").on("click", function(){
+      phxApp.post("send_email_pin", { email: getEmail(), name: getName() }, null, function(r){
+        if(r.status==="ok"){ phxApp.notify("Verification code resent."); }
+      });
+    });
+
+    $("#verifyPinBtn").on("click", function(){
+      var code = $("#floatingPin").val();
+      phxApp.post("verify_email_pin", { email: getEmail(), code: code }, null, function(r){
+        if(r.status==="ok"){
+          phxApp.linkRegister($("#register")[0]);
+        } else {
+          phxApp.notify(r.reason || "Verification failed", { type: "danger"});
+        }
+      });
+    });
+  })();
+</script>

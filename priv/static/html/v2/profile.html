@@ -1,0 +1,114 @@
+<section class=" p-4">
+  <div class="card ">
+    <div class="card-body ">
+      <div class="d-flex flex-lg-row flex-column justify-content-between align-items-center">
+        <h3>Profile page</h3>
+        <div class="d-flex gap-2">
+          <crypto_wallet></crypto_wallet>
+     
+        </div>
+      </div>
+      <div class="container gx-0">
+        <div class="row">
+          <div class="col-lg-5 col-12 ">
+            <div class="fs-4 mt-4">_Wallet</div>
+            <div class="text-secondary mb-4">_Summary</div>
+            <div class="row mt-4">
+              <wallet class="col-lg-6 col-10 pb-0 pb-lg-4" aria-data="bonus"></wallet>
+              <wallet class="col-lg-6 col-10 " aria-data="product"></wallet>
+              <wallet class="col-lg-6 col-10 pb-0 pb-lg-4" aria-data="register"></wallet>
+              <wallet class="col-lg-6 col-10" aria-data="token"></wallet>
+            </div>
+            <div class="row mt-4 d-none">
+              <wallet class="col-lg-6 col-10 pb-0 pb-lg-4" aria-data="merchant"></wallet>
+              <wallet class="col-lg-6 col-10 pb-0 pb-lg-4" aria-data="merchant_bonus"></wallet>
+              <wallet class="col-lg-6 col-10 pb-0 pb-lg-4" aria-data="travel"></wallet>
+            </div>
+          </div>
+
+        </div>
+        <div class="row gx-0 border-top border-1" style="margin-top: 8vh;">
+          <div class="col-lg-6 col-12">
+            <div class="fs-4 mt-4">Personal</div>
+            <div class="text-secondary mb-4">Information</div>
+            <form class="with_mod row" module="User" id="User">
+            </form>
+          </div>
+         
+        </div>
+        <div class="row gx-0 border-top border-1" style="margin-top: 8vh;">
+
+          <div class="offset-lg-1 col-lg-4 col-12">
+            <div class="d-flex flex-column">
+              
+              <div class="d-none">
+                <div class="fs-4 mt-4">Share Merchant Link</div>
+                <div class="text-secondary mb-4">Recruit New Members</div>
+                <recruit merchant="">
+                </recruit>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<script type="text/javascript">
+$(document).ready(() => {
+  console.log("call " + phxApp.user.fullname)
+
+
+  var keys =
+    Object.keys(phxApp.user)
+
+  keys.forEach((k, i) => {
+    $("#profile-body").append(`
+      <div class="text-secondary ">` + k + `</div><div class="w-auto text-truncate">` + phxApp.user[k] + `</div>
+    `)
+  })
+
+
+  phxApp.createForm(
+    phxApp.user,
+    null,
+    [{
+        name: 'General',
+        list: [
+          { label: 'country_id', selection: window.countries, alt_name: "Nationality", alt_class: "col-12" },
+          'fullname',
+          'id',
+          'username',
+          'phone',
+          'email', 'password', { label: 'ic_no', alt_name: "_ic_no" },
+          {label: 'is_stockist', hidden: true, data: phxApp.user.is_stockist ? "on" : "off"}
+        ]
+      }, {
+        name: 'BankDetails',
+        list: [
+
+          { label: 'bank_name', alt_name: "Bank Name", alt_class: "col-12" },
+          { label: 'bank_account_holder', alt_name: "Bank Account Holder", alt_class: "col-12" },
+          { label: 'bank_account_no', alt_name: "Account Number", alt_class: "col-12" },
+
+        ]
+      }
+
+
+    ],
+
+    (j) => {
+
+      phxApp.updateUser(j)
+      phxApp.navigateTo("/profile")
+    }
+
+  )
+
+
+
+  
+
+
+})
+</script>
