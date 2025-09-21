@@ -1,152 +1,267 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-<title>NETSPHERE – Mobile Landing</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-<style>
-/* ---------- Mobile-first Design ---------- */
-:root{
-  --bg:#0b1321; --panel:#0f1a2e;
-  --text:#e6f2ff; --muted:#9fb3cc;
-  --brand:#4ce0c6; --brand2:#19a2ff;
-  --radius:16px;
-}
-*{box-sizing:border-box} html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 "Inter",system-ui,-apple-system,Segoe UI,Roboto,Arial}
-.container{max-width:680px;margin:0 auto;padding:0 16px}
+<!-- full bg slideshow -->
 
-/* HEADER */
-.header{position:sticky;top:0;z-index:20;background:rgba(8,14,28,.6);backdrop-filter:blur(6px);border-bottom:1px solid rgba(150,200,255,.12)}
-.header-inner{display:flex;align-items:center;justify-content:space-between;height:60px;padding:6px 0}
-.brand{display:flex;gap:10px;align-items:center;text-decoration:none;color:var(--text)}
-.badge{width:30px;height:30px;border-radius:8px;background:conic-gradient(from 140deg,var(--brand),var(--brand2),#7df8ff);box-shadow:0 0 14px rgba(25,162,255,.45)}
-.name{font-weight:800;letter-spacing:.3px}
-.menu-btn{appearance:none;border:1px solid rgba(170,220,255,.18);background:transparent;color:var(--text);padding:8px 12px;border-radius:999px}
 
-/* HERO */
-.hero{padding:26px 0 14px;border-bottom:1px solid rgba(150,200,255,.12)}
-.h1{font-size:32px;line-height:1.15;margin:0 0 10px;font-weight:800;letter-spacing:-.2px}
-.h1 .alt{background:linear-gradient(90deg,var(--brand2),var(--brand));-webkit-background-clip:text;background-clip:text;color:transparent}
-.lead{color:var(--muted);margin:0 0 14px}
-.cta-row{display:flex;gap:10px;flex-wrap:wrap}
-.btn{appearance:none;border:0;border-radius:999px;padding:12px 16px;font-weight:700;cursor:pointer}
-.btn.primary{color:#031320;background:linear-gradient(90deg,var(--brand),var(--brand2));box-shadow:0 0 16px rgba(76,224,198,.55)}
-.btn.ghost{color:var(--text);background:rgba(255,255,255,.06);border:1px solid rgba(170,220,255,.18)}
-
-/* Globe (kept lightweight SVG) */
-.globe{width:100%;max-width:520px;margin:14px auto 0;filter:drop-shadow(0 0 24px rgba(25,162,255,.35))}
-.card-wrap{display:grid;gap:12px;margin:18px 0}
-.card{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.015));border:1px solid rgba(160,210,255,.12);border-radius:var(--radius);padding:16px}
-.card h3{margin:2px 0 4px;font-size:18px}
-.card p{margin:0;color:var(--muted)}
-.icon{width:42px;height:42px;border-radius:10px;display:grid;place-items:center;background:radial-gradient(circle at 30% 20%,rgba(76,224,198,.6),rgba(25,162,255,.35))}
-
-/* CTA Section */
-.cta{margin:14px 0 18px;padding:16px;border-radius:var(--radius);border:1px solid rgba(130,200,255,.14);background:linear-gradient(180deg,rgba(76,224,198,.08),rgba(25,162,255,.05))}
-.cta h2{margin:0 0 8px;font-size:20px}
-.quote{margin:0 0 12px;color:var(--muted);font-style:italic}
-
-/* Banner placeholder (replace with img) */
-.banner{margin-top:10px;border-radius:12px;overflow:hidden;border:1px solid rgba(150,200,255,.14);min-height:140px;display:grid;place-items:center;background:linear-gradient(90deg,#18283f,#0e1b33);color:#9ddcff;text-align:center;padding:16px}
-.banner small{opacity:.8}
-
-/* FOOTER */
-.footer{padding:18px 0 30px;color:var(--muted);text-align:center}
-.footer a{color:var(--muted);text-decoration:none;margin:0 10px}
-
-/* ------- Tablet & up ------- */
-@media (min-width:768px){
-  .h1{font-size:44px}
-  .container{padding:0 20px}
-  .card-wrap{grid-template-columns:repeat(3,1fr)}
-}
-</style>
-</head>
-<body>
-<header class="header">
-  <div class="container header-inner">
-    <a class="brand" href="#"><span class="badge" aria-hidden="true"></span><span class="name">NETSPHERE</span></a>
-    <button class="menu-btn">Menu</button>
-  </div>
-</header>
-
-<main class="container">
-  <!-- HERO -->
-  <section class="hero" aria-labelledby="hero-title">
-    <h1 id="hero-title" class="h1">Build Your<br>Network.<br><span class="alt">Grow Your Wealth.</span></h1>
-    <p class="lead">Connecting people with powerful innovation and smart efficiency.</p>
-    <div class="cta-row">
-      <button class="btn primary">Start Today</button>
-      <button class="btn ghost">Learn More</button>
+<section class="hero">
+  <div class="container hero-grid">
+    <div>
+      <h1 class="h1">
+        Build Your<br> Network.<br>
+        <span class="alt">Grow Your<br> Wealth.</span>
+      </h1>
+      <p class="lead">Connecting people with powerful innovation and smart efficiency.</p>
+      <div class="hero-actions">
+        <button class="btn">Start Today</button>
+        <button class="btn ghost">Learn More</button>
+      </div>
     </div>
 
-    <!-- Lightweight globe SVG (แทนรูปโลกเรืองแสง) -->
+    <!-- Glowing globe (inline SVG) -->
     <svg class="globe" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Connected globe">
       <defs>
-        <radialGradient id="g1" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="#2be6d2" stop-opacity=".7"/>
-          <stop offset="70%" stop-color="#19a2ff" stop-opacity=".35"/>
-          <stop offset="100%" stop-color="#0b1321" stop-opacity="0"/>
+        <!-- Outer glow -->
+        <filter id="outerGlow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
+          <feMerge> 
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+        
+        <!-- Inner glow -->
+        <filter id="innerGlow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+          <feMerge> 
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+        
+        <!-- Node glow -->
+        <filter id="nodeGlow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+          <feMerge> 
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+        
+        <!-- Pulse animation -->
+        <animate id="pulse" attributeName="r" values="260;270;260" dur="3s" repeatCount="indefinite"/>
+        
+        <!-- Main globe gradient -->
+        <radialGradient id="globeGradient" cx="45%" cy="35%" r="60%">
+          <stop offset="0%" stop-color="#4ce0c6" stop-opacity="0.9"/>
+          <stop offset="30%" stop-color="#19a2ff" stop-opacity="0.7"/>
+          <stop offset="60%" stop-color="#93a7c3" stop-opacity="0.5"/>
+          <stop offset="85%" stop-color="#d7e6ff" stop-opacity="0.3"/>
+          <stop offset="100%" stop-color="#1a1a2e" stop-opacity="0.1"/>
         </radialGradient>
+        
+        <!-- Outer rim gradient -->
+        <radialGradient id="rimGradient" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#4ce0c6" stop-opacity="0.4"/>
+          <stop offset="50%" stop-color="#19a2ff" stop-opacity="0.2"/>
+          <stop offset="100%" stop-color="#93a7c3" stop-opacity="0.1"/>
+        </radialGradient>
+        
+        <!-- Network line gradient -->
+        <linearGradient id="networkGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#4ce0c6" stop-opacity="0.8"/>
+          <stop offset="50%" stop-color="#19a2ff" stop-opacity="0.6"/>
+          <stop offset="100%" stop-color="#93a7c3" stop-opacity="0.4"/>
+        </linearGradient>
       </defs>
-      <circle cx="300" cy="300" r="250" fill="url(#g1)" stroke="#49e3cd" stroke-opacity=".35"/>
-      <g stroke="#7befff" stroke-opacity=".35">
-        <path d="M80,260 C180,120 420,120 520,260" />
-        <path d="M60,340 C200,220 400,220 540,340" />
-        <path d="M120,420 C240,340 360,340 480,420" />
-        <path d="M140,180 C280,280 320,280 460,180" />
-      </g>
-      <g fill="#9dfff5">
-        <circle cx="120" cy="420" r="4"/><circle cx="240" cy="340" r="4"/>
-        <circle cx="360" cy="340" r="4"/><circle cx="480" cy="420" r="4"/>
-        <circle cx="80" cy="260" r="4"/><circle cx="300" cy="260" r="4"/>
-        <circle cx="520" cy="260" r="4"/><circle cx="460" cy="180" r="4"/>
-        <circle cx="140" cy="180" r="4"/>
-      </g>
-    </svg>
-  </section>
+      
+      <!-- Outer glow layers -->
+      <circle cx="300" cy="300" r="280" fill="none" stroke="#4ce0c6" stroke-width="2" opacity="0.3" filter="url(#outerGlow)"/>
+      <circle cx="300" cy="300" r="270" fill="none" stroke="#19a2ff" stroke-width="1.5" opacity="0.4" filter="url(#outerGlow)"/>
+      
 
-  <!-- FEATURES -->
-  <section class="card-wrap" aria-label="Key features">
-    <article class="card">
-      <div class="icon" aria-hidden="true">💲</div>
+      
+      <!-- Network lines with enhanced styling -->
+      <g stroke="url(#networkGradient)" stroke-width="2" fill="none" opacity="0.7">
+        <path d="M80,260 C180,120 420,120 520,260" stroke-dasharray="5,5">
+          <animate attributeName="stroke-dashoffset" values="0;10" dur="2s" repeatCount="indefinite"/>
+        </path>
+        <path d="M60,340 C200,220 400,220 540,340" stroke-dasharray="3,7">
+          <animate attributeName="stroke-dashoffset" values="0;-10" dur="2.5s" repeatCount="indefinite"/>
+        </path>
+        <path d="M120,420 C240,340 360,340 480,420" stroke-dasharray="4,6">
+          <animate attributeName="stroke-dashoffset" values="0;8" dur="3s" repeatCount="indefinite"/>
+        </path>
+        <path d="M140,180 C280,280 320,280 460,180" stroke-dasharray="6,4">
+          <animate attributeName="stroke-dashoffset" values="0;-8" dur="2.2s" repeatCount="indefinite"/>
+        </path>
+        <path d="M100,200 C200,150 400,150 500,200" stroke-dasharray="2,8">
+          <animate attributeName="stroke-dashoffset" values="0;10" dur="2.8s" repeatCount="indefinite"/>
+        </path>
+        <path d="M90,380 C190,320 410,320 510,380" stroke-dasharray="5,5">
+          <animate attributeName="stroke-dashoffset" values="0;-10" dur="3.2s" repeatCount="indefinite"/>
+        </path>
+      </g>
+      
+      <!-- Enhanced nodes with glow -->
+      <g filter="url(#nodeGlow)">
+        <circle cx="120" cy="420" r="6" fill="#4ce0c6" opacity="0.9">
+          <animate attributeName="r" values="6;8;6" dur="2s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="240" cy="340" r="5" fill="#19a2ff" opacity="0.8">
+          <animate attributeName="r" values="5;7;5" dur="2.3s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="360" cy="340" r="5" fill="#19a2ff" opacity="0.8">
+          <animate attributeName="r" values="5;7;5" dur="2.1s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="480" cy="420" r="6" fill="#4ce0c6" opacity="0.9">
+          <animate attributeName="r" values="6;8;6" dur="2.4s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="80" cy="260" r="7" fill="#93a7c3" opacity="0.9">
+          <animate attributeName="r" values="7;9;7" dur="1.8s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="300" cy="260" r="8" fill="#d7e6ff" opacity="0.9">
+          <animate attributeName="r" values="8;10;8" dur="1.5s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="520" cy="260" r="7" fill="#93a7c3" opacity="0.9">
+          <animate attributeName="r" values="7;9;7" dur="1.9s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="460" cy="180" r="5" fill="#19a2ff" opacity="0.8">
+          <animate attributeName="r" values="5;7;5" dur="2.2s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="140" cy="180" r="5" fill="#19a2ff" opacity="0.8">
+          <animate attributeName="r" values="5;7;5" dur="2.0s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="300" cy="400" r="6" fill="#4ce0c6" opacity="0.9">
+          <animate attributeName="r" values="6;8;6" dur="2.5s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="200" cy="200" r="4" fill="#93a7c3" opacity="0.7">
+          <animate attributeName="r" values="4;6;4" dur="2.7s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="400" cy="200" r="4" fill="#93a7c3" opacity="0.7">
+          <animate attributeName="r" values="4;6;4" dur="2.6s" repeatCount="indefinite"/>
+        </circle>
+      </g>
+      
+      <!-- Central core node -->
+      <circle cx="300" cy="300" r="12" fill="#4ce0c6" opacity="0.8" filter="url(#nodeGlow)">
+        <animate attributeName="r" values="12;16;12" dur="1.5s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0.8;1;0.8" dur="1.5s" repeatCount="indefinite"/>
+      </circle>
+    </svg>
+  </div>
+</section>
+
+<!-- Feature Cards -->
+<section class="features">
+  <div class="container cards">
+    <article class="card p-4">
+      <div class="icon" aria-hidden="true"><i class="fa fa-dollar-sign"></i></div>
       <h3>Extra Income</h3>
       <p>Turn every connection into profit.</p>
     </article>
-    <article class="card">
-      <div class="icon" aria-hidden="true">📦</div>
+    <article class="card p-4">
+      <div class="icon" aria-hidden="true"><i class="fa fa-box"></i></div>
       <h3>Quality Products</h3>
       <p>Trusted items with real value.</p>
     </article>
-    <article class="card">
-      <div class="icon" aria-hidden="true">🤝</div>
+    <article class="card p-4">
+      <div class="icon" aria-hidden="true"><i class="fa fa-handshake"></i></div>
       <h3>Full Support</h3>
       <p>Training, tools, and guidance every step.</p>
     </article>
-  </section>
-
-  <!-- CTA BOX -->
-  <section class="cta" aria-labelledby="cta-title">
-    <h2 id="cta-title">Your journey to success starts here.</h2>
-    <p class="quote">“This business has truly transformed my life!”</p>
-    <button class="btn primary">Join NETSPHERE Now</button>
-    <div class="banner">
-      <div>
-        <strong>Promo Banner</strong><br>
-        <small>Replace with your 720×280 image (e.g., NETSPHERE WAY rocket).</small>
-      </div>
-    </div>
-  </section>
-</main>
-
-<footer class="footer">
-  <div class="container">
-    <a href="#">About</a>
-    <a href="#">Privacy</a>
-    <a href="#">Terms</a>
   </div>
-</footer>
-</body>
-</html>
+</section>
+
+<!-- Journey CTA -->
+<section class="container cta p-4 text-center">
+  <h2>Your journey to success starts here.</h2>
+  <p class="quote">“This business has truly transformed my life!”</p>
+  <button class="btn">Join NETSPHERE Now</button>
+
+  <div class="banner" aria-label="Studio banner area">
+    <div class="gx-0 w-100 d-lg-none d-block p-4 rounded-4" id="ss">
+      <!--   <div class="" style="
+                        min-height: 400px;
+                        background-repeat: no-repeat;
+                        background-position: right;
+                        background-size: cover;
+                        background-image: url('/images/15.jpg');
+                        ">
+      </div>
+      <div class="" style="
+                        min-height: 400px;
+                        background-repeat: no-repeat;
+                        background-position: right;
+                        background-size: cover;
+                        background-image: url('/images/16.jpg');
+                        ">
+      </div> -->
+    </div>
+    <div class="gx-0 w-100 d-none d-lg-block" id="ss2">
+  </div>
+</section>
+
+
+
+</div>
+<section class="d-flex flex-column justify-content-center align-items-center">
+  <div class="container ">
+
+
+    <div class="card p-4">
+      <div class="d-flex flex-column align-items-center justify-content-center mt-4">
+        <h2 class=""> Products</h2>
+      </div>
+      <products ></products>
+    </div>
+
+    <div style="height: 10vh;"></div>
+  </div>
+</section>
+<script type="text/javascript">
+  $(document).ready(() => {
+
+    phxApp.api("slides", {}, null, (list) => {
+
+      $("#ss").html('')
+      $("#ss2").html('')
+
+      list.forEach((s, i) => {
+
+
+        $("#ss").append(
+          `
+        <div class="rounded" style="
+                          min-height: 400px;
+                          background-repeat: no-repeat;
+                          background-position: center;
+                          background-size: cover;
+                          background-image: url('` + s.mobile_img_url + `');
+                          ">
+        </div>
+
+        `
+        )
+
+
+        $("#ss2").append(`
+        <div style="max-height: 50vh;">
+          <img style="object-fit: contain;width: 100%;object-position: center;height: 60vh;" class="img-fluid" src="` + s.img_url + `">
+        </div>
+      `)
+      })
+
+
+      $("#ss").slick({
+        arrows: false,
+        dots: true
+      })
+
+
+      $("#ss2").slick({
+        arrows: false,
+        dots: true
+      })
+    })
+
+
+  })
+</script>

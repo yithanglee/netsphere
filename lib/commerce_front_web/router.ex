@@ -152,7 +152,7 @@ defmodule CommerceFrontWeb.Router do
   
   # if dev can comment this
   if Mix.env() == :dev do 
-
+ 
   else    
     scope "/html/:lang", CommerceFrontWeb do
       pipe_through([:browser])

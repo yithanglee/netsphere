@@ -5,37 +5,19 @@
   }
 </style>
 
-<div class="d-none  bg-dark bg-gradient p-1 d-lg-flex align-items-center justify-content-end pe-4 gap-3">
+<div class="d-none   p-1 d-lg-flex align-items-center justify-content-end pe-4 gap-3">
   <a class="navi" href="/sales">Sales History</a>
   <a class=" navi" href="/group_sales">Team Bonus _Summary</a>
   <a class=" navi" href="/placement">Placement</a>
   <a class=" navi" href="/referal">Referal</a>
 </div>
-<nav class="py-lg-1 py-2 navbar navbar-expand-lg stick-top d-none d-lg-block  bg-dark">
+<nav class="py-lg-1 py-2 navbar navbar-expand-lg stick-top d-none d-lg-block header">
   <div class="container-fluid ">
-    <a class="navbar-brand navi text-white" href="/home">
-      <img src="" height="40px">Netsphere
+    <a class="brand me-2 navi" href="/home">
+      <span class="brand-badge" aria-hidden="true"></span>
+      <span class="name">NETSPHERE</span>
     </a>
-    <div class="d-flex justify-content-between">
-      <div aria-label="logout" class="d-none">
-        <div class="showCart ">
-          <cart class="d-lg-none d-block ">
-            Cart
-          </cart>
-        </div>
-      </div>
-      <div aria-label="logout" class="d-none">
-        <div class="showMcart d-none">
-          <mcart class="d-lg-none d-block ">
-            Cart
-          </mcart>
-        </div>
-      </div>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor04"
-        aria-controls="navbarColor04" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-    </div>
+
     <div class="collapse navbar-collapse p-4 p-lg-0" id="navbarColor04">
       <ul class="align-items-center navbar-nav me-auto">
         <li class="nav-item d-flex align-items-center me-2 my-2" aria-label="logout">
@@ -82,7 +64,7 @@
 
         <li class="nav-item dropdown d-none " aria-label="logout">
           <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true"
-            aria-expanded="false">Eshare</a>
+            aria-expanded="false">Active Token</a>
           <div class="dropdown-menu">
             <a class="dropdown-item navi" href="/ledger_entries">Ledger Entries</a>
             <a class="dropdown-item navi" href="/primary_buy">Primary Buy</a>
@@ -105,23 +87,7 @@
         -->
         <country></country>
       </ul>
-      <form class="d-flex">
-        
-        <div aria-label="logout" class="d-none">
-          <div class="showCart ">
-            <cart class="d-none d-lg-block ">
-              Cart
-            </cart>
-          </div>
-        </div>
-        <div aria-label="logout" class="d-none">
-          <div class="showMcart d-none">
-            <mcart class="d-none d-lg-block ">
-              Cart
-            </mcart>
-          </div>
-        </div>
-      </form>
+
       <ul class="navbar-nav">
         <li class="nav-item d-none ms-0 ms-lg-4" aria-label="logout">
           <a class="nav-link navi" href="/logout">Logout</a>
@@ -130,10 +96,20 @@
     </div>
   </div>
 </nav>
-<nav class="py-lg-1 py-2 navbar navbar-expand-lg fixed-bottom  d-lg-none d-block bg-dark ">
+<nav class="py-lg-1 py-2 navbar navbar-expand-lg fixed-bottom  d-lg-none d-block  "
+
+style="
+  z-index: 10;
+  background: rgba(10, 16, 30, .55);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid rgba(100, 160, 220, .18);
+
+"
+>
   <div class="container-fluid ">
-    <a class="navbar-brand navi text-white" href="/home">
-      <img src="" height="40px">Netsphere
+    <a class="brand me-2 navi" href="/home">
+      <span class="brand-badge" aria-hidden="true"></span>
+      <span class="name">NETSPHERE</span>
     </a>
     <div class="d-flex justify-content-between">
       <div aria-label="logout" class="d-none">
@@ -176,12 +152,17 @@
         <li class="nav-item  d-none" aria-label="logout">
           <a class="nav-link navi" href="/redeen">Redeem</a>
         </li>
-        <li class="nav-item  d-none" aria-label="logout">
-          <a class="nav-link navi" href="/primary_buy">Primary Buy</a>
+
+        <li class="nav-item dropdown d-none " aria-label="logout">
+          <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true"
+            aria-expanded="false">Active Token</a>
+          <div class="dropdown-menu">
+            <a class="dropdown-item navi" href="/primary_buy">Primary Buy</a>
+            <a class="dropdown-item navi"  href="/ledger_entries">Ledger Entries</a>
+      
+          </div>
         </li>
-        <li class="nav-item  d-none" aria-label="logout">
-          <a class="nav-link navi" href="/ledger_entries">Ledger Entries</a>
-        </li>
+ 
         <li class="nav-item  d-none" aria-label="logout">
           <a class="nav-link navi" href="/shipping_management">Shipping Management</a>
         </li>
@@ -256,8 +237,7 @@
             </mcart>
           </div>
         </div>
-        <input class="form-control me-2 me-sm-2" type="search" placeholder="_Search">
-        <button class="btn btn-sm btn-secondary " type="submit">_Search</button>
+
       </form>
       <ul class="navbar-nav">
         <li class="nav-item d-none ms-0 ms-lg-4" aria-label="logout">

@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>NETSPHERE – Mobile Landing</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* ---------- Mobile-first Design ---------- */
+    :root {
+      --bg: #0b1321;
+      --panel: #0f1a2e;
+      --text: #e6f2ff;
+      --muted: #9fb3cc;
+      --brand: #4ce0c6;
+      --brand2: #19a2ff;
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    html,
+    body {
+      height: 100%
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.6 "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial
+    }
+
+    .container {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 0 16px
+    }
+
+    /* HEADER */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: rgba(8, 14, 28, .6);
+      backdrop-filter: blur(6px);
+      border-bottom: 1px solid rgba(150, 200, 255, .12)
+    }
+
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+      padding: 6px 0
+    }
+
+    .brand {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      text-decoration: none;
+      color: var(--text)
+    }
+
+    .badge {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      background: conic-gradient(from 140deg, var(--brand), var(--brand2), #7df8ff);
+      box-shadow: 0 0 14px rgba(25, 162, 255, .45)
+    }
+
+    .name {
+      font-weight: 800;
+      letter-spacing: .3px
+    }
+
+    .menu-btn {
+      appearance: none;
+      border: 1px solid rgba(170, 220, 255, .18);
+      background: transparent;
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 999px
+    }
+
+    /* HERO */
+    .hero {
+      padding: 26px 0 14px;
+      border-bottom: 1px solid rgba(150, 200, 255, .12)
+    }
+
+    .h1 {
+      font-size: 32px;
+      line-height: 1.15;
+      margin: 0 0 10px;
+      font-weight: 800;
+      letter-spacing: -.2px
+    }
+
+    .h1 .alt {
+      background: linear-gradient(90deg, var(--brand2), var(--brand));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent
+    }
+
+    .lead {
+      color: var(--muted);
+      margin: 0 0 14px
+    }
+
+    .cta-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap
+    }
+
+    .btn {
+      appearance: none;
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 16px;
+      font-weight: 700;
+      cursor: pointer
+    }
+
+    .btn.primary {
+      color: #031320;
+      background: linear-gradient(90deg, var(--brand), var(--brand2));
+      box-shadow: 0 0 16px rgba(76, 224, 198, .55)
+    }
+
+    .btn.ghost {
+      color: var(--text);
+      background: rgba(255, 255, 255, .06);
+      border: 1px solid rgba(170, 220, 255, .18)
+    }
+
+    /* Globe (kept lightweight SVG) */
+    .globe {
+      width: 100%;
+      max-width: 520px;
+      margin: 14px auto 0;
+      filter: drop-shadow(0 0 24px rgba(25, 162, 255, .35))
+    }
+
+    .card-wrap {
+      display: grid;
+      gap: 12px;
+      margin: 18px 0
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255, 255, 255, .03), rgba(255, 255, 255, .015));
+      border: 1px solid rgba(160, 210, 255, .12);
+      border-radius: var(--radius);
+      padding: 16px
+    }
+
+    .card h3 {
+      margin: 2px 0 4px;
+      font-size: 18px
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted)
+    }
+
+    .icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at 30% 20%, rgba(76, 224, 198, .6), rgba(25, 162, 255, .35))
+    }
+
+    /* CTA Section */
+    .cta {
+      margin: 14px 0 18px;
+      padding: 16px;
+      border-radius: var(--radius);
+      border: 1px solid rgba(130, 200, 255, .14);
+      background: linear-gradient(180deg, rgba(76, 224, 198, .08), rgba(25, 162, 255, .05))
+    }
+
+    .cta h2 {
+      margin: 0 0 8px;
+      font-size: 20px
+    }
+
+    .quote {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-style: italic
+    }
+
+    /* Banner placeholder (replace with img) */
+    .banner {
+      margin-top: 10px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(150, 200, 255, .14);
+      min-height: 140px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(90deg, #18283f, #0e1b33);
+      color: #9ddcff;
+      text-align: center;
+      padding: 16px
+    }
+
+    .banner small {
+      opacity: .8
+    }
+
+    /* FOOTER */
+    .footer {
+      padding: 18px 0 30px;
+      color: var(--muted);
+      text-align: center
+    }
+
+    .footer a {
+      color: var(--muted);
+      text-decoration: none;
+      margin: 0 10px
+    }
+
+    /* ------- Tablet & up ------- */
+    @media (min-width:768px) {
+      .h1 {
+        font-size: 44px
+      }
+
+      .container {
+        padding: 0 20px
+      }
+
+      .card-wrap {
+        grid-template-columns: repeat(3, 1fr)
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header class="header">
+    <div class="container header-inner">
+      <a class="brand" href="#"><span class="badge" aria-hidden="true"></span><span class="name">NETSPHERE</span></a>
+      <button class="menu-btn">Menu</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- HERO -->
+    <section class="hero" aria-labelledby="hero-title">
+      <h1 id="hero-title" class="h1">Build Your<br>Network.<br><span class="alt">Grow Your Wealth.</span></h1>
+      <p class="lead">Connecting people with powerful innovation and smart efficiency.</p>
+      <div class="cta-row">
+        <button class="btn primary">Start Today</button>
+        <button class="btn ghost">Learn More</button>
+      </div>
+
+      <!-- Lightweight globe SVG (แทนรูปโลกเรืองแสง) -->
+      <svg class="globe" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg" role="img"
+        aria-label="Connected globe">
+        <defs>
+          <radialGradient id="g1" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#2be6d2" stop-opacity=".7" />
+            <stop offset="70%" stop-color="#19a2ff" stop-opacity=".35" />
+            <stop offset="100%" stop-color="#0b1321" stop-opacity="0" />
+          </radialGradient>
+        </defs>
+        <circle cx="300" cy="300" r="250" fill="url(#g1)" stroke="#49e3cd" stroke-opacity=".35" />
+        <g stroke="#7befff" stroke-opacity=".35">
+          <path d="M80,260 C180,120 420,120 520,260" />
+          <path d="M60,340 C200,220 400,220 540,340" />
+          <path d="M120,420 C240,340 360,340 480,420" />
+          <path d="M140,180 C280,280 320,280 460,180" />
+        </g>
+        <g fill="#9dfff5">
+          <circle cx="120" cy="420" r="4" />
+          <circle cx="240" cy="340" r="4" />
+          <circle cx="360" cy="340" r="4" />
+          <circle cx="480" cy="420" r="4" />
+          <circle cx="80" cy="260" r="4" />
+          <circle cx="300" cy="260" r="4" />
+          <circle cx="520" cy="260" r="4" />
+          <circle cx="460" cy="180" r="4" />
+          <circle cx="140" cy="180" r="4" />
+        </g>
+      </svg>
+    </section>
+
+    <!-- FEATURES -->
+    <section class="card-wrap" aria-label="Key features">
+      <article class="card">
+        <div class="icon" aria-hidden="true">💲</div>
+        <h3>Extra Income</h3>
+        <p>Turn every connection into profit.</p>
+      </article>
+      <article class="card">
+        <div class="icon" aria-hidden="true">📦</div>
+        <h3>Quality Products</h3>
+        <p>Trusted items with real value.</p>
+      </article>
+      <article class="card">
+        <div class="icon" aria-hidden="true">🤝</div>
+        <h3>Full Support</h3>
+        <p>Training, tools, and guidance every step.</p>
+      </article>
+    </section>
+
+    <!-- CTA BOX -->
+    <section class="cta" aria-labelledby="cta-title">
+      <h2 id="cta-title">Your journey to success starts here.</h2>
+      <p class="quote">“This business has truly transformed my life!”</p>
+      <button class="btn primary">Join NETSPHERE Now</button>
+      <div class="banner">
+        <div>
+          <strong>Promo Banner</strong><br>
+          <small>Replace with your 720×280 image (e.g., NETSPHERE WAY rocket).</small>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <a href="#">About</a>
+      <a href="#">Privacy</a>
+      <a href="#">Terms</a>
+    </div>
+  </footer>
+</body>
+
+</html>
