@@ -7883,6 +7883,7 @@ defmodule CommerceFront.Settings do
   end
 
   alias CommerceFront.Settings.Holding
+  # alias CommerceFront.Settings.HoldingStake
 
   def list_holdings() do
     Repo.all(Holding)
@@ -7903,6 +7904,72 @@ defmodule CommerceFront.Settings do
   def delete_holding(%Holding{} = model) do
     Repo.delete(model)
   end
+
+  @doc """
+  Release staked tokens daily at 1% of original per active stake.
+  Updates `holding.locked` and marks stake completed when fully released.
+  Idempotent per day using `last_release_date`.
+  """
+  # def run_daily_staking_release(date \\ Date.utc_today()) do
+  #   import Ecto.Query
+
+  #   stakes =
+  #     Repo.all(
+  #       from(s in HoldingStake,
+  #         where: s.status == ^"active"
+  #       )
+  #     )
+
+  #   Enum.reduce_while(stakes, {:ok, length(stakes)}, fn stake, {:ok, _} ->
+  #     # skip if already released today
+  #     if stake.last_release_date == date do
+  #       {:cont, {:ok, :skipped}}
+  #     else
+  #       Repo.transaction(fn ->
+  #         holding =
+  #           Repo.one!(
+  #             from(h in Holding,
+  #               where: h.user_id == ^stake.user_id and h.asset_id == ^stake.asset_id,
+  #               lock: "FOR UPDATE"
+  #             )
+  #           )
+
+  #         remaining = stake.remaining_locked_qty
+  #         daily = stake.daily_release_qty
+  #         release_qty = if Decimal.compare(remaining, daily) == :lt, do: remaining, else: daily
+
+  #         new_locked = Decimal.sub(holding.locked || Decimal.new("0"), release_qty)
+  #         {count, _} =
+  #           Repo.update_all(
+  #             from(h in Holding, where: h.id == ^holding.id),
+  #             set: [locked: new_locked]
+  #           )
+
+  #         if count != 1, do: Repo.rollback(:holding_update_failed)
+
+  #         remaining_after = Decimal.sub(remaining, release_qty)
+  #         status = if Decimal.compare(remaining_after, 0) == :eq, do: "completed", else: "active"
+
+  #         {count2, _} =
+  #           Repo.update_all(
+  #             from(s in HoldingStake, where: s.id == ^stake.id),
+  #             set: [
+  #               remaining_locked_qty: remaining_after,
+  #               days_released: stake.days_released + 1,
+  #               last_release_date: date,
+  #               status: status
+  #             ]
+  #           )
+
+  #         if count2 != 1, do: Repo.rollback(:stake_update_failed)
+
+  #         :ok
+  #       end)
+
+  #       {:cont, {:ok, :done}}
+  #     end
+  #   end)
+  # end
 
   alias CommerceFront.Settings.Order
 

@@ -8,16 +8,20 @@ defmodule CommerceFront.Settings.LedgerEntry do
     field :direction, :string
     field :journal, :string
     field :reference, :map
-    field :user_id, :id
-    field :asset_id, :id
+    # field :user_id, :id
+    # field :asset_id, :id
+    belongs_to(:user, CommerceFront.Settings.User)
+    belongs_to(:asset, CommerceFront.Settings.Asset)
 
-    timestamps()
+    # timestamps()
+    field :inserted_at, :utc_datetime_usec
+    # field :updated_at, :utc_datetime_usec
   end
 
   @doc false
   def changeset(ledger_entry, attrs) do
     ledger_entry
-    |> cast(attrs, [:user_id, :asset_id, :journal, :currency, :amount, :direction, :reference])
-    |> validate_required([:journal, :amount, :direction])
+    |> cast(attrs, [:user_id, :asset_id, :journal, :currency, :amount, :direction, :reference, :inserted_at])
+    |> validate_required([:journal, :amount, :direction, :inserted_at])
   end
 end

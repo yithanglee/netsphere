@@ -934,7 +934,7 @@ defmodule CommerceFrontWeb.ApiController do
                 order_id: r.order_id,
                 filled_qty: to_string(r.filled_qty),
                 total_cost: to_string(r.total_cost),
-                status2: Atom.to_string(r.status)
+                status2: r.status
               }
 
             {:error, reason} ->

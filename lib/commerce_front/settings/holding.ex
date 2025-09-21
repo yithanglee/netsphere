@@ -6,8 +6,10 @@ defmodule CommerceFront.Settings.Holding do
     field :average_price, :decimal
     field :locked, :decimal
     field :quantity, :decimal
-    field :user_id, :id
-    field :asset_id, :id
+    # field :user_id, :id
+    # field :asset_id, :id
+    belongs_to(:user, CommerceFront.Settings.User)
+    belongs_to(:asset, CommerceFront.Settings.Asset)
 
     timestamps()
   end

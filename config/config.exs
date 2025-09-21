@@ -68,7 +68,8 @@ config :commerce_front, CommerceFront.Scheduler,
     {"05 0 * * 4", {CommerceFront, :daily_task, [Date.utc_today() |> Date.add(-1)]}},
     {"05 0 * * 5", {CommerceFront, :daily_task, [Date.utc_today() |> Date.add(-1)]}},
     {"05 0 * * 6", {CommerceFront, :daily_task, [Date.utc_today() |> Date.add(-1)]}},
-    {"05 0 * * 0", {CommerceFront, :daily_task, [Date.utc_today() |> Date.add(-1)]}}
+    {"05 0 * * 0", {CommerceFront, :daily_task, [Date.utc_today() |> Date.add(-1)]}},
+    # {"15 0 * * *", {CommerceFront.Settings, :run_daily_staking_release, [Date.utc_today()]}}
   ]
 
 
