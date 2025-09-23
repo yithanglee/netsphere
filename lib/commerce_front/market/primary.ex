@@ -8,10 +8,9 @@ defmodule CommerceFront.Market.Primary do
     AssetTranche,
     Order,
     Trade,
-    Holding,
-    Balance,
-    LedgerEntry,
-    Ewallet
+    WalletTransaction,
+    Ewallet,
+    StakeHolding
   }
 
   require Decimal
@@ -210,92 +209,35 @@ defmodule CommerceFront.Market.Primary do
                                       %{ensure_issuer_balance: ibal, apply_fills: {total_cost, _}} ->
         {:ok, nil}
       end)
-      |> Multi.run(:update_holding, fn repo, %{quote: q} ->
-        holding =
-          from(h in Holding,
-            where: h.user_id == ^user_id and h.asset_id == ^asset_id,
-            lock: "FOR UPDATE"
-          )
-          |> repo.one()
-
-        holding = holding || %Holding{user_id: user_id, asset_id: asset_id, quantity: Decimal.new("0"), average_price: Decimal.new("0")} |> repo.insert!()
-        IO.inspect(holding.quantity, label: "holding.quantity")
-        IO.inspect(q.filled_qty, label: "q.filled_qty")
-        new_qty = Decimal.add(holding.quantity, q.filled_qty)
-
-        new_avg =
-          if Decimal.compare(new_qty, 0) == :eq do
-            Decimal.new("0")
-          else
-            total_paid =
-              Decimal.add(Decimal.mult(holding.quantity, holding.average_price), q.total_cost)
-
-            Decimal.div(total_paid, new_qty)
-          end
-
-        {count, _} =
-          repo.update_all(
-            from(h in Holding, where: h.id == ^holding.id),
-            set: [quantity: new_qty, average_price: new_avg]
-          )
-
-        if count != 1,
-          do: {:error, :holding_update_failed},
-          else: {:ok, %{new_qty: new_qty, new_avg: new_avg}}
-      end)
-      |> Multi.run(:ledger_entries, fn repo,
-                                       %{
-                                         create_order: order,
-                                         apply_fills: {total_cost, trade_ids},
-                                         quote: q
-                                       } ->
-        trade_ids = Enum.reverse(trade_ids)
-
-        reference = %{
-          type: "primary_buy",
-          order_id: order.id,
-          asset_id: asset_id,
-          trade_ids: trade_ids
+      |> Multi.run(:create_asset_wallet_transaction, fn repo, %{quote: q} ->
+        # Create a wallet transaction for the asset purchase
+        # This represents the user's asset holdings in their wallet
+        wallet_params = %{
+          user_id: user_id,
+          amount: Decimal.to_float(q.filled_qty),
+          remarks: "primary buy asset(id:#{asset_id})",
+          wallet_type: "asset"  # Using asset wallet for asset holdings
         }
 
-        asset = repo.get!(Asset, asset_id)
-        finance_user = Settings.finance_user()
-        with {:ok, _} <-
-               repo.insert(%LedgerEntry{
-                 user_id: user_id,
-                 asset_id: asset_id,
-                 journal: "cash",
-                 currency: "token",
-                 amount: total_cost,
-                 direction: "debit",
-                 reference: reference,
-                 inserted_at: DateTime.utc_now()
-               }),
-             {:ok, _} <-
-               repo.insert(%LedgerEntry{
-                 user_id: finance_user.id,
-                 asset_id: asset_id,
-                 journal: "cash",
-                 currency: "token",
-                 amount: total_cost,
-                 direction: "credit",
-                 reference: reference,
-                 inserted_at: DateTime.utc_now()
-               }),
-             {:ok, _} <-
-               repo.insert(%LedgerEntry{
-                 user_id: user_id,
-                 asset_id: asset_id,
-                 journal: "asset",
-                 currency: "UNIT",
-                 amount: q.filled_qty,
-                 direction: "credit",
-                 reference: reference,
-                 inserted_at: DateTime.utc_now()
-               }) do
-          {:ok, :ok}
-        else
-          {:error, reason} -> {:error, reason}
+        case Settings.create_wallet_transaction(wallet_params) do
+          {:ok, result} -> {:ok, result}
+          {:error, changeset} -> {:error, changeset}
+        end
+      end)
+      |> Multi.run(:create_stake_holding, fn repo, %{quote: q, create_asset_wallet_transaction: wallet_result} ->
+        # Create a stake holding entry for the newly purchased quantity
+        # This will be staked at 1% per day
+        # We'll use the wallet_transaction ID as a reference
+        stake_params = %{
+          holding_id: wallet_result.wallet_transaction.id,  # Reference to wallet transaction
+          original_qty: q.filled_qty,
+          initial_bought: Date.utc_today(),
+          released: Decimal.new("0")
+        }
+
+        case repo.insert(StakeHolding.changeset(%StakeHolding{}, stake_params)) do
+          {:ok, stake_holding} -> {:ok, stake_holding}
+          {:error, changeset} -> {:error, changeset}
         end
       end)
       |> Multi.run(:finalize_order, fn repo, %{create_order: order, quote: q} ->

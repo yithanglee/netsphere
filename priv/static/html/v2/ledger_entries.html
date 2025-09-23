@@ -26,7 +26,7 @@
         var data = params
   
         var font_class = "text-success"
-        if (data.direction == 'debit') {
+        if (data.amount < 0) {
           font_class = "text-danger"
         }
   
@@ -41,13 +41,15 @@
             </div>
   
             <div class="row border-1 border-top">
-             <div class="col-6 text-start text-sm">Direction</div> 
-             <div class="col-6 text-end text-sm">Amount</div>
+    
+             <div class="col-8 text-start text-sm">` + data.remarks + `</div>
+             <div class="col-4 text-end text-sm">After</div>
             </div>
             <div class="row">
-              <div class="col-6 text-start ">` + data.direction + `</div>
+        
        
-             <div class="col-6 text-end format-float ` + font_class + `">` + data.amount + `</div>
+             <div class="col-6 text-sm text-end format-float ` + font_class + `">` + data.amount + `</div>
+             <div class="col-6 text-end format-float">` + data.after + `</div>
             
             </div>
   
@@ -68,18 +70,20 @@
               <"col-lg-6 col-12"p>
             >
         `,
-        preloads: ["user", "asset"],
+        preloads: ["user", "ewallet"],
         additional_join_statements: [
-        {
+          {
             user: "user"
-          },    
-        {
-            asset: "asset"
-          },
+          },   
+          
+          {
+            ewallet: "ewallet"
+          },   
+      
           
         ],
         additional_search_queries: [
-          "a.user_id=" + phxApp.user.id + "|a.journal=asset"
+          "a.user_id=" + phxApp.user.id + "|c.wallet_type=asset"
         ],
       },
       columns: [
@@ -87,12 +91,12 @@
         { label: 'id', data: 'id' },
         { label: 'Date', data: 'inserted_at', formatDateTime: true, offset: 0 },
         {
-          label: "Asset",
+          label: "Ewallet",
           data: "id",
           showChild: true,
           xdata: {
-            child: 'asset',
-            data: 'name'
+            child: 'ewallet',
+            data: 'wallet_type'
           }
         },
         
@@ -104,7 +108,7 @@
           xdata: {
             formatFn: (d, index) => {
               html = `<div class="text-success format-float">` + d.amount + `</div>`
-              if (d.direction == 'credit') {
+              if (d.amount > 0) {
 
               } else {
                 html = `<div class="text-danger format-float">` + d.amount + `</div>`
@@ -113,13 +117,13 @@
             }
           }
         },
-
+        { label: 'After', data: 'after', className: "text-end format-float" },
   
         { label: 'Action', data: 'id', className: "d-none" }
   
       ],
-      moduleName: "LedgerEntry",
-      link: "LedgerEntry",
+      moduleName: "WalletTransaction",
+      link: "WalletTransaction",
       customCols: customCols,
       buttons: [],
       tableSelector: "#" + random_id

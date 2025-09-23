@@ -5273,7 +5273,7 @@ defmodule CommerceFront.Settings do
     end
   end
 
-  # todo 2025:09:06: need to add the reward limit [team bonus], max their current package pv x 9. 
+  # todo 2025:09:06: need to add the reward limit [team bonus], max their current package pv x 9.
   def pay_unpaid_bonus(date, bonus_list) do
     {y, m, d} = date |> Date.to_erl()
 
@@ -7882,94 +7882,251 @@ defmodule CommerceFront.Settings do
     Repo.delete(model)
   end
 
-  alias CommerceFront.Settings.Holding
-  # alias CommerceFront.Settings.HoldingStake
+  alias CommerceFront.Settings.StakeHolding
+  alias CommerceFront.Settings.SecondaryMarketOrder
+  alias CommerceFront.Settings.SecondaryMarketTrade
 
-  def list_holdings() do
-    Repo.all(Holding)
+  def list_stake_holdings() do
+    Repo.all(StakeHolding)
   end
 
-  def get_holding!(id) do
-    Repo.get!(Holding, id)
+  def get_stake_holding!(id) do
+    Repo.get!(StakeHolding, id)
   end
 
-  def create_holding(params \\ %{}) do
-    Holding.changeset(%Holding{}, params) |> Repo.insert() |> IO.inspect()
+  def create_stake_holding(params \\ %{}) do
+    StakeHolding.changeset(%StakeHolding{}, params) |> Repo.insert()
   end
 
-  def update_holding(model, params) do
-    Holding.changeset(model, params) |> Repo.update() |> IO.inspect()
+  def update_stake_holding(model, params) do
+    StakeHolding.changeset(model, params) |> Repo.update()
   end
 
-  def delete_holding(%Holding{} = model) do
+  def delete_stake_holding(%StakeHolding{} = model) do
     Repo.delete(model)
   end
 
-  @doc """
-  Release staked tokens daily at 1% of original per active stake.
-  Updates `holding.locked` and marks stake completed when fully released.
-  Idempotent per day using `last_release_date`.
-  """
-  # def run_daily_staking_release(date \\ Date.utc_today()) do
-  #   import Ecto.Query
+  def get_user_active_wallet_transactions(user_id, wallet_type \\ "asset") do
+    from(wt in WalletTransaction,
+      join: e in Ewallet, on: wt.ewallet_id == e.id,
+      where: e.user_id == ^user_id and e.wallet_type == ^wallet_type,
+      preload: [:ewallet]
+    )
+    |> Repo.all()
+  end
 
-  #   stakes =
-  #     Repo.all(
-  #       from(s in HoldingStake,
-  #         where: s.status == ^"active"
-  #       )
-  #     )
+  def calculate_user_active_amount(user_id, wallet_type \\ "asset") do
+    wallet_transactions = get_user_active_wallet_transactions(user_id, wallet_type)
 
-  #   Enum.reduce_while(stakes, {:ok, length(stakes)}, fn stake, {:ok, _} ->
-  #     # skip if already released today
-  #     if stake.last_release_date == date do
-  #       {:cont, {:ok, :skipped}}
-  #     else
-  #       Repo.transaction(fn ->
-  #         holding =
-  #           Repo.one!(
-  #             from(h in Holding,
-  #               where: h.user_id == ^stake.user_id and h.asset_id == ^stake.asset_id,
-  #               lock: "FOR UPDATE"
-  #             )
-  #           )
+    Enum.reduce(wallet_transactions, Decimal.new("0"), fn wt, acc ->
+      # For now, we'll consider the latest transaction's 'after' amount as active
+      # This might need adjustment based on your business logic
+      active_amount = Decimal.new("#{wt.after}")
+      Decimal.add(acc, active_amount)
+    end)
+  end
 
-  #         remaining = stake.remaining_locked_qty
-  #         daily = stake.daily_release_qty
-  #         release_qty = if Decimal.compare(remaining, daily) == :lt, do: remaining, else: daily
+  def process_stake_release(user_id, asset_id \\ nil, today \\ Date.utc_today()) do
+    query = from(sh in StakeHolding,
+      join: wt in WalletTransaction, on: sh.holding_id == wt.id,
+      join: e in Ewallet, on: wt.ewallet_id == e.id,
+      where: e.user_id == ^user_id and sh.initial_bought <= ^today,
+      preload: [holding: wt]
+    )
 
-  #         new_locked = Decimal.sub(holding.locked || Decimal.new("0"), release_qty)
-  #         {count, _} =
-  #           Repo.update_all(
-  #             from(h in Holding, where: h.id == ^holding.id),
-  #             set: [locked: new_locked]
-  #           )
+    # Note: asset_id filtering would need to be implemented differently
+    # since wallet_transactions don't directly reference assets
+    # This could be done through remarks or a separate asset_wallet_transactions table
 
-  #         if count != 1, do: Repo.rollback(:holding_update_failed)
+    stake_holdings = Repo.all(query)
 
-  #         remaining_after = Decimal.sub(remaining, release_qty)
-  #         status = if Decimal.compare(remaining_after, 0) == :eq, do: "completed", else: "active"
+    Enum.reduce(stake_holdings, {[], Decimal.new("0")}, fn stake_holding, {updates, total_released} ->
+      days_elapsed = Date.diff(today, stake_holding.initial_bought)
 
-  #         {count2, _} =
-  #           Repo.update_all(
-  #             from(s in HoldingStake, where: s.id == ^stake.id),
-  #             set: [
-  #               remaining_locked_qty: remaining_after,
-  #               days_released: stake.days_released + 1,
-  #               last_release_date: date,
-  #               status: status
-  #             ]
-  #           )
+      # Calculate 1% per day (0.01)
+      daily_release_rate = Decimal.new("0.01")
+      total_release_rate = Decimal.mult(daily_release_rate, Decimal.new("#{days_elapsed}"))
 
-  #         if count2 != 1, do: Repo.rollback(:stake_update_failed)
+      # Calculate how much should be released
+      should_release = Decimal.mult(stake_holding.original_qty, total_release_rate)
 
-  #         :ok
-  #       end)
+      # Calculate how much more needs to be released
+      additional_release = Decimal.sub(should_release, stake_holding.released)
 
-  #       {:cont, {:ok, :done}}
-  #     end
-  #   end)
-  # end
+      if Decimal.compare(additional_release, 0) == :gt do
+        new_released = Decimal.add(stake_holding.released, additional_release)
+
+        # Update the stake holding
+        StakeHolding.changeset(stake_holding, %{released: new_released})
+        |> Repo.update()
+
+        # Create a new wallet transaction for the released amount
+        # This represents the amount that becomes available for trading
+        release_params = %{
+          user_id: user_id,
+          amount: Decimal.to_float(additional_release),
+          remarks: "stake release (id:#{stake_holding.id}) - #{today}",
+          wallet_type: "active_token"  # Released assets go to product wallet
+        }
+
+        case create_wallet_transaction(release_params) do
+          {:ok, _result} ->
+            {[{stake_holding.id, additional_release} | updates], Decimal.add(total_released, additional_release)}
+          {:error, _reason} ->
+            {updates, total_released}
+        end
+      else
+        {updates, total_released}
+      end
+    end)
+  end
+
+  def create_stake_for_wallet_transaction(wallet_transaction_id, qty) do
+    today = Date.utc_today()
+
+    create_stake_holding(%{
+      holding_id: wallet_transaction_id,  # Now references wallet_transaction ID
+      original_qty: qty,
+      initial_bought: today,
+      released: Decimal.new("0")
+    })
+  end
+
+  # Secondary Market Functions
+
+  def list_secondary_market_orders() do
+    Repo.all(SecondaryMarketOrder)
+  end
+
+  def get_secondary_market_order!(id) do
+    Repo.get!(SecondaryMarketOrder, id)
+  end
+
+  def create_secondary_market_order(params \\ %{}) do
+    SecondaryMarketOrder.create_changeset(params) |> Repo.insert()
+  end
+
+  def update_secondary_market_order(model, params) do
+    SecondaryMarketOrder.changeset(model, params) |> Repo.update()
+  end
+
+  def delete_secondary_market_order(%SecondaryMarketOrder{} = model) do
+    Repo.delete(model)
+  end
+
+  def list_secondary_market_trades() do
+    Repo.all(SecondaryMarketTrade)
+  end
+
+  def get_secondary_market_trade!(id) do
+    Repo.get!(SecondaryMarketTrade, id)
+  end
+
+  def create_secondary_market_trade(params \\ %{}) do
+    SecondaryMarketTrade.changeset(%SecondaryMarketTrade{}, params) |> Repo.insert()
+  end
+
+  def update_secondary_market_trade(model, params) do
+    SecondaryMarketTrade.changeset(model, params) |> Repo.update()
+  end
+
+  def delete_secondary_market_trade(%SecondaryMarketTrade{} = model) do
+    Repo.delete(model)
+  end
+
+  # Get active sell orders for an asset (sorted by price, lowest first)
+  def get_active_sell_orders(asset_id, limit \\ 20) do
+    from(o in SecondaryMarketOrder,
+      where: o.asset_id == ^asset_id and o.order_type == "sell" and o.status == "pending",
+      order_by: [asc: o.price_per_unit, asc: o.inserted_at],
+      limit: ^limit,
+      preload: [:user, :asset]
+    )
+    |> Repo.all()
+    |> Enum.map(&BluePotion.sanitize_struct(&1))
+  end
+
+  # Get active buy orders for an asset (sorted by price, highest first)
+  def get_active_buy_orders(asset_id, limit \\ 20) do
+    from(o in SecondaryMarketOrder,
+      where: o.asset_id == ^asset_id and o.order_type == "buy" and o.status == "pending",
+      order_by: [desc: o.price_per_unit, desc: o.inserted_at],
+      limit: ^limit,
+      preload: [:user, :asset]
+    )
+    |> Repo.all()
+    |> Enum.map(&BluePotion.sanitize_struct(&1))
+  end
+
+  # Get user's active_token wallet balance for an asset
+  def get_user_active_token_balance(user_id, asset_id) do
+    balance = from(wt in WalletTransaction,
+      join: e in Ewallet, on: wt.ewallet_id == e.id,
+      where: e.user_id == ^user_id and e.wallet_type == "active_token",
+      select: sum(wt.amount),
+      having: sum(wt.amount) > 0
+    )
+    |> Repo.one()
+
+    case balance do
+      nil -> Decimal.new("0")
+      amount when is_float(amount) -> Decimal.from_float(amount)
+      amount -> Decimal.new("#{amount}")
+    end
+  end
+
+  # Check if user has enough active_token balance for selling
+  def has_sufficient_active_token_balance?(user_id, asset_id, required_quantity) do
+    current_balance = get_user_active_token_balance(user_id, asset_id)
+    Decimal.compare(current_balance, required_quantity) != :lt
+  end
+
+  # Get user's cash wallet balance
+  def get_user_cash_balance(user_id) do
+    balance = from(wt in WalletTransaction,
+      join: e in Ewallet, on: wt.ewallet_id == e.id,
+      where: e.user_id == ^user_id and e.wallet_type == "token",
+      select: sum(wt.amount),
+      having: sum(wt.amount) > 0
+    )
+    |> Repo.one()
+
+    case balance do
+      nil -> Decimal.new("0")
+      amount when is_float(amount) -> Decimal.from_float(amount)
+      amount -> Decimal.new("#{amount}")
+    end
+  end
+
+  # Check if user has enough cash balance for buying
+  def has_sufficient_cash_balance?(user_id, required_amount) do
+    current_balance = get_user_cash_balance(user_id)
+    Decimal.compare(current_balance, required_amount) != :lt
+  end
+
+  # Get user's token wallet balance (for cash)
+  def get_user_token_balance(user_id) do
+    balance = from(wt in WalletTransaction,
+      join: e in Ewallet, on: wt.ewallet_id == e.id,
+      where: e.user_id == ^user_id and e.wallet_type == "token",
+      select: sum(wt.amount),
+      having: sum(wt.amount) > 0
+    )
+    |> Repo.one()
+
+    case balance do
+      nil -> Decimal.new("0")
+      amount when is_float(amount) -> Decimal.from_float(amount)
+      amount -> Decimal.new("#{amount}")
+    end
+  end
+
+  # Check if user has enough token balance for buying
+  def has_sufficient_token_balance?(user_id, required_amount) do
+    current_balance = get_user_token_balance(user_id)
+    Decimal.compare(current_balance, required_amount) != :lt
+  end
+
 
   alias CommerceFront.Settings.Order
 
@@ -8015,27 +8172,6 @@ defmodule CommerceFront.Settings do
     Repo.delete(model)
   end
 
-  alias CommerceFront.Settings.LedgerEntry
-
-  def list_ledger_entries() do
-    Repo.all(LedgerEntry)
-  end
-
-  def get_ledger_entry!(id) do
-    Repo.get!(LedgerEntry, id)
-  end
-
-  def create_ledger_entry(params \\ %{}) do
-    LedgerEntry.changeset(%LedgerEntry{}, params) |> Repo.insert() |> IO.inspect()
-  end
-
-  def update_ledger_entry(model, params) do
-    LedgerEntry.changeset(model, params) |> Repo.update() |> IO.inspect()
-  end
-
-  def delete_ledger_entry(%LedgerEntry{} = model) do
-    Repo.delete(model)
-  end
 
   def remove_duplicated_reward_payouts() do
     q =

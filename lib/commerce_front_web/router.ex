@@ -103,7 +103,7 @@ defmodule CommerceFrontWeb.Router do
   scope "/svt_api", CommerceFrontWeb do
     pipe_through(:svt_api)
     get("/stream", ApiController, :stream_get)
-    options("/:webhook", ApiController, :get)
+
 
     get("/webhook", ApiController, :get)
     post("/webhook", ApiController, :post)
@@ -112,8 +112,9 @@ defmodule CommerceFrontWeb.Router do
     options("/:model", ApiController, :datatable)
     get("/:model", ApiController, :datatable)
     post("/:model", ApiController, :form_submission)
-
+    options("/:webhook", PageController, :index)
     options("/*path", PageController, :index)
+
     delete("/:model/:id", ApiController, :delete_data)
   end
 
@@ -140,7 +141,7 @@ defmodule CommerceFrontWeb.Router do
   scope "/api", CommerceFrontWeb do
     pipe_through(:api)
     get("/stream", ApiController, :stream_get)
-    options("/:webhook", ApiController, :get)
+
 
     get("/webhook", ApiController, :get)
     post("/webhook", ApiController, :post)
@@ -148,12 +149,13 @@ defmodule CommerceFrontWeb.Router do
     get("/:model", ApiController, :datatable)
     post("/:model", ApiController, :form_submission)
     delete("/:model/:id", ApiController, :delete_data)
+    options("/:webhook", PageController, :index)
   end
-  
+
   # if dev can comment this
-  if Mix.env() == :dev do 
- 
-  else    
+  if Mix.env() == :dev do
+
+  else
     scope "/html/:lang", CommerceFrontWeb do
       pipe_through([:browser])
       get("/*path", PageController, :html)

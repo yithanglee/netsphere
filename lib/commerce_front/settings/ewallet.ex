@@ -15,6 +15,8 @@ defmodule CommerceFront.Settings.Ewallet do
      merchant
      merchant_bonus
      token
+     asset
+     active_token
     )
   )
 

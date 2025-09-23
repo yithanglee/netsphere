@@ -75,6 +75,37 @@ defmodule CommerceFrontWeb.ApiController do
 
     res =
       case params["scope"] do
+        "get_market_depth" ->
+          CommerceFront.Market.Secondary.get_market_depth(params["asset_id"])
+          |> BluePotion.sanitize_struct()
+
+        "get_recent_trades" ->
+          CommerceFront.Market.Secondary.get_recent_trades(params["asset_id"])
+
+        "create_sell_order" ->
+          {:ok, res} =
+            CommerceFront.Market.Secondary.create_sell_order(
+              id,
+              params["asset_id"],
+              params["quantity"],
+              params["price_per_unit"]
+            )
+
+          IO.inspect(BluePotion.sanitize_struct(res), label: "res")
+
+          %{status: "ok", res: BluePotion.sanitize_struct(res)}
+
+        "create_buy_order" ->
+          {:ok, res} =
+            CommerceFront.Market.Secondary.create_buy_order(
+              id,
+              params["asset_id"],
+              params["quantity"],
+              params["price_per_unit"]
+            )
+
+          %{status: "ok", res: BluePotion.sanitize_struct(res)}
+
         "list_assets" ->
           Settings.list_assets() |> BluePotion.sanitize_struct()
 
@@ -227,7 +258,7 @@ defmodule CommerceFrontWeb.ApiController do
             rp = wallets |> Enum.filter(&(&1.wallet_type == :register)) |> List.first()
 
             check_sufficient = fn subtotal ->
-              # here proceed to normal registration and deduct the ewallet 
+              # here proceed to normal registration and deduct the ewallet
 
               with true <- (rp.total >= sale.grand_total) |> IO.inspect() do
                 {:ok, sale} =
@@ -272,7 +303,7 @@ defmodule CommerceFrontWeb.ApiController do
             end
 
             case check_sufficient.(sale.grand_total) do
-              # direct register liao... 
+              # direct register liao...
 
               {:ok, sale} ->
                 {:ok, user} = CommerceFront.Settings.register(register_params["user"], sale)
@@ -654,12 +685,11 @@ defmodule CommerceFrontWeb.ApiController do
           Settings.list_ranks() |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
 
         "placement" ->
-          # has a starter 
+          # has a starter
           starter = Map.get(params, "starter")
 
           if starter != nil do
-            check =
-              CommerceFront.Settings.check_uplines(params["username"])
+            check = CommerceFront.Settings.check_uplines(params["username"])
 
             # |> Enum.filter(&(&1.parent == starter))
 
@@ -801,8 +831,7 @@ defmodule CommerceFrontWeb.ApiController do
   def nowpayments_payment(conn, params) do
     IO.inspect(params)
 
-    order_id =
-      params["order_id"] || params["orderId"] || params["order"]
+    order_id = params["order_id"] || params["orderId"] || params["order"]
 
     payment = Settings.get_payment_by_billplz_code(order_id)
 
@@ -920,8 +949,6 @@ defmodule CommerceFrontWeb.ApiController do
             "token" =>
               "SFMyNTY.g2gDdAAAAAFkAAJpZGEYbgYAzmBpTZkBYgABUYA.KA2v59RHBK0I022qwESz6mlizPabZqTBIoNRjz4Vftg"
           }
-
-
 
           asset_id = params["asset_id"] |> to_string() |> String.to_integer()
           qty = params["qty"] |> to_string() |> Decimal.new()
@@ -1434,27 +1461,26 @@ defmodule CommerceFrontWeb.ApiController do
           # get the billplz link first, then make payment
           # create the sales first
           # Settings.register(params["user"])
-          sample =
-            %{
-              "_csrf_token" => "",
-              "scope" => "link_register",
-              "user" => %{
-                "country_id" => "",
-                "email" => "buyer@jimatlabs.com",
-                "fullname" => "LEE YIT HANG",
-                "password" => "[FILTERED]",
-                "payment" => %{"channel" => "", "method" => "razer"},
-                "phone" => "0122664254",
-                "pick_up_point_id" => "",
-                "pin" => "290558",
-                "placement" => %{"position" => ""},
-                "rank_id" => "",
-                "sales_person_id" => "1",
-                "share_code" => "c3fa8d2e-b1fa-446c-bfa6-06aaf750c844",
-                "sponsor" => "",
-                "username" => "nph03"
-              }
+          sample = %{
+            "_csrf_token" => "",
+            "scope" => "link_register",
+            "user" => %{
+              "country_id" => "",
+              "email" => "buyer@jimatlabs.com",
+              "fullname" => "LEE YIT HANG",
+              "password" => "[FILTERED]",
+              "payment" => %{"channel" => "", "method" => "razer"},
+              "phone" => "0122664254",
+              "pick_up_point_id" => "",
+              "pin" => "290558",
+              "placement" => %{"position" => ""},
+              "rank_id" => "",
+              "sales_person_id" => "1",
+              "share_code" => "c3fa8d2e-b1fa-446c-bfa6-06aaf750c844",
+              "sponsor" => "",
+              "username" => "nph03"
             }
+          }
 
           share_link =
             if params["user"]["share_code"] != nil do
@@ -2013,22 +2039,22 @@ defmodule CommerceFrontWeb.ApiController do
               {int, _suffix} = Integer.parse(val)
 
               """
-                a.#{Atom.to_string(key)}==#{int} 
+                a.#{Atom.to_string(key)}==#{int}
               """
 
             val == "null" ->
               """
-                is_nil(a.#{Atom.to_string(key)}) 
+                is_nil(a.#{Atom.to_string(key)})
               """
 
             Atom.to_string(key) |> String.contains?("_id") ->
               """
-                a.#{Atom.to_string(key)}==#{val} 
+                a.#{Atom.to_string(key)}==#{val}
               """
 
             val == "true" || val == "false" ->
               """
-                a.#{Atom.to_string(key)}==#{val} 
+                a.#{Atom.to_string(key)}==#{val}
               """
 
             true ->
@@ -2097,7 +2123,7 @@ defmodule CommerceFrontWeb.ApiController do
             #   [i, val] = item |> String.split("!=")
 
             #   """
-            #   |> where([a,b,c,d], a.#{i} != #{val}) 
+            #   |> where([a,b,c,d], a.#{i} != #{val})
             #   """
 
             item |> String.contains?("_id^") ->
@@ -2109,12 +2135,12 @@ defmodule CommerceFrontWeb.ApiController do
                 case Integer.parse(ss) do
                   {ss, _} ->
                     """
-                    |> where([a,b,c,d], a.#{i} == ^"#{ss}") 
+                    |> where([a,b,c,d], a.#{i} == ^"#{ss}")
                     """
 
                   _ ->
                     """
-                    |> where([a,b,c,d], a.#{i} == ^"#{ss}") 
+                    |> where([a,b,c,d], a.#{i} == ^"#{ss}")
                     """
                 end
               end
@@ -2126,7 +2152,7 @@ defmodule CommerceFrontWeb.ApiController do
 
               if ss != "" do
                 """
-                |> where([a,b,c,d],  ilike(#{prefix}.#{i}, ^"%#{ss}%") ) 
+                |> where([a,b,c,d],  ilike(#{prefix}.#{i}, ^"%#{ss}%") )
                 """
               end
 
