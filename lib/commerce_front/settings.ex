@@ -6339,6 +6339,7 @@ defmodule CommerceFront.Settings do
     ON
         p.sales_id = l.id
     WHERE
+       l.status in ('processing', 'pending_delivery', 'sent') and
         convert_from(p.webhook_details, 'UTF8') ILIKE '%drp%'
     )
     select
@@ -6408,6 +6409,7 @@ defmodule CommerceFront.Settings do
     ON
         p.sales_id = l.id
     WHERE
+        l.status in ('processing', 'pending_delivery', 'sent') and
         convert_from(p.webhook_details, 'UTF8') ILIKE '%drp%'
     )
     select
@@ -6477,6 +6479,7 @@ defmodule CommerceFront.Settings do
     ON
         p.sales_id = l.id
     WHERE
+       l.status in ('processing', 'pending_delivery', 'sent') and
         convert_from(p.webhook_details, 'UTF8') ILIKE '%drp%'
     )
     select

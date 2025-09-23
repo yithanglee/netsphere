@@ -834,3 +834,8 @@ body {
     margin-top: 12px
   }
 }
+
+
+.badge.bg-secondary {
+  padding-top: 8px;width: 4vw;color: black;
+}

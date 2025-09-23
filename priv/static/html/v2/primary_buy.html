@@ -15,11 +15,24 @@
 
                     <div class="offset-lg-3 col-lg-6 col-10 offset-1">
                         <div class="d-flex flex-column gap-3">
-                            <wallet class="col-lg-6 col-10" aria-data="asset"></wallet>
-                            <wallet class="col-lg-6 col-10" aria-data="active_token"></wallet>
-                            <wallet class="col-lg-6 col-10" aria-data="token"></wallet>
+                        <!---
+                        CommerceFront.Settings.list_asset_tranches
+                        --->
+                            <div class="row ">
+                                <wallet class="col-lg-6 col-12" aria-data="asset"></wallet>
+                                <wallet class="col-lg-6 col-12" aria-data="active_token"></wallet>
+                         
+                            </div>
+                            <div class="row ">
+                               
+                                <wallet class="col-lg-12 col-12" aria-data="token"></wallet>
+
+                                <small class="ms-2 mt-2 text-secondary">Token Points is used to purchase Asset.</small>
+                            </div>
+              
                             <primaryBuy>
                             </primaryBuy>
+                            <assetTranches></assetTranches>
                         </div>
                     </div>
                 </div>
