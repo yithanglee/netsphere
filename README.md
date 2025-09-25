@@ -1,5 +1,19 @@
 ## Frontend Architecture (Vite + Phoenix)
 
+
+todos
+---
++ can use the order transaction to group the unit price, from there can tell if the max volume has been exhausted.
+
++ auto buy when member join
++ when earn TP after bonus payout , also auto buy at current price
++ limit to sell at 50% package value
++  limit 1 active trade per member
++ auto buy from company, but after when there's active token, then buy from member's active token.
++ polygon scan for transaction history
+
++ the U2,U3 share link need to show in U1 account ( because want to pair internally)
+
 ### Overview
 - The Vite app uses a lightweight, custom router defined in `vite_front/src/main.js` (`route_list`).
 - Pages are plain static HTML files served by Phoenix from `netsphere/priv/static/html/v2/*.html`.
