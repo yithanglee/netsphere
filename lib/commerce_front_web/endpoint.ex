@@ -22,7 +22,7 @@ defmodule CommerceFrontWeb.Endpoint do
     at: "/",
     from: :commerce_front,
     gzip: false,
-    only: ~w(sw.js html js  css fonts images vendor  favicon.ico webfonts robots.txt manifest.json)
+    only: ~w(sw.js  js  css fonts images vendor  favicon.ico webfonts robots.txt manifest.json)
 
 
 

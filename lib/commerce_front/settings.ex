@@ -5333,7 +5333,7 @@ defmodule CommerceFront.Settings do
                     {reward.amount, "accumulated total: #{total_bonuses}|pay: 100%"}
                   else
                     unless has_exceed_bonus_limit(reward.user_id) do
-                      {reward.amount, "accumulated total: #{total_bonuses}|pay: 70%"}
+                      {reward.amount * 0.7, "accumulated total: #{total_bonuses}|pay: 70%"}
                     else
                       {reward.amount * 0.0, "accumulated total: #{total_bonuses}|pay: 0%"}
                     end

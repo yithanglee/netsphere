@@ -6,11 +6,31 @@ todos
 + can use the order transaction to group the unit price, from there can tell if the max volume has been exhausted.
 
 + auto buy when member join
+when member join... share link , complete registration.. 
+when they pay for package, register/upgrade, will have 35% of sale subtotal as token,
+then perform the member-company-token-purchase
+
+
+member-company-token-purchase
+need to check company current tranche?
+usd 100 - 35 token point
+at 0.001 = 35000 asset
+
+per day = 350 active token
+
+if at 0.001, create_buy_order
+
+
+
 + when earn TP after bonus payout , also auto buy at current price
 + limit to sell at 50% package value
 +  limit 1 active trade per member
 + auto buy from company, but after when there's active token, then buy from member's active token.
 + polygon scan for transaction history
+
+
+
+----
 
 + the U2,U3 share link need to show in U1 account ( because want to pair internally)
 
