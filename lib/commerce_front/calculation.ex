@@ -87,7 +87,7 @@ defmodule CommerceFront.Calculation do
         #      last_month_sum < 36 do
         #   index
         # else
-        # # prev code here 
+        # # prev code here
         # end
         if index < 8 do
           IO.inspect("current index at #{index}")
@@ -1372,7 +1372,7 @@ defmodule CommerceFront.Calculation do
             map = matrix |> Enum.filter(&(&1.rank == upline.rank)) |> List.first()
 
             if map != nil do
-              if index < 4 do
+              if index < 5 do
                 constant =
                   case index do
                     1 -> map |> Map.get(:l1, 0)
