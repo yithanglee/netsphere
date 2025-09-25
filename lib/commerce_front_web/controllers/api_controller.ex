@@ -105,8 +105,9 @@ defmodule CommerceFrontWeb.ApiController do
             )
 
           %{status: "ok", res: BluePotion.sanitize_struct(res)}
-          "list_asset_tranches" ->
-            Settings.list_asset_tranches() |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
+
+        "list_asset_tranches" ->
+          Settings.list_asset_tranches() |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
 
         "list_assets" ->
           Settings.list_assets() |> BluePotion.sanitize_struct()
