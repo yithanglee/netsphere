@@ -3,7 +3,7 @@
 
 todos
 ---
-+ can use the order transaction to group the unit price, from there can tell if the max volume has been exhausted.
+
 
 + auto buy when member join
 when member join... share link , complete registration.. 
@@ -21,11 +21,17 @@ per day = 350 active token
 if at 0.001, create_buy_order
 
 
++ can use the order transaction to group the unit price, from there can tell if the max volume has been exhausted.
+
++ auto buy from company, but after when there's active token, then buy from member's active token.
+
 
 + when earn TP after bonus payout , also auto buy at current price
+
 + limit to sell at 50% package value
+
 +  limit 1 active trade per member
-+ auto buy from company, but after when there's active token, then buy from member's active token.
+
 + polygon scan for transaction history
 
 

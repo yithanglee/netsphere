@@ -126,6 +126,8 @@ defmodule CommerceFront.Market.Secondary do
   @doc """
   Create a buy order for active_token assets.
   Now enforces tranche pricing - buy orders must be at current tranche price.
+  CommerceFront.Market.Secondary.create_buy_order(37, 1, 35000, 0.001)
+
   """
   def create_buy_order(user_id, asset_id, quantity, price_per_unit) do
     # First, get the current open tranche to enforce pricing

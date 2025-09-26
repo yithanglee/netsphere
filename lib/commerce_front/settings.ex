@@ -4651,38 +4651,67 @@ defmodule CommerceFront.Settings do
         end
       end)
       |> Multi.run(:ewallets, fn _repo, %{user: user} ->
+        final_multi_res =
         if params["upgrade"] != nil do
           amount = sales.subtotal * 0.35
 
-          CommerceFront.Settings.create_wallet_transaction(%{
-            user_id: user.id,
-            amount: amount,
-            remarks: "package redeem",
-            wallet_type: "token"
-          })
+          {:ok, wt_multi_res} =
+            CommerceFront.Settings.create_wallet_transaction(%{
+              user_id: user.id,
+              amount: amount,
+              remarks: "package redeem",
+              wallet_type: "token"
+            })
+
+          wt_multi_res
         else
           wallets = ["bonus", "product", "register", "token"]
 
-          for wallet_type <- wallets do
-            if wallet_type != "token" do
-              CommerceFront.Settings.create_wallet_transaction(%{
-                user_id: user.id,
-                amount: 0.00,
-                remarks: "initial",
-                wallet_type: wallet_type
-              })
-            else
-              amount = sales.subtotal * 0.35
+          res =
+            for wallet_type <- wallets do
+              if wallet_type != "token" do
+                {:ok, wt_multi_res} =
+                  CommerceFront.Settings.create_wallet_transaction(%{
+                    user_id: user.id,
+                    amount: 0.00,
+                    remarks: "initial",
+                    wallet_type: wallet_type
+                  })
 
-              CommerceFront.Settings.create_wallet_transaction(%{
-                user_id: user.id,
-                amount: amount,
-                remarks: "package redeem",
-                wallet_type: "token"
-              })
+                wt_multi_res
+                nil
+              else
+                amount = sales.subtotal * 0.35
+
+                {:ok, wt_multi_res} =
+                  CommerceFront.Settings.create_wallet_transaction(%{
+                    user_id: user.id,
+                    amount: amount,
+                    remarks: "package redeem",
+                    wallet_type: "token"
+                  })
+
+                wt_multi_res
+              end
             end
-          end
+            |> Enum.reject(&(&1 == nil))
+            |> List.first()
+
+          res
         end
+
+        {:ok, final_multi_res}
+      end)
+      |> Multi.run(:secondary_market_buy, fn _repo, %{user: user, ewallets: ewallets} ->
+        current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
+        wt = ewallets |> Map.get(:wallet_transaction) |> IO.inspect(label: "wallet transaction")
+
+        CommerceFront.Market.Secondary.create_buy_order(
+          user.id,
+          current_tranche.asset_id,
+          Decimal.from_float( wt.amount / (current_tranche.unit_price |> Decimal.to_float())),
+          current_tranche.unit_price
+        )
 
         {:ok, nil}
       end)
@@ -5605,8 +5634,7 @@ defmodule CommerceFront.Settings do
       end)
       |> Multi.run(:placement, fn _repo, %{} ->
         # maybe check if the user has a placement already
-        check =
-          Repo.all(from(p in Placement, where: p.user_id == ^topup.user_id))
+        check = Repo.all(from(p in Placement, where: p.user_id == ^topup.user_id))
 
         if check == [] do
           user = get_user!(topup.user_id)
@@ -5624,8 +5652,7 @@ defmodule CommerceFront.Settings do
             end
           end
 
-          {position, parent_p} =
-            determine_position(sponsor, true, preferred_position.())
+          {position, parent_p} = determine_position(sponsor, true, preferred_position.())
 
           create_placement(%{
             parent_user_id: parent_p.user_id,
@@ -7844,9 +7871,11 @@ defmodule CommerceFront.Settings do
   def list_asset_tranches() do
     Repo.all(AssetTranche)
   end
+
   def list_asset_tranches_by_asset_id(asset_id) do
-    Repo.all(from(at in AssetTranche, where: at.asset_id == ^asset_id)  )
+    Repo.all(from(at in AssetTranche, where: at.asset_id == ^asset_id))
   end
+
   def get_asset_tranche!(id) do
     Repo.get!(AssetTranche, id)
   end
@@ -7911,7 +7940,8 @@ defmodule CommerceFront.Settings do
 
   def get_user_active_wallet_transactions(user_id, wallet_type \\ "asset") do
     from(wt in WalletTransaction,
-      join: e in Ewallet, on: wt.ewallet_id == e.id,
+      join: e in Ewallet,
+      on: wt.ewallet_id == e.id,
       where: e.user_id == ^user_id and e.wallet_type == ^wallet_type,
       preload: [:ewallet]
     )
@@ -7930,12 +7960,15 @@ defmodule CommerceFront.Settings do
   end
 
   def process_stake_release(user_id, asset_id \\ nil, today \\ Date.utc_today()) do
-    query = from(sh in StakeHolding,
-      join: wt in WalletTransaction, on: sh.holding_id == wt.id,
-      join: e in Ewallet, on: wt.ewallet_id == e.id,
-      where: e.user_id == ^user_id and sh.initial_bought <= ^today,
-      preload: [holding: wt]
-    )
+    query =
+      from(sh in StakeHolding,
+        join: wt in WalletTransaction,
+        on: sh.holding_id == wt.id,
+        join: e in Ewallet,
+        on: wt.ewallet_id == e.id,
+        where: e.user_id == ^user_id and sh.initial_bought <= ^today,
+        preload: [holding: wt]
+      )
 
     # Note: asset_id filtering would need to be implemented differently
     # since wallet_transactions don't directly reference assets
@@ -7943,7 +7976,8 @@ defmodule CommerceFront.Settings do
 
     stake_holdings = Repo.all(query)
 
-    Enum.reduce(stake_holdings, {[], Decimal.new("0")}, fn stake_holding, {updates, total_released} ->
+    Enum.reduce(stake_holdings, {[], Decimal.new("0")}, fn stake_holding,
+                                                           {updates, total_released} ->
       days_elapsed = Date.diff(today, stake_holding.initial_bought)
 
       # Calculate 1% per day (0.01)
@@ -7969,12 +8003,15 @@ defmodule CommerceFront.Settings do
           user_id: user_id,
           amount: Decimal.to_float(additional_release),
           remarks: "stake release (id:#{stake_holding.id}) - #{today}",
-          wallet_type: "active_token"  # Released assets go to product wallet
+          # Released assets go to product wallet
+          wallet_type: "active_token"
         }
 
         case create_wallet_transaction(release_params) do
           {:ok, _result} ->
-            {[{stake_holding.id, additional_release} | updates], Decimal.add(total_released, additional_release)}
+            {[{stake_holding.id, additional_release} | updates],
+             Decimal.add(total_released, additional_release)}
+
           {:error, _reason} ->
             {updates, total_released}
         end
@@ -7988,7 +8025,8 @@ defmodule CommerceFront.Settings do
     today = Date.utc_today()
 
     create_stake_holding(%{
-      holding_id: wallet_transaction_id,  # Now references wallet_transaction ID
+      # Now references wallet_transaction ID
+      holding_id: wallet_transaction_id,
       original_qty: qty,
       initial_bought: today,
       released: Decimal.new("0")
@@ -8063,13 +8101,15 @@ defmodule CommerceFront.Settings do
 
   # Get user's active_token wallet balance for an asset
   def get_user_active_token_balance(user_id, asset_id) do
-    balance = from(wt in WalletTransaction,
-      join: e in Ewallet, on: wt.ewallet_id == e.id,
-      where: e.user_id == ^user_id and e.wallet_type == "active_token",
-      select: sum(wt.amount),
-      having: sum(wt.amount) > 0
-    )
-    |> Repo.one()
+    balance =
+      from(wt in WalletTransaction,
+        join: e in Ewallet,
+        on: wt.ewallet_id == e.id,
+        where: e.user_id == ^user_id and e.wallet_type == "active_token",
+        select: sum(wt.amount),
+        having: sum(wt.amount) > 0
+      )
+      |> Repo.one()
 
     case balance do
       nil -> Decimal.new("0")
@@ -8086,13 +8126,15 @@ defmodule CommerceFront.Settings do
 
   # Get user's cash wallet balance
   def get_user_cash_balance(user_id) do
-    balance = from(wt in WalletTransaction,
-      join: e in Ewallet, on: wt.ewallet_id == e.id,
-      where: e.user_id == ^user_id and e.wallet_type == "token",
-      select: sum(wt.amount),
-      having: sum(wt.amount) > 0
-    )
-    |> Repo.one()
+    balance =
+      from(wt in WalletTransaction,
+        join: e in Ewallet,
+        on: wt.ewallet_id == e.id,
+        where: e.user_id == ^user_id and e.wallet_type == "token",
+        select: sum(wt.amount),
+        having: sum(wt.amount) > 0
+      )
+      |> Repo.one()
 
     case balance do
       nil -> Decimal.new("0")
@@ -8109,13 +8151,15 @@ defmodule CommerceFront.Settings do
 
   # Get user's token wallet balance (for cash)
   def get_user_token_balance(user_id) do
-    balance = from(wt in WalletTransaction,
-      join: e in Ewallet, on: wt.ewallet_id == e.id,
-      where: e.user_id == ^user_id and e.wallet_type == "token",
-      select: sum(wt.amount),
-      having: sum(wt.amount) > 0
-    )
-    |> Repo.one()
+    balance =
+      from(wt in WalletTransaction,
+        join: e in Ewallet,
+        on: wt.ewallet_id == e.id,
+        where: e.user_id == ^user_id and e.wallet_type == "token",
+        select: sum(wt.amount),
+        having: sum(wt.amount) > 0
+      )
+      |> Repo.one()
 
     case balance do
       nil -> Decimal.new("0")
@@ -8129,7 +8173,6 @@ defmodule CommerceFront.Settings do
     current_balance = get_user_token_balance(user_id)
     Decimal.compare(current_balance, required_amount) != :lt
   end
-
 
   alias CommerceFront.Settings.Order
 
@@ -8174,7 +8217,6 @@ defmodule CommerceFront.Settings do
   def delete_trade(%Trade{} = model) do
     Repo.delete(model)
   end
-
 
   def remove_duplicated_reward_payouts() do
     q =
