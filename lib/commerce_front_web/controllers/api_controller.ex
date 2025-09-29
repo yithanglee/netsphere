@@ -107,7 +107,12 @@ defmodule CommerceFrontWeb.ApiController do
           %{status: "ok", res: BluePotion.sanitize_struct(res)}
 
         "list_asset_tranches" ->
-          Settings.list_asset_tranches() |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
+          Settings.list_asset_tranches()
+          |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
+
+
+
+
 
         "list_assets" ->
           Settings.list_assets() |> BluePotion.sanitize_struct()
@@ -401,6 +406,24 @@ defmodule CommerceFrontWeb.ApiController do
 
         "current_month_outlet_trx_only_rp" ->
           Settings.monthly_outlet_trx_only_rp()
+
+        "daily_secondary_trade_summary" ->
+          Settings.daily_secondary_trade_summary()
+
+        "secondary_trade_summary_overall" ->
+          Settings.secondary_trade_summary_overall()
+
+        "daily_secondary_trade_summary_by_price" ->
+          Settings.daily_secondary_trade_summary_by_price()
+
+        "secondary_trade_summary_overall_by_price" ->
+          Settings.secondary_trade_summary_overall_by_price()
+
+        "secondary_qty_by_price_overall" ->
+          Settings.secondary_qty_by_price_overall()
+
+        "secondary_qty_by_price_with_tranche" ->
+          Settings.secondary_qty_by_price_with_tranche()
 
         "current_month_outlet_trx_drp" ->
           Settings.monthly_outlet_trx_drp()

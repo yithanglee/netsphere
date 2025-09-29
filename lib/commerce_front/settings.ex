@@ -6409,6 +6409,196 @@ defmodule CommerceFront.Settings do
     end
   end
 
+  # Secondary market daily trade summary (company vs members)
+  # Mirrors Repo.query pattern used by monthly_outlet_trx_only_rp/2
+  def daily_secondary_trade_summary() do
+    query = """
+    WITH finance AS (
+      SELECT id FROM users WHERE username ILIKE '%finance%'
+    )
+    SELECT
+      to_char(t.trade_date, 'YYYY-MM-DD') AS day,
+      SUM(CASE WHEN t.seller_id IN (SELECT id FROM finance) THEN t.total_amount ELSE 0 END)::float AS company_sold_amount,
+      SUM(CASE WHEN t.buyer_id  IN (SELECT id FROM finance) THEN t.total_amount ELSE 0 END)::float AS company_bought_amount,
+      SUM(CASE WHEN t.seller_id NOT IN (SELECT id FROM finance) THEN t.total_amount ELSE 0 END)::float AS members_sold_amount,
+      SUM(CASE WHEN t.buyer_id  NOT IN (SELECT id FROM finance) THEN t.total_amount ELSE 0 END)::float AS members_bought_amount,
+      SUM(t.total_amount)::float AS total_traded_amount,
+      SUM(t.quantity)::float AS total_assets_traded,
+      SUM(CASE WHEN t.seller_id IN (SELECT id FROM finance) THEN t.quantity ELSE 0 END)::float AS company_assets_issue
+    FROM secondary_market_trades t
+    GROUP BY 1
+    ORDER BY 1
+    """
+
+    params = []
+
+    {:ok, %Postgrex.Result{columns: columns, rows: rows}} = Repo.query(query, params)
+
+    for row <- rows do
+      Enum.zip(columns |> Enum.map(&String.to_atom/1), row)
+      |> Enum.into(%{})
+    end
+  end
+
+  # Secondary market overall trade summary (company vs members, all time)
+  def secondary_trade_summary_overall() do
+    query = """
+    WITH finance AS (
+      SELECT id FROM users WHERE username ILIKE '%finance%'
+    )
+    SELECT
+      COALESCE(SUM(CASE WHEN t.seller_id IN (SELECT id FROM finance) THEN t.total_amount ELSE 0 END), 0)::float AS company_sold_amount,
+      COALESCE(SUM(CASE WHEN t.buyer_id  IN (SELECT id FROM finance) THEN t.total_amount ELSE 0 END), 0)::float AS company_bought_amount,
+      COALESCE(SUM(CASE WHEN t.seller_id NOT IN (SELECT id FROM finance) THEN t.total_amount ELSE 0 END), 0)::float AS members_sold_amount,
+      COALESCE(SUM(CASE WHEN t.buyer_id  NOT IN (SELECT id FROM finance) THEN t.total_amount ELSE 0 END), 0)::float AS members_bought_amount,
+      COALESCE(SUM(t.total_amount), 0)::float AS total_traded_amount,
+      COALESCE(SUM(t.quantity), 0)::float AS total_assets_traded,
+      COALESCE(SUM(CASE WHEN t.seller_id IN (SELECT id FROM finance) THEN t.quantity ELSE 0 END), 0)::float AS company_assets_issue,
+      COUNT(*)::bigint AS num_trades
+    FROM secondary_market_trades t
+    """
+
+    params = []
+
+    {:ok, %Postgrex.Result{columns: columns, rows: rows}} = Repo.query(query, params)
+
+    case rows do
+      [row] ->
+        Enum.zip(columns |> Enum.map(&String.to_atom/1), row)
+        |> Enum.into(%{})
+      _ -> %{}
+    end
+  end
+
+  # Secondary market daily trade summary grouped by unit price
+  def daily_secondary_trade_summary_by_price() do
+    query = """
+    WITH finance AS (
+      SELECT id FROM users WHERE username ILIKE '%finance%'
+    )
+    SELECT
+      to_char(t.trade_date, 'YYYY-MM-DD') AS day,
+      t.price_per_unit::float AS unit_price,
+      SUM(CASE WHEN t.seller_id IN (SELECT id FROM finance) THEN t.total_amount ELSE 0 END)::float AS company_sold_amount,
+      SUM(CASE WHEN t.buyer_id  IN (SELECT id FROM finance) THEN t.total_amount ELSE 0 END)::float AS company_bought_amount,
+      SUM(CASE WHEN t.seller_id NOT IN (SELECT id FROM finance) THEN t.total_amount ELSE 0 END)::float AS members_sold_amount,
+      SUM(CASE WHEN t.buyer_id  NOT IN (SELECT id FROM finance) THEN t.total_amount ELSE 0 END)::float AS members_bought_amount,
+      SUM(t.total_amount)::float AS total_traded_amount,
+      SUM(t.quantity)::float AS total_assets_traded,
+      SUM(CASE WHEN t.seller_id IN (SELECT id FROM finance) THEN t.quantity ELSE 0 END)::float AS company_assets_issue
+    FROM secondary_market_trades t
+    GROUP BY 1, 2
+    ORDER BY 1, 2
+    """
+
+    params = []
+
+    {:ok, %Postgrex.Result{columns: columns, rows: rows}} = Repo.query(query, params)
+
+    for row <- rows do
+      Enum.zip(columns |> Enum.map(&String.to_atom/1), row)
+      |> Enum.into(%{})
+    end
+  end
+
+  # Secondary market overall summary grouped by unit price
+  def secondary_trade_summary_overall_by_price() do
+    query = """
+    WITH finance AS (
+      SELECT id FROM users WHERE username ILIKE '%finance%'
+    )
+    SELECT
+      t.price_per_unit::float AS unit_price,
+      COALESCE(SUM(CASE WHEN t.seller_id IN (SELECT id FROM finance) THEN t.total_amount ELSE 0 END), 0)::float AS company_sold_amount,
+      COALESCE(SUM(CASE WHEN t.buyer_id  IN (SELECT id FROM finance) THEN t.total_amount ELSE 0 END), 0)::float AS company_bought_amount,
+      COALESCE(SUM(CASE WHEN t.seller_id NOT IN (SELECT id FROM finance) THEN t.total_amount ELSE 0 END), 0)::float AS members_sold_amount,
+      COALESCE(SUM(CASE WHEN t.buyer_id  NOT IN (SELECT id FROM finance) THEN t.total_amount ELSE 0 END), 0)::float AS members_bought_amount,
+      COALESCE(SUM(t.total_amount), 0)::float AS total_traded_amount,
+      COALESCE(SUM(t.quantity), 0)::float AS total_assets_traded,
+      COALESCE(SUM(CASE WHEN t.seller_id IN (SELECT id FROM finance) THEN t.quantity ELSE 0 END), 0)::float AS company_assets_issue,
+      COUNT(*)::bigint AS num_trades
+    FROM secondary_market_trades t
+    GROUP BY 1
+    ORDER BY 1
+    """
+
+    params = []
+
+    {:ok, %Postgrex.Result{columns: columns, rows: rows}} = Repo.query(query, params)
+
+    for row <- rows do
+      Enum.zip(columns |> Enum.map(&String.to_atom/1), row)
+      |> Enum.into(%{})
+    end
+  end
+
+  # Secondary market quantities grouped by unit price (overall)
+  # Splits seller quantities into company (netsphere_finance) vs members
+  def secondary_qty_by_price_overall() do
+    query = """
+    WITH finance AS (
+      SELECT id FROM users WHERE username = 'netsphere_finance'
+    )
+    SELECT
+      t.price_per_unit::float AS unit_price,
+      COALESCE(SUM(CASE WHEN t.seller_id IN (SELECT id FROM finance) THEN t.quantity ELSE 0 END), 0)::float AS company_qty,
+      COALESCE(SUM(CASE WHEN t.seller_id NOT IN (SELECT id FROM finance) THEN t.quantity ELSE 0 END), 0)::float AS members_qty,
+      COALESCE(SUM(t.quantity), 0)::float AS total_qty
+    FROM secondary_market_trades t
+    GROUP BY 1
+    ORDER BY 1
+    """
+
+    params = []
+
+    {:ok, %Postgrex.Result{columns: columns, rows: rows}} = Repo.query(query, params)
+
+    for row <- rows do
+      Enum.zip(columns |> Enum.map(&String.to_atom/1), row)
+      |> Enum.into(%{})
+    end
+  end
+
+  # Secondary market quantities grouped by unit price with tranche seq
+  def secondary_qty_by_price_with_tranche() do
+    query = """
+    WITH finance AS (
+      SELECT id FROM users WHERE username = 'netsphere_finance'
+    ),
+    trades AS (
+      SELECT
+        smt.asset_id,
+        smt.price_per_unit,
+        SUM(CASE WHEN smt.seller_id IN (SELECT id FROM finance) THEN smt.quantity ELSE 0 END) AS company_traded,
+        SUM(CASE WHEN smt.seller_id NOT IN (SELECT id FROM finance) THEN smt.quantity ELSE 0 END) AS members_traded,
+        SUM(smt.quantity) AS total_traded
+      FROM secondary_market_trades smt
+      GROUP BY smt.asset_id, smt.price_per_unit
+    )
+    SELECT
+      COALESCE(t.asset_id, at.asset_id) AS asset_id,
+      COALESCE(t.price_per_unit, at.unit_price)::float AS unit_price,
+      at.seq AS seq,
+      at.quantity::float AS total_quantity,
+      COALESCE(t.company_traded, 0)::float AS company_traded,
+      COALESCE(t.members_traded, 0)::float AS member_traded,
+      COALESCE(t.total_traded, 0)::float AS total_traded
+    FROM trades t
+    FULL JOIN asset_tranches at
+      ON at.asset_id = t.asset_id AND at.unit_price = t.price_per_unit
+    ORDER BY asset_id, unit_price, seq
+    """
+
+    params = []
+
+    {:ok, %Postgrex.Result{columns: columns, rows: rows}} = Repo.query(query, params)
+
+    for row <- rows do
+      Enum.zip(columns |> Enum.map(&String.to_atom/1), row)
+      |> Enum.into(%{})
+    end
+  end
+
   def monthly_outlet_trx(month \\ 7, year \\ 2024) do
     naive_date = Date.from_erl!({year, month, 1})
     end_naive_date = naive_date |> Timex.shift(months: 1)
@@ -7869,7 +8059,7 @@ defmodule CommerceFront.Settings do
   alias CommerceFront.Settings.AssetTranche
 
   def list_asset_tranches() do
-    Repo.all(AssetTranche)
+    Repo.all(from at in AssetTranche, order_by: [asc: at.seq])
   end
 
   def list_asset_tranches_by_asset_id(asset_id) do
@@ -7957,6 +8147,13 @@ defmodule CommerceFront.Settings do
       active_amount = Decimal.new("#{wt.after}")
       Decimal.add(acc, active_amount)
     end)
+  end
+
+  def run_daily_staking_release() do
+    # Process stake release for all users
+    for user_id <- Repo.all(from(u in User, select: u.id)) do
+      process_stake_release(user_id)
+    end
   end
 
   def process_stake_release(user_id, asset_id \\ nil, today \\ Date.utc_today()) do

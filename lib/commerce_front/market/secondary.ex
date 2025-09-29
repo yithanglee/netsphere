@@ -5,11 +5,13 @@ defmodule CommerceFront.Market.Secondary do
   """
 
   import Ecto.Query
+  alias Ecto.Multi
   alias CommerceFront.{Repo, Settings}
   alias CommerceFront.Settings.{
     SecondaryMarketOrder,
     SecondaryMarketTrade,
-    AssetTranche
+    AssetTranche,
+    StakeHolding
   }
   require Decimal
 
@@ -25,7 +27,7 @@ defmodule CommerceFront.Market.Secondary do
     from(t in AssetTranche,
       where: t.asset_id == ^asset_id and
              t.state == ^"open" and
-             t.qty_sold < t.quantity,
+             t.traded_qty < t.quantity,
       order_by: [asc: t.seq],
       limit: 1
     )
@@ -40,13 +42,44 @@ defmodule CommerceFront.Market.Secondary do
     |> Repo.update_all(inc: [qty_sold: Decimal.to_float(additional_qty)])
   end
 
+  def update_tranche_traded_quantity(tranche_id, additional_qty) do
+    from(t in AssetTranche, where: t.id == ^tranche_id)
+    |> Repo.update_all(inc: [traded_qty: Decimal.to_float(additional_qty)])
+  end
+
   @doc """
   Check if a tranche is fully sold after an update.
   """
   def is_tranche_fully_sold?(tranche_id) do
     case Repo.get(AssetTranche, tranche_id) do
       nil -> false
-      tranche -> Decimal.compare(tranche.qty_sold, tranche.quantity) >= 0
+      tranche -> Decimal.compare(tranche.traded_qty, tranche.quantity) >= 0
+    end
+  end
+
+  defp close_tranche_if_filled(%AssetTranche{} = tranche) do
+    if Decimal.compare(tranche.traded_qty, tranche.quantity) != :lt do
+      # Close current tranche
+      from(t in AssetTranche, where: t.id == ^tranche.id)
+      |> Repo.update_all(set: [state: "closed"]) |> elem(1)
+
+      # Open next tranche by sequence if exists
+      next =
+        from(t in AssetTranche,
+          where: t.asset_id == ^tranche.asset_id and t.seq > ^tranche.seq,
+          order_by: [asc: t.seq],
+          limit: 1
+        )
+        |> Repo.one()
+
+      if next do
+        from(t in AssetTranche, where: t.id == ^next.id)
+        |> Repo.update_all(set: [state: "open", released_at: DateTime.utc_now()])
+      end
+
+      :closed
+    else
+      :open
     end
   end
 
@@ -215,6 +248,12 @@ defmodule CommerceFront.Market.Secondary do
     # Step 2: Execute trades with member orders first
     remaining_after_member_trades = execute_member_trades(buy_order, member_sell_orders, remaining_to_fill)
 
+    # Record traded quantity attributed to this tranche from member fills
+    member_filled_quantity = Decimal.sub(remaining_to_fill, remaining_after_member_trades)
+    if Decimal.compare(member_filled_quantity, Decimal.new("0")) == :gt do
+      update_tranche_traded_quantity(current_tranche.id, member_filled_quantity)
+    end
+
     # Step 3: If still need to fill, inject from tranche
     if Decimal.compare(remaining_after_member_trades, Decimal.new("0")) == :gt do
       inject_from_tranche(buy_order, current_tranche, remaining_after_member_trades)
@@ -225,6 +264,10 @@ defmodule CommerceFront.Market.Secondary do
     if Decimal.compare(updated_buy_order.remaining_quantity, Decimal.new("0")) == :eq do
       update_order_status(buy_order, "filled")
     end
+
+    # Step 5: If tranche filled, close and open next
+    tranche = Repo.get!(AssetTranche, current_tranche.id)
+    close_tranche_if_filled(tranche)
   end
 
   defp execute_member_trades(buy_order, sell_orders, remaining_quantity) do
@@ -278,6 +321,8 @@ defmodule CommerceFront.Market.Secondary do
             {:ok, _} ->
               # Update tranche sold quantity
               update_tranche_sold_quantity(current_tranche.id, injection_quantity)
+              # Update total traded quantity (includes company injection)
+              update_tranche_traded_quantity(current_tranche.id, injection_quantity)
 
               # Check if we need to move to next tranche for remaining quantity
               remaining_after_injection = Decimal.sub(needed_quantity, injection_quantity)
@@ -290,6 +335,10 @@ defmodule CommerceFront.Market.Secondary do
                   end
                 end
               end
+
+              # After injection, check if tranche is filled and rotate
+              tranche = Repo.get!(AssetTranche, current_tranche.id)
+              close_tranche_if_filled(tranche)
 
             {:error, reason} ->
               {:error, "Failed to execute synthetic trade: #{inspect(reason)}"}
@@ -409,45 +458,94 @@ defmodule CommerceFront.Market.Secondary do
   end
 
   defp execute_wallet_transfers(trade_params) do
-    # Transfer tokens from buyer to seller
-    token_transfer_params = %{
+    finance_user = Settings.finance_user()
+    is_synthetic_seller = trade_params.seller_id == finance_user.id
+
+    # Precompute wallet transaction param maps
+    buyer_token_debit = %{
       user_id: trade_params.buyer_id,
       amount: -Decimal.to_float(trade_params.total_amount),
       remarks: "secondary_market_buy_#{trade_params.asset_id}_#{trade_params.trade_date}",
       wallet_type: "token"
     }
 
-    # Transfer active_token from seller to buyer
-    active_token_transfer_params = %{
-      user_id: trade_params.seller_id,
-      amount: -Decimal.to_float(trade_params.quantity),
-      remarks: "secondary_market_sell_#{trade_params.asset_id}_#{trade_params.trade_date}",
-      wallet_type: "active_token"
-    }
-
-    # Add active_token to buyer
-    buyer_token_params = %{
+    buyer_asset_credit = %{
       user_id: trade_params.buyer_id,
       amount: Decimal.to_float(trade_params.quantity),
-      remarks: "secondary_market_receive_#{trade_params.asset_id}_#{trade_params.trade_date}",
-      wallet_type: "active_token"
+      remarks: "secondary_market_receive_asset_#{trade_params.asset_id}_#{trade_params.trade_date}",
+      wallet_type: "asset"
     }
 
-    # Add tokens to seller
-    seller_token_params = %{
+    seller_token_credit = %{
       user_id: trade_params.seller_id,
       amount: Decimal.to_float(trade_params.total_amount),
       remarks: "secondary_market_receive_tokens_#{trade_params.asset_id}_#{trade_params.trade_date}",
       wallet_type: "token"
     }
 
-    with {:ok, _} <- Settings.create_wallet_transaction(token_transfer_params),
-         {:ok, _} <- Settings.create_wallet_transaction(active_token_transfer_params),
-         {:ok, _} <- Settings.create_wallet_transaction(buyer_token_params),
-         {:ok, _} <- Settings.create_wallet_transaction(seller_token_params) do
-      {:ok, :success}
-    else
-      error -> {:error, "Wallet transfer failed: #{inspect(error)}"}
+    seller_active_token_debit = %{
+      user_id: trade_params.seller_id,
+      amount: -Decimal.to_float(trade_params.quantity),
+      remarks: "secondary_market_sell_active_token_#{trade_params.asset_id}_#{trade_params.trade_date}",
+      wallet_type: "active_token"
+    }
+
+    seller_asset_debit = %{
+      user_id: trade_params.seller_id,
+      amount: -Decimal.to_float(trade_params.quantity),
+      remarks: "secondary_market_deduct_asset_#{trade_params.asset_id}_#{trade_params.trade_date}",
+      wallet_type: "asset"
+    }
+
+    multi =
+      Multi.new()
+      |> Multi.run(:buyer_token_debit, fn _repo, _ ->
+        Settings.create_wallet_transaction(buyer_token_debit)
+      end)
+      |> Multi.run(:buyer_asset_credit, fn _repo, _ ->
+        Settings.create_wallet_transaction(buyer_asset_credit)
+      end)
+      |> Multi.run(:create_stake_holding, fn repo, %{buyer_asset_credit: buyer_asset_tx} ->
+        # Create stake holding linked to the wallet transaction that credited assets
+        # Mirroring primary flow: stake at 1% per day based on credited quantity
+        qty = buyer_asset_tx.wallet_transaction && buyer_asset_tx.wallet_transaction.amount || Decimal.to_float(trade_params.quantity)
+        params = %{
+          holding_id: buyer_asset_tx.wallet_transaction.id,
+          original_qty: Decimal.new("#{qty}"),
+          initial_bought: Date.utc_today(),
+          released: Decimal.new("0")
+        }
+
+        case repo.insert(StakeHolding.changeset(%StakeHolding{}, params)) do
+          {:ok, stake} -> {:ok, stake}
+          {:error, cs} -> {:error, cs}
+        end
+      end)
+      |> then(fn m ->
+        if is_synthetic_seller do
+          # Issuer synthetic sell: only credit issuer tokens
+          m
+          |> Multi.run(:seller_token_credit, fn _repo, _ ->
+            Settings.create_wallet_transaction(seller_token_credit)
+          end)
+        else
+          # Member-to-member: deduct seller active_token and asset, then credit tokens
+          m
+          |> Multi.run(:seller_active_token_debit, fn _repo, _ ->
+            Settings.create_wallet_transaction(seller_active_token_debit)
+          end)
+          |> Multi.run(:seller_asset_debit, fn _repo, _ ->
+            Settings.create_wallet_transaction(seller_asset_debit)
+          end)
+          |> Multi.run(:seller_token_credit, fn _repo, _ ->
+            Settings.create_wallet_transaction(seller_token_credit)
+          end)
+        end
+      end)
+
+    case Repo.transaction(multi) do
+      {:ok, _changes} -> {:ok, :success}
+      {:error, _step, reason, _changes} -> {:error, "Wallet transfer failed: #{inspect(reason)}"}
     end
   end
 
