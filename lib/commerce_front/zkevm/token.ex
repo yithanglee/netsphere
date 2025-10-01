@@ -3,9 +3,10 @@ defmodule ZkEvm.Token do
     ERC-20 utility module for zkEVM / Polygon in Elixir.
     Supports balance queries and token transfers.
     """
-  
+
     alias Ethereumex.HttpClient
-  
+  @polygonscan_zkevm_api "https://api-zkevm.polygonscan.com/api"
+
     @erc20_abi [
       %{
         "constant" => true,
@@ -32,29 +33,29 @@ defmodule ZkEvm.Token do
         "type" => "function"
       }
     ]
-  
+
     @doc """
     Get ERC-20 token balance for an address.
     """
     def balance_of(token_address, wallet_address) do
       data = encode_call(@erc20_abi, "balanceOf", [address_to_uint(wallet_address)])
-  
+
       {:ok, result_hex} =
         HttpClient.eth_call(%{to: token_address, data: data}, "latest")
-  
+
       decimals_hex = encode_call(@erc20_abi, "decimals", [])
-  
+
       {:ok, decimals_result} =
         HttpClient.eth_call(%{to: token_address, data: decimals_hex}, "latest")
-  
+
       decimals = hex_to_integer(decimals_result)
       raw_balance = hex_to_integer(result_hex)
-  
+
       balance = raw_balance / :math.pow(10, decimals)
-  
+
       %{raw: raw_balance, decimals: decimals, formatted: balance}
     end
-  
+
     @doc """
     Transfer ERC-20 tokens from a wallet to a recipient.
     Requires private key of sender.
@@ -63,19 +64,19 @@ defmodule ZkEvm.Token do
     """
     def transfer(token_address, privkey_hex, to_address, amount, decimals \\ 18) do
       privkey = Base.decode16!(String.replace_leading(privkey_hex, "0x", ""), case: :lower)
-  
+
       {:ok, from_address} = privkey_to_address(privkey)
-  
+
       # Encode transfer(to, value)
       value = trunc(amount * :math.pow(10, decimals))
       data = encode_call(@erc20_abi, "transfer", [address_to_uint(to_address), value])
-  
+
       # Fetch nonce and chain id
       {:ok, nonce_hex} = HttpClient.eth_get_transaction_count(from_address, "latest")
       nonce = hex_to_integer(nonce_hex)
       {:ok, chain_id_hex} = HttpClient.eth_chain_id()
       chain_id = hex_to_integer(chain_id_hex)
-  
+
       # Fetch gas price and estimate gas limit
       gas_price =
         case HttpClient.eth_gas_price() do
@@ -88,7 +89,7 @@ defmodule ZkEvm.Token do
           {:ok, gas_hex} -> hex_to_integer(gas_hex)
           _ -> 100_000
         end
-  
+
       tx = %{
         nonce: nonce,
         gasPrice: gas_price,
@@ -98,12 +99,12 @@ defmodule ZkEvm.Token do
         data: data,
         chainId: chain_id
       }
-  
+
       signed = sign_transaction(tx, privkey)
-  
+
       HttpClient.eth_send_raw_transaction("0x" <> Base.encode16(signed, case: :lower))
     end
-  
+
     ## Helpers
 
     @doc """
@@ -114,7 +115,7 @@ defmodule ZkEvm.Token do
       {:ok, addr} = privkey_to_address(privkey)
       addr
     end
-  
+
     defp privkey_to_address(priv) do
       pub =
         case :crypto.generate_key(:ecdh, :secp256k1, priv) do
@@ -127,7 +128,7 @@ defmodule ZkEvm.Token do
       addr = "0x" <> Base.encode16(binary_part(hash, 12, 20), case: :lower)
       {:ok, addr}
     end
-  
+
     defp sign_transaction(tx, priv) do
       nonce_bin = int_to_bin(tx.nonce)
       gas_price_bin = int_to_bin(tx.gasPrice)
@@ -171,20 +172,20 @@ defmodule ZkEvm.Token do
 
       rlp_encode(final_list)
     end
-  
+
     defp encode_call(abi_spec, function_name, args) do
       selector =
         abi_spec
         |> ABI.parse_specification()
         |> Enum.find(fn s -> s.type == :function and s.function == function_name end)
-  
+
       data = ABI.encode(selector, args)
       "0x" <> Base.encode16(data, case: :lower)
     end
-  
+
     defp hex_to_integer("0x" <> rest), do: String.to_integer(rest, 16)
     defp hex_to_integer(rest), do: String.to_integer(rest, 16)
-  
+
     defp address_to_uint("0x" <> hex), do: String.to_integer(hex, 16)
     defp address_to_uint(val) when is_integer(val), do: val
     defp address_to_uint(hex) when is_binary(hex), do: String.to_integer(hex, 16)
@@ -248,5 +249,64 @@ defmodule ZkEvm.Token do
         _ -> raise "Invalid address length"
       end
     end
+  @doc """
+  Fetch ERC-20 transfer history for an address from Polygonscan (zkEVM).
+
+  Options:
+    - :contractaddress (filter by specific token contract)
+    - :startblock (default 0)
+    - :endblock (default 99_999_999)
+    - :page (default 1)
+    - :offset (default 100)
+    - :sort ("asc" | "desc", default "desc")
+  Returns {:ok, list} on success or {:error, reason}.
+  """
+  def token_transfer_history(address, api_key, opts \\ []) do
+    base_params = %{
+      module: "account",
+      action: "tokentx",
+      address: address,
+      startblock: Keyword.get(opts, :startblock, 0),
+      endblock: Keyword.get(opts, :endblock, 99_999_999),
+      page: Keyword.get(opts, :page, 1),
+      offset: Keyword.get(opts, :offset, 100),
+      sort: Keyword.get(opts, :sort, "desc"),
+      apikey: api_key
+    }
+
+    params =
+      case Keyword.get(opts, :contractaddress) do
+        nil -> base_params
+        contract -> Map.put(base_params, :contractaddress, contract)
+      end
+
+    request_polygonscan(params)
   end
-  
+
+  defp request_polygonscan(params) do
+    url = @polygonscan_zkevm_api <> "?" <> URI.encode_query(params)
+
+    case :hackney.request(:get, url, [{"accept", "application/json"}], "", []) do
+      {:ok, 200, _headers, client_ref} ->
+        case :hackney.body(client_ref) do
+          {:ok, body} ->
+            case Jason.decode(body) do
+              {:ok, %{"status" => "1", "result" => result}} -> {:ok, result}
+              {:ok, %{"status" => "0", "message" => message, "result" => result}} ->
+                {:error, {:polygonscan_error, message, result}}
+              {:error, decode_err} -> {:error, {:decode_error, decode_err}}
+              other -> {:error, {:unexpected_response, other}}
+            end
+
+          {:error, reason} -> {:error, {:http_body_error, reason}}
+        end
+
+      {:ok, status, _headers, client_ref} ->
+        _ = :hackney.body(client_ref)
+        {:error, {:http_status, status}}
+
+      {:error, reason} ->
+        {:error, {:http_error, reason}}
+    end
+  end
+end

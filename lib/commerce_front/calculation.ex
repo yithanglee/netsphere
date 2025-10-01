@@ -1456,25 +1456,42 @@ defmodule CommerceFront.Calculation do
     )
 
     subquery2 = """
-    select
-    sum(gss.new_left) as left,
-    sum(gss.new_right) as right,
-    u.username,
-    gss.user_id ,
-    gss.month,
-    gss.year
-    from
-    group_sales_summaries gss
-    left join users u on u.id = gss.user_id
-    where
-    u.id is not null and
-    gss.month = $1
-    and gss.year = $2
-    group by
-    u.username,
-    gss.user_id,
-    gss.month,
-    gss.year ;
+
+        select
+
+          sum(s.grand_total) as grand_total,
+          sum(s.total_point_value) as pv,
+          coalesce(u3.username , u.username ) as parent,
+          r.name,
+          u.id as parent_user_id
+        from
+          sales s
+        left join referrals r2 on
+          r2.user_id = s.user_id
+        left join users u on
+          u.id = r2.parent_user_id
+        left join ranks r on
+          u.rank_id = r.id
+        left join users u2 on
+          u2.id = s.user_id
+        full join users u3 on
+          u.stockist_user_id = u3.id
+        where
+          u.id is not null
+          and
+            r.name in ('Diamond')
+          and
+            convert_from(s.registration_details, 'UTF8')::json ->> 'scope' = 'register'
+          and
+            s.month = $1
+          and s.year = $2
+        group by
+          u3.username,
+          u.username,
+          u.id ,
+          r.name,
+          s.month,
+          s.year ;
     """
 
     {:ok, %Postgrex.Result{columns: columns, rows: rows} = res} =
@@ -1518,14 +1535,8 @@ defmodule CommerceFront.Calculation do
       for %{name: star_name, qualify: amount} = star <- matrix do
         one_star_qualifier =
           for weak_leg <- users_weak_leg do
-            weak_amount =
-              if weak_leg.left > weak_leg.right do
-                weak_leg.right
-              else
-                weak_leg.left
-              end
 
-            if weak_amount >= amount do
+            if  weak_leg.pv > 500 do
               weak_leg
             else
               nil
@@ -1540,20 +1551,16 @@ defmodule CommerceFront.Calculation do
 
           for weak_leg <- one_star_qualifier do
             weak_amount =
-              if weak_leg.left > weak_leg.right do
-                weak_leg.right
-              else
-                weak_leg.left
-              end
+              weak_leg.pv
 
             CommerceFront.Settings.create_reward(%{
               sales_id: 0,
               is_paid: false,
               remarks:
-                "#{total_sales_pv} * 0.03/ #{count} = #{one_star_amount |> :erlang.float_to_binary(decimals: 2)}|weak_leg: #{weak_amount}|pool qualifiers: #{count}|#{star_name}",
+                "#{total_sales_pv} * 0.03/ #{count} = #{one_star_amount |> :erlang.float_to_binary(decimals: 2)}|total PV: #{weak_amount}|pool qualifiers: #{count}",
               name: "elite leader",
               amount: one_star_amount |> Float.round(2),
-              user_id: weak_leg.user_id,
+              user_id: weak_leg.parent_user_id,
               day: Timex.end_of_month(date).day,
               month: month,
               year: year

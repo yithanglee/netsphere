@@ -7,12 +7,14 @@ defmodule CommerceFront.Market.Secondary do
   import Ecto.Query
   alias Ecto.Multi
   alias CommerceFront.{Repo, Settings}
+
   alias CommerceFront.Settings.{
     SecondaryMarketOrder,
     SecondaryMarketTrade,
     AssetTranche,
-    StakeHolding
+    StakeHolding, Ewallet
   }
+
   require Decimal
 
   # ============================================================================
@@ -25,9 +27,10 @@ defmodule CommerceFront.Market.Secondary do
   """
   def get_current_open_tranche(asset_id) do
     from(t in AssetTranche,
-      where: t.asset_id == ^asset_id and
-             t.state == ^"open" and
-             t.traded_qty < t.quantity,
+      where:
+        t.asset_id == ^asset_id and
+          t.state == ^"open" and
+          t.traded_qty < t.quantity,
       order_by: [asc: t.seq],
       limit: 1
     )
@@ -61,7 +64,8 @@ defmodule CommerceFront.Market.Secondary do
     if Decimal.compare(tranche.traded_qty, tranche.quantity) != :lt do
       # Close current tranche
       from(t in AssetTranche, where: t.id == ^tranche.id)
-      |> Repo.update_all(set: [state: "closed"]) |> elem(1)
+      |> Repo.update_all(set: [state: "closed"])
+      |> elem(1)
 
       # Open next tranche by sequence if exists
       next =
@@ -98,7 +102,8 @@ defmodule CommerceFront.Market.Secondary do
       quantity: quantity,
       price_per_unit: price_per_unit,
       total_amount: Decimal.mult(quantity, price_per_unit),
-      status: "filled",  # Immediately filled
+      # Immediately filled
+      status: "filled",
       filled_quantity: quantity,
       remaining_quantity: Decimal.new("0")
     }
@@ -107,7 +112,8 @@ defmodule CommerceFront.Market.Secondary do
       {:ok, synthetic_order} ->
         # Create the trade immediately
         trade_params = %{
-          buy_order_id: nil,  # Will be set by caller
+          # Will be set by caller
+          buy_order_id: nil,
           sell_order_id: synthetic_order.id,
           buyer_id: buyer_id,
           seller_id: finance_user.id,
@@ -117,8 +123,11 @@ defmodule CommerceFront.Market.Secondary do
           total_amount: Decimal.mult(quantity, price_per_unit),
           trade_date: DateTime.utc_now()
         }
+
         {:ok, {synthetic_order, trade_params}}
-      error -> error
+
+      error ->
+        error
     end
   end
 
@@ -220,6 +229,7 @@ defmodule CommerceFront.Market.Secondary do
     case buy_order.order_type do
       "buy" ->
         match_buy_order_with_tranche_rules(buy_order, current_tranche)
+
       "sell" ->
         # Sell orders use existing logic for now
         match_sell_order_with_buys(buy_order)
@@ -236,20 +246,26 @@ defmodule CommerceFront.Market.Secondary do
     remaining_to_fill = buy_order.remaining_quantity
 
     # Step 1: Find member sell orders at exactly the tranche price
-    member_sell_orders = from(o in SecondaryMarketOrder,
-      where: o.asset_id == ^buy_order.asset_id and
-             o.order_type == "sell" and
-             o.status == "pending" and
-             o.price_per_unit == ^tranche_price and
-             o.user_id != ^buy_order.user_id,
-      order_by: [asc: o.inserted_at]  # FIFO for same price
-    ) |> Repo.all()
+    member_sell_orders =
+      from(o in SecondaryMarketOrder,
+        where:
+          o.asset_id == ^buy_order.asset_id and
+            o.order_type == "sell" and
+            o.status == "pending" and
+            o.price_per_unit == ^tranche_price and
+            o.user_id != ^buy_order.user_id,
+        # FIFO for same price
+        order_by: [asc: o.inserted_at]
+      )
+      |> Repo.all()
 
     # Step 2: Execute trades with member orders first
-    remaining_after_member_trades = execute_member_trades(buy_order, member_sell_orders, remaining_to_fill)
+    remaining_after_member_trades =
+      execute_member_trades(buy_order, member_sell_orders, remaining_to_fill)
 
     # Record traded quantity attributed to this tranche from member fills
     member_filled_quantity = Decimal.sub(remaining_to_fill, remaining_after_member_trades)
+
     if Decimal.compare(member_filled_quantity, Decimal.new("0")) == :gt do
       update_tranche_traded_quantity(current_tranche.id, member_filled_quantity)
     end
@@ -261,6 +277,7 @@ defmodule CommerceFront.Market.Secondary do
 
     # Step 4: Update order status
     updated_buy_order = Repo.get!(SecondaryMarketOrder, buy_order.id)
+
     if Decimal.compare(updated_buy_order.remaining_quantity, Decimal.new("0")) == :eq do
       update_order_status(buy_order, "filled")
     end
@@ -296,6 +313,7 @@ defmodule CommerceFront.Market.Secondary do
           {:ok, _} ->
             new_remaining = Decimal.sub(remaining, trade_quantity)
             {:cont, new_remaining}
+
           {:error, _} ->
             {:halt, remaining}
         end
@@ -303,6 +321,9 @@ defmodule CommerceFront.Market.Secondary do
     end)
   end
 
+  @doc """
+  Inject synthetic sell orders from tranche to fulfill buy orders.
+  """
   defp inject_from_tranche(buy_order, current_tranche, needed_quantity) do
     available_in_tranche = Decimal.sub(current_tranche.quantity, current_tranche.qty_sold)
 
@@ -311,7 +332,12 @@ defmodule CommerceFront.Market.Secondary do
 
     if Decimal.compare(injection_quantity, Decimal.new("0")) == :gt do
       # Inject synthetic sell order
-      case inject_synthetic_sell_order(buy_order.asset_id, injection_quantity, current_tranche.unit_price, buy_order.user_id) do
+      case inject_synthetic_sell_order(
+             buy_order.asset_id,
+             injection_quantity,
+             current_tranche.unit_price,
+             buy_order.user_id
+           ) do
         {:ok, {synthetic_order, trade_params}} ->
           # Update trade params with buy order ID
           trade_params = Map.put(trade_params, :buy_order_id, buy_order.id)
@@ -326,12 +352,16 @@ defmodule CommerceFront.Market.Secondary do
 
               # Check if we need to move to next tranche for remaining quantity
               remaining_after_injection = Decimal.sub(needed_quantity, injection_quantity)
+
               if Decimal.compare(remaining_after_injection, Decimal.new("0")) == :gt do
                 # Try next tranche if current is exhausted
                 if is_tranche_fully_sold?(current_tranche.id) do
                   case get_current_open_tranche(buy_order.asset_id) do
-                    nil -> :no_more_tranches
-                    next_tranche -> inject_from_tranche(buy_order, next_tranche, remaining_after_injection)
+                    nil ->
+                      :no_more_tranches
+
+                    next_tranche ->
+                      inject_from_tranche(buy_order, next_tranche, remaining_after_injection)
                   end
                 end
               end
@@ -353,7 +383,6 @@ defmodule CommerceFront.Market.Secondary do
   defp execute_synthetic_trade(trade_params, buy_order, tranche) do
     with {:ok, _trade} <- Settings.create_secondary_market_trade(trade_params),
          {:ok, _} <- execute_wallet_transfers(trade_params) do
-
       # Update buy order quantities
       update_order_filled_quantity(buy_order, trade_params.quantity)
 
@@ -365,28 +394,34 @@ defmodule CommerceFront.Market.Secondary do
 
   defp match_buy_order_with_sells(buy_order) do
     # Get sell orders with price <= buy order price, sorted by lowest price first
-    sell_orders = from(o in SecondaryMarketOrder,
-      where: o.asset_id == ^buy_order.asset_id and
-             o.order_type == "sell" and
-             o.status == "pending" and
-             o.price_per_unit <= ^buy_order.price_per_unit and
-             o.user_id != ^buy_order.user_id,
-      order_by: [asc: o.price_per_unit, asc: o.inserted_at]
-    ) |> Repo.all()
+    sell_orders =
+      from(o in SecondaryMarketOrder,
+        where:
+          o.asset_id == ^buy_order.asset_id and
+            o.order_type == "sell" and
+            o.status == "pending" and
+            o.price_per_unit <= ^buy_order.price_per_unit and
+            o.user_id != ^buy_order.user_id,
+        order_by: [asc: o.price_per_unit, asc: o.inserted_at]
+      )
+      |> Repo.all()
 
     execute_trades(buy_order, sell_orders)
   end
 
   defp match_sell_order_with_buys(sell_order) do
     # Get buy orders with price >= sell order price, sorted by highest price first
-    buy_orders = from(o in SecondaryMarketOrder,
-      where: o.asset_id == ^sell_order.asset_id and
-             o.order_type == "buy" and
-             o.status == "pending" and
-             o.price_per_unit >= ^sell_order.price_per_unit and
-             o.user_id != ^sell_order.user_id,
-      order_by: [desc: o.price_per_unit, desc: o.inserted_at]
-    ) |> Repo.all()
+    buy_orders =
+      from(o in SecondaryMarketOrder,
+        where:
+          o.asset_id == ^sell_order.asset_id and
+            o.order_type == "buy" and
+            o.status == "pending" and
+            o.price_per_unit >= ^sell_order.price_per_unit and
+            o.user_id != ^sell_order.user_id,
+        order_by: [desc: o.price_per_unit, desc: o.inserted_at]
+      )
+      |> Repo.all()
 
     execute_trades(sell_order, buy_orders)
   end
@@ -404,15 +439,26 @@ defmodule CommerceFront.Market.Secondary do
           {:halt, remaining}
         else
           trade_quantity = Decimal.min(remaining, matching_order.remaining_quantity)
-          trade_price = matching_order.price_per_unit  # Use the matching order's price (better for the new order)
+          # Use the matching order's price (better for the new order)
+          trade_price = matching_order.price_per_unit
           trade_amount = Decimal.mult(trade_quantity, trade_price)
 
           # Create the trade
           trade_params = %{
-            buy_order_id: (if main_order.order_type == "buy", do: main_order.id, else: matching_order.id),
-            sell_order_id: (if main_order.order_type == "sell", do: main_order.id, else: matching_order.id),
-            buyer_id: (if main_order.order_type == "buy", do: main_order.user_id, else: matching_order.user_id),
-            seller_id: (if main_order.order_type == "sell", do: main_order.user_id, else: matching_order.user_id),
+            buy_order_id:
+              if(main_order.order_type == "buy", do: main_order.id, else: matching_order.id),
+            sell_order_id:
+              if(main_order.order_type == "sell", do: main_order.id, else: matching_order.id),
+            buyer_id:
+              if(main_order.order_type == "buy",
+                do: main_order.user_id,
+                else: matching_order.user_id
+              ),
+            seller_id:
+              if(main_order.order_type == "sell",
+                do: main_order.user_id,
+                else: matching_order.user_id
+              ),
             asset_id: main_order.asset_id,
             quantity: trade_quantity,
             price_per_unit: trade_price,
@@ -424,6 +470,7 @@ defmodule CommerceFront.Market.Secondary do
             {:ok, _} ->
               new_remaining = Decimal.sub(remaining, trade_quantity)
               {:cont, new_remaining}
+
             {:error, _} ->
               {:halt, remaining}
           end
@@ -432,6 +479,7 @@ defmodule CommerceFront.Market.Secondary do
 
       # Check if main order is now filled
       updated_main_order = Repo.get!(SecondaryMarketOrder, main_order.id)
+
       if Decimal.compare(updated_main_order.remaining_quantity, Decimal.new("0")) == :eq do
         update_order_status(main_order, "filled")
       end
@@ -441,7 +489,6 @@ defmodule CommerceFront.Market.Secondary do
   defp execute_trade(trade_params, main_order, matching_order) do
     with {:ok, _trade} <- Settings.create_secondary_market_trade(trade_params),
          {:ok, _} <- execute_wallet_transfers(trade_params) do
-
       # Update order quantities
       update_order_filled_quantity(main_order, trade_params.quantity)
       update_order_filled_quantity(matching_order, trade_params.quantity)
@@ -465,40 +512,67 @@ defmodule CommerceFront.Market.Secondary do
     buyer_token_debit = %{
       user_id: trade_params.buyer_id,
       amount: -Decimal.to_float(trade_params.total_amount),
-      remarks: "secondary_market_buy_#{trade_params.asset_id}_#{trade_params.trade_date}",
+      remarks: "secondary_market_buy_#{trade_params.asset_id}_#{trade_params.trade_date} | qty: #{trade_params.quantity}",
       wallet_type: "token"
     }
 
     buyer_asset_credit = %{
       user_id: trade_params.buyer_id,
       amount: Decimal.to_float(trade_params.quantity),
-      remarks: "secondary_market_receive_asset_#{trade_params.asset_id}_#{trade_params.trade_date}",
+      remarks:
+        "secondary_market_receive_asset_#{trade_params.asset_id}_#{trade_params.trade_date}",
       wallet_type: "asset"
     }
 
     seller_token_credit = %{
       user_id: trade_params.seller_id,
-      amount: Decimal.to_float(trade_params.total_amount),
-      remarks: "secondary_market_receive_tokens_#{trade_params.asset_id}_#{trade_params.trade_date}",
+      amount: (Decimal.to_float(trade_params.total_amount) * 0.3) |> Float.round(2),
+      remarks:
+        "secondary_market_receive_tokens_#{trade_params.asset_id}_#{trade_params.trade_date}| qty: #{trade_params.quantity}| total_amount: #{trade_params.total_amount}",
       wallet_type: "token"
+    }
+
+    seller_bonus_credit = %{
+      user_id: trade_params.seller_id,
+      amount: (Decimal.to_float(trade_params.total_amount) * 0.7) |> Float.round(2),
+      remarks:
+        "secondary_market_receive_tokens_#{trade_params.asset_id}_#{trade_params.trade_date}| qty: #{trade_params.quantity}| total_amount: #{trade_params.total_amount}",
+      wallet_type: "bonus"
     }
 
     seller_active_token_debit = %{
       user_id: trade_params.seller_id,
       amount: -Decimal.to_float(trade_params.quantity),
-      remarks: "secondary_market_sell_active_token_#{trade_params.asset_id}_#{trade_params.trade_date}",
+      remarks:
+        "secondary_market_sell_active_token_#{trade_params.asset_id}_#{trade_params.trade_date}| qty: #{trade_params.quantity}| total_amount: #{trade_params.total_amount}",
       wallet_type: "active_token"
     }
 
     seller_asset_debit = %{
       user_id: trade_params.seller_id,
       amount: -Decimal.to_float(trade_params.quantity),
-      remarks: "secondary_market_deduct_asset_#{trade_params.asset_id}_#{trade_params.trade_date}",
+      remarks:
+        "secondary_market_deduct_asset_#{trade_params.asset_id}_#{trade_params.trade_date}| qty: #{trade_params.quantity}| total_amount: #{trade_params.total_amount}",
       wallet_type: "asset"
     }
 
     multi =
       Multi.new()
+      |> Multi.run(:lock_buyer_token_wallet, fn repo, _changes ->
+        bal =
+          from(e in Ewallet,
+            where: e.user_id == ^trade_params.buyer_id and e.wallet_type == ^"token",
+            lock: "FOR UPDATE"
+          )
+          |> repo.one()
+
+        cond do
+          is_nil(bal) -> {:error, :buyer_wallet_not_found}
+          Decimal.compare(Decimal.from_float(bal.total), trade_params.total_amount) == :lt ->
+            {:error, :insufficient_funds}
+          true -> {:ok, bal}
+        end
+      end)
       |> Multi.run(:buyer_token_debit, fn _repo, _ ->
         Settings.create_wallet_transaction(buyer_token_debit)
       end)
@@ -508,7 +582,10 @@ defmodule CommerceFront.Market.Secondary do
       |> Multi.run(:create_stake_holding, fn repo, %{buyer_asset_credit: buyer_asset_tx} ->
         # Create stake holding linked to the wallet transaction that credited assets
         # Mirroring primary flow: stake at 1% per day based on credited quantity
-        qty = buyer_asset_tx.wallet_transaction && buyer_asset_tx.wallet_transaction.amount || Decimal.to_float(trade_params.quantity)
+        qty =
+          (buyer_asset_tx.wallet_transaction && buyer_asset_tx.wallet_transaction.amount) ||
+            Decimal.to_float(trade_params.quantity)
+
         params = %{
           holding_id: buyer_asset_tx.wallet_transaction.id,
           original_qty: Decimal.new("#{qty}"),
@@ -540,12 +617,40 @@ defmodule CommerceFront.Market.Secondary do
           |> Multi.run(:seller_token_credit, fn _repo, _ ->
             Settings.create_wallet_transaction(seller_token_credit)
           end)
+          |> Multi.run(:seller_bonus_credit, fn _repo, _ ->
+            Settings.create_wallet_transaction(seller_bonus_credit)
+          end)
+          |> Multi.run(:secondary_market_buy, fn _repo,
+                                                 %{seller_token_credit: seller_token_credit} ->
+            current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
+
+            wt =
+              seller_token_credit
+              |> Map.get(:wallet_transaction)
+              |> IO.inspect(label: "wallet transaction")
+
+            CommerceFront.Market.Secondary.create_buy_order(
+              wt.user_id,
+              current_tranche.asset_id,
+              Decimal.from_float(wt.amount / (current_tranche.unit_price |> Decimal.to_float())),
+              current_tranche.unit_price
+            )
+
+            {:ok, nil}
+          end)
         end
       end)
 
     case Repo.transaction(multi) do
-      {:ok, _changes} -> {:ok, :success}
-      {:error, _step, reason, _changes} -> {:error, "Wallet transfer failed: #{inspect(reason)}"}
+      {:ok, results} ->
+        IO.inspect(results, label: "results")
+
+        # todo: auto buy again...
+
+        {:ok, :success}
+
+      {:error, _step, reason, _changes} ->
+        {:error, "Wallet transfer failed: #{inspect(reason)}"}
     end
   end
 
@@ -568,7 +673,9 @@ defmodule CommerceFront.Market.Secondary do
   """
   def cancel_order(order_id, user_id) do
     case Repo.get(SecondaryMarketOrder, order_id) do
-      nil -> {:error, "Order not found"}
+      nil ->
+        {:error, "Order not found"}
+
       order ->
         if order.user_id != user_id do
           {:error, "Unauthorized"}
@@ -577,6 +684,7 @@ defmodule CommerceFront.Market.Secondary do
             "pending" ->
               Settings.update_secondary_market_order(order, %{status: "cancelled"})
               {:ok, order}
+
             _ ->
               {:error, "Order cannot be cancelled"}
           end

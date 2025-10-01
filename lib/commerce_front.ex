@@ -9,6 +9,42 @@ defmodule CommerceFront do
   Contexts are also responsible for managing your data, regardless
   if it comes from the database, an external API or others.
   """
+
+  def tests(user_id \\ 36) do
+    user = Repo.get(Settings.User, user_id)
+    map = %{
+      "_csrf_token" => "",
+      "scope" => "upgrade",
+      "user" => %{
+        "country_id" => "1",
+        "payment" => %{"drp" => "", "method" => "only_register_point"},
+        "pick_up_point_id" => "1",
+        "products" => %{
+          "0" => %{
+            "img_url" => "/images/uploads/LogoMakr-05NFV0.png",
+            "item_name" => "100 Product Points Package",
+            "item_price" => "100",
+            "item_pv" => "70",
+            "qty" => "1"
+          }
+        },
+        "sales_person_id" => "#{user_id}",
+        "shipping" => %{
+          "city" => "",
+          "fullname" => "test",
+          "line1" => "",
+          "line2" => "",
+          "phone" => "1",
+          "postcode" => "",
+          "state" => ""
+        },
+        "upgrade" => "#{user.username}"
+      }
+    }
+
+    CommerceFrontWeb.ApiController.post(%Plug.Conn{}, map)
+  end
+
   def encode_params(params) do
     encode_value = fn tuple ->
       case tuple do
@@ -73,7 +109,6 @@ defmodule CommerceFront do
     # can only run once
     CommerceFront.Settings.carry_forward_entry(date)
 
-
     if end_of_week == date do
       CommerceFront.Calculation.matching_bonus_week(date)
       # CommerceFront.Settings.pay_unpaid_bonus(date, [
@@ -81,13 +116,13 @@ defmodule CommerceFront do
       # ])
     end
 
-
     if end_of_month == date do
       # CommerceFront.Calculation.matching_bonus(m, y)
       # changed to weekly
       CommerceFront.Calculation.elite_leader(m, y)
+
       CommerceFront.Settings.pay_unpaid_bonus(date, [
-        "elite leader",
+        "elite leader"
       ])
     end
   end
@@ -204,8 +239,20 @@ defmodule CommerceFront do
   end
 
   def seed_data() do
-    CommerceFront.Settings.create_country(%{name: "Thailand", alias: "TH", currency: "THB", conversion: 1})
-    CommerceFront.Settings.create_country(%{name: "Malaysia", alias: "MY", currency: "MYR", conversion: 1})
+    CommerceFront.Settings.create_country(%{
+      name: "Thailand",
+      alias: "TH",
+      currency: "THB",
+      conversion: 1
+    })
+
+    CommerceFront.Settings.create_country(%{
+      name: "Malaysia",
+      alias: "MY",
+      currency: "MYR",
+      conversion: 1
+    })
+
     owner = CommerceFront.Settings.get_admin_staff()
 
     CommerceFront.Settings.create_staff(%{
@@ -218,7 +265,6 @@ defmodule CommerceFront do
 
     CommerceFront.Settings.update_svt_menus()
 
-
     CommerceFront.Settings.create_rank(%{
       name: "Bronze",
       retail_price: 100,
@@ -226,13 +272,13 @@ defmodule CommerceFront do
       point_value: 70
     })
 
-
     CommerceFront.Settings.create_rank(%{
       name: "Shopper",
       retail_price: 0,
       register_point: 0,
       point_value: 0
     })
+
     CommerceFront.Settings.create_rank(%{
       name: "Silver",
       retail_price: 600,
@@ -314,7 +360,7 @@ defmodule CommerceFront do
         random_id = makeid(4)
         #{singular}Source = new phoenixModel({
           columns: [
-          
+
             { label: 'id', data: 'id' },
             { label: 'Action', data: 'id' }
 
@@ -384,7 +430,7 @@ defmodule CommerceFront do
                   $("#myModal").modal('hide')
                 },
                 fnParams: {
-                 
+
                 }
               }, ],
               tableSelector: "#" + random_id
@@ -471,7 +517,7 @@ defmodule CommerceFront do
 
 
 
-          // new lines 
+          // new lines
 
 
           <script>
@@ -538,7 +584,7 @@ defmodule CommerceFront do
             };
           };
 
-          // new lines 
+          // new lines
 
 
 
@@ -596,9 +642,9 @@ defmodule CommerceFront do
             confirmModal(
               true,
               `
-              <label class="my-4 text-sm font-medium block 
+              <label class="my-4 text-sm font-medium block
               text-gray-900 dark:text-gray-300 space-y-2">
-              <span>Shipping Ref</span>  <input name="shipping_ref" 
+              <span>Shipping Ref</span>  <input name="shipping_ref"
               placeholder="" type="text" class="block w-75 disabled:cursor-not-allowed disabled:opacity-50 p-2.5 focus:border-primary-500 focus:ring-primary-500 dark:focus:border-primary-500 dark:focus:ring-primary-500 bg-gray-50 text-gray-900 dark:bg-gray-600 dark:text-white dark:placeholder-gray-400 border-gray-300 dark:border-gray-500 text-sm rounded-lg"> </label>
               <span class="">Are you sure to mark this order as sent?</span>`,
               () => {
