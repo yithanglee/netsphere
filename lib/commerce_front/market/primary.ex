@@ -33,16 +33,16 @@ defmodule CommerceFront.Market.Primary do
             {:halt, {acc, filled}}
 
           Decimal.compare(remaining, need) != :lt ->
-            line = %{asset_tranche_id: t.id, qty: need, unit_price: t.unit_price}
+            line = %{asset_tranche_id: t.id, qty: need, unit_price: t.unit_price, seq: t.seq}
             {:halt, {[line | acc], Decimal.add(filled, need)}}
 
           true ->
-            line = %{asset_tranche_id: t.id, qty: remaining, unit_price: t.unit_price}
+            line = %{asset_tranche_id: t.id, qty: remaining, unit_price: t.unit_price, seq: t.seq}
             {:cont, {[line | acc], Decimal.add(filled, remaining)}}
         end
       end)
 
-    lines = Enum.reverse(lines)
+    lines = Enum.reverse(lines) |> IO.inspect(label: "lines")
 
     total_cost =
       Enum.reduce(lines, Decimal.new("0"), fn %{qty: q, unit_price: p}, acc ->

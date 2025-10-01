@@ -125,7 +125,7 @@ defmodule CommerceFrontWeb.ApiController do
           %{
             lines:
               Enum.map(q.lines, fn l ->
-                %{
+                %{seq: l.seq,
                   asset_tranche_id: l.asset_tranche_id,
                   qty: to_string(l.qty),
                   unit_price: to_string(l.unit_price)
