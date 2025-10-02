@@ -10,8 +10,55 @@ defmodule CommerceFront do
   if it comes from the database, an external API or others.
   """
 
+  @doc """
+  CommerceFront.restore_auto_buy(user_id, amount, total_pv, wt_id, skip_redeem )
+  """
+
+  def restore_auto_buy(sales_id) do
+    current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
+
+    sales = CommerceFront.Settings.get_sale!(sales_id)
+    total_pv = sales.total_point_value
+
+    user_id = sales.user_id
+
+    amount = total_pv * 0.35
+
+    check =
+      Repo.all(
+        from(wt in CommerceFront.Settings.WalletTransaction,
+          where: wt.user_id == ^user_id and wt.remarks == "package redeem"
+        )
+      )
+      |> List.first()
+      |> IO.inspect(label: "wallet transaction")
+
+    wt =
+      if check != nil do
+        check
+      else
+        {:ok, ewallets} =
+          CommerceFront.Settings.create_wallet_transaction(%{
+            user_id: user_id,
+            amount: amount,
+            remarks: "package redeem",
+            wallet_type: "token"
+          })
+
+        ewallets |> Map.get(:wallet_transaction) |> IO.inspect(label: "wallet transaction")
+      end
+
+    CommerceFront.Market.Secondary.create_buy_order(
+      user_id,
+      current_tranche.asset_id,
+      Decimal.from_float(wt.amount / (current_tranche.unit_price |> Decimal.to_float())),
+      current_tranche.unit_price
+    )
+  end
+
   def tests(user_id \\ 36) do
     user = Repo.get(Settings.User, user_id)
+
     map = %{
       "_csrf_token" => "",
       "scope" => "upgrade",

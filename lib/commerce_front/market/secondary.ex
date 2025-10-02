@@ -325,17 +325,25 @@ defmodule CommerceFront.Market.Secondary do
   Inject synthetic sell orders from tranche to fulfill buy orders.
   """
   defp inject_from_tranche(buy_order, current_tranche, needed_quantity) do
-    available_in_tranche = Decimal.sub(current_tranche.quantity, current_tranche.qty_sold)
+    # Refresh tranche to avoid stale qty_sold/traded_qty
+    tranche = Repo.get!(AssetTranche, current_tranche.id)
 
-    # Determine how much we can inject from current tranche
-    injection_quantity = Decimal.min(needed_quantity, available_in_tranche)
+    # Caps: total remaining and company remaining
+    available_total = Decimal.sub(tranche.quantity, tranche.traded_qty)
+    available_company = Decimal.sub(tranche.quantity, tranche.qty_sold)
+
+    # Determine how much we can inject from current tranche (respect both caps)
+    injection_quantity =
+      needed_quantity
+      |> Decimal.min(available_total)
+      |> Decimal.min(available_company)
 
     if Decimal.compare(injection_quantity, Decimal.new("0")) == :gt do
       # Inject synthetic sell order
       case inject_synthetic_sell_order(
              buy_order.asset_id,
              injection_quantity,
-             current_tranche.unit_price,
+             tranche.unit_price,
              buy_order.user_id
            ) do
         {:ok, {synthetic_order, trade_params}} ->
@@ -343,19 +351,19 @@ defmodule CommerceFront.Market.Secondary do
           trade_params = Map.put(trade_params, :buy_order_id, buy_order.id)
 
           # Execute the trade
-          case execute_synthetic_trade(trade_params, buy_order, current_tranche) do
+          case execute_synthetic_trade(trade_params, buy_order, tranche) do
             {:ok, _} ->
               # Update tranche sold quantity
-              update_tranche_sold_quantity(current_tranche.id, injection_quantity)
+              update_tranche_sold_quantity(tranche.id, injection_quantity)
               # Update total traded quantity (includes company injection)
-              update_tranche_traded_quantity(current_tranche.id, injection_quantity)
+              update_tranche_traded_quantity(tranche.id, injection_quantity)
 
               # Check if we need to move to next tranche for remaining quantity
               remaining_after_injection = Decimal.sub(needed_quantity, injection_quantity)
 
               if Decimal.compare(remaining_after_injection, Decimal.new("0")) == :gt do
                 # Try next tranche if current is exhausted
-                if is_tranche_fully_sold?(current_tranche.id) do
+                if is_tranche_fully_sold?(tranche.id) do
                   case get_current_open_tranche(buy_order.asset_id) do
                     nil ->
                       :no_more_tranches
@@ -367,7 +375,7 @@ defmodule CommerceFront.Market.Secondary do
               end
 
               # After injection, check if tranche is filled and rotate
-              tranche = Repo.get!(AssetTranche, current_tranche.id)
+              tranche = Repo.get!(AssetTranche, tranche.id)
               close_tranche_if_filled(tranche)
 
             {:error, reason} ->
