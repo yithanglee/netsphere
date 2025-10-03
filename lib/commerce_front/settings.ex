@@ -5341,6 +5341,8 @@ defmodule CommerceFront.Settings do
   end
 
   def pay_to_bonus_wallet(reward, multi \\ Multi.new(), need_self_transction \\ false) do
+    matrix = ["sharing bonus", "team bonus", "matching bonus", "elite leader"]
+    bonus = reward.name
     long_multi =
       multi
       |> Multi.run(String.to_atom("reward_#{reward.id}"), fn _repo, %{} ->
