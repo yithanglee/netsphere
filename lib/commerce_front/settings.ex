@@ -5343,6 +5343,7 @@ defmodule CommerceFront.Settings do
   def pay_to_bonus_wallet(reward, multi \\ Multi.new(), need_self_transction \\ false) do
     matrix = ["sharing bonus", "team bonus", "matching bonus", "elite leader"]
     bonus = reward.name
+
     long_multi =
       multi
       |> Multi.run(String.to_atom("reward_#{reward.id}"), fn _repo, %{} ->
@@ -5414,7 +5415,23 @@ defmodule CommerceFront.Settings do
                     wallet_type: "token"
                   }
 
-                  create_wallet_transaction(params2)
+                  ewallets = create_wallet_transaction(params2)
+
+                  current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
+
+                  wt =
+                    ewallets
+                    |> Map.get(:wallet_transaction)
+                    |> IO.inspect(label: "wallet transaction")
+
+                  CommerceFront.Market.Secondary.create_buy_order(
+                    wt.user_id,
+                    current_tranche.asset_id,
+                    Decimal.from_float(
+                      wt.amount / (current_tranche.unit_price |> Decimal.to_float())
+                    ),
+                    current_tranche.unit_price
+                  )
                 end
 
                 update_reward(reward, %{is_paid: true})
