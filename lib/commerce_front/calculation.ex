@@ -527,7 +527,7 @@ defmodule CommerceFront.Calculation do
             year: Date.utc_today().year
           })
 
-        # CommerceFront.Settings.pay_to_bonus_wallet(r)
+        CommerceFront.Settings.pay_to_bonus_wallet(r, Multi.new(), true)
 
         new_matrix_item =
           matrix |> Enum.find(&(&1.rank == rank.name)) |> Map.put(:calculated, true)
@@ -1536,7 +1536,7 @@ defmodule CommerceFront.Calculation do
         one_star_qualifier =
           for weak_leg <- users_weak_leg do
 
-            if  weak_leg.pv > 500 do
+            if  weak_leg.pv > 600 do
               weak_leg
             else
               nil

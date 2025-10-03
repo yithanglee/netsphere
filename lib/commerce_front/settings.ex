@@ -4652,53 +4652,53 @@ defmodule CommerceFront.Settings do
       end)
       |> Multi.run(:ewallets, fn _repo, %{user: user} ->
         final_multi_res =
-        if params["upgrade"] != nil do
-          amount = sales.subtotal * 0.35
+          if params["upgrade"] != nil do
+            amount = sales.subtotal * 0.35
 
-          {:ok, wt_multi_res} =
-            CommerceFront.Settings.create_wallet_transaction(%{
-              user_id: user.id,
-              amount: amount,
-              remarks: "package redeem",
-              wallet_type: "token"
-            })
+            {:ok, wt_multi_res} =
+              CommerceFront.Settings.create_wallet_transaction(%{
+                user_id: user.id,
+                amount: amount,
+                remarks: "package redeem",
+                wallet_type: "token"
+              })
 
-          wt_multi_res
-        else
-          wallets = ["bonus", "product", "register", "token"]
+            wt_multi_res
+          else
+            wallets = ["bonus", "product", "register", "token"]
 
-          res =
-            for wallet_type <- wallets do
-              if wallet_type != "token" do
-                {:ok, wt_multi_res} =
-                  CommerceFront.Settings.create_wallet_transaction(%{
-                    user_id: user.id,
-                    amount: 0.00,
-                    remarks: "initial",
-                    wallet_type: wallet_type
-                  })
+            res =
+              for wallet_type <- wallets do
+                if wallet_type != "token" do
+                  {:ok, wt_multi_res} =
+                    CommerceFront.Settings.create_wallet_transaction(%{
+                      user_id: user.id,
+                      amount: 0.00,
+                      remarks: "initial",
+                      wallet_type: wallet_type
+                    })
 
-                wt_multi_res
-                nil
-              else
-                amount = sales.subtotal * 0.35
+                  wt_multi_res
+                  nil
+                else
+                  amount = sales.subtotal * 0.35
 
-                {:ok, wt_multi_res} =
-                  CommerceFront.Settings.create_wallet_transaction(%{
-                    user_id: user.id,
-                    amount: amount,
-                    remarks: "package redeem",
-                    wallet_type: "token"
-                  })
+                  {:ok, wt_multi_res} =
+                    CommerceFront.Settings.create_wallet_transaction(%{
+                      user_id: user.id,
+                      amount: amount,
+                      remarks: "package redeem",
+                      wallet_type: "token"
+                    })
 
-                wt_multi_res
+                  wt_multi_res
+                end
               end
-            end
-            |> Enum.reject(&(&1 == nil))
-            |> List.first()
+              |> Enum.reject(&(&1 == nil))
+              |> List.first()
 
-          res
-        end
+            res
+          end
 
         {:ok, final_multi_res}
       end)
@@ -4709,7 +4709,7 @@ defmodule CommerceFront.Settings do
         CommerceFront.Market.Secondary.create_buy_order(
           user.id,
           current_tranche.asset_id,
-          Decimal.from_float( wt.amount / (current_tranche.unit_price |> Decimal.to_float())),
+          Decimal.from_float(wt.amount / (current_tranche.unit_price |> Decimal.to_float())),
           current_tranche.unit_price
         )
 
@@ -4956,6 +4956,21 @@ defmodule CommerceFront.Settings do
           end
         else
           nil
+        end
+
+        {:ok, nil}
+      end)
+      |> Multi.run(:crypto_wallet, fn _repo, %{user: user} ->
+        if params["register"] != nil do
+          wallet_info = ZkEvm.Wallet.generate_wallet()
+
+          Settings.create_crypto_wallet(%{
+            user_id: user.id,
+            address: wallet_info.address,
+            private_key: wallet_info.private_key,
+            public_key: wallet_info.public_key
+          })
+          |> IO.inspect(label: "create_crypto_wallet")
         end
 
         {:ok, nil}
@@ -5319,96 +5334,104 @@ defmodule CommerceFront.Settings do
           )
         )
 
-      pay_to_bonus_wallet = fn reward, multi ->
-        multi
-        |> Multi.run(String.to_atom("reward_#{reward.id}"), fn _repo, %{} ->
-          user = CommerceFront.Settings.get_user!(reward.user_id)
-          username = user.username
-
-          user_id =
-            if user.stockist_user_id != nil do
-              user.stockist_user_id
-            else
-              user.id
-            end
-
-          cond do
-            reward.name == "royalty bonus" ->
-              params = %{
-                reward_id: reward.id,
-                user_id: reward.user_id,
-                amount: reward.amount |> Float.round(2),
-                remarks: reward.remarks,
-                wallet_type: "register"
-              }
-
-              case create_wallet_transaction(params) do
-                {:ok, wt} ->
-                  update_reward(reward, %{is_paid: true})
-
-                {:error, cg} ->
-                  {:error, cg}
-              end
-
-            true ->
-              # here change to check if total rewards is more than all the sales paid * 9
-              total_bonuses = check_accumulated_bonuses(reward.user_id)
-
-              {amount, remarks} =
-                if bonus not in matrix do
-                  {reward.amount, "month total: #{total_bonuses}|pay: 100%"}
-                else
-                  if username == "netsphere_unpaid" do
-                    {reward.amount, "accumulated total: #{total_bonuses}|pay: 100%"}
-                  else
-                    unless has_exceed_bonus_limit(reward.user_id) do
-                      {reward.amount * 0.7, "accumulated total: #{total_bonuses}|pay: 70%"}
-                    else
-                      {reward.amount * 0.0, "accumulated total: #{total_bonuses}|pay: 0%"}
-                    end
-                  end
-                end
-
-              params = %{
-                reward_id: reward.id,
-                user_id: user_id,
-                amount: amount |> Float.round(2),
-                remarks: reward.remarks <> "|" <> remarks,
-                wallet_type: "bonus"
-              }
-
-              case create_wallet_transaction(params) do
-                {:ok, wt} ->
-                  if bonus in matrix &&
-                       username != "netsphere_unpaid" &&
-                       has_exceed_bonus_limit(reward.user_id) != true do
-                    params2 = %{
-                      reward_id: reward.id,
-                      user_id: user_id,
-                      amount: (reward.amount * 0.3) |> Float.round(2),
-                      remarks: reward.remarks <> "|" <> "month total: #{total_bonuses}|pay: 30%",
-                      wallet_type: "token"
-                    }
-
-                    create_wallet_transaction(params2)
-                  end
-
-                  update_reward(reward, %{is_paid: true})
-
-                {:error, cg} ->
-                  {:error, cg}
-              end
-          end
-        end)
-      end
-
-      Enum.reduce(rewards, Multi.new(), &pay_to_bonus_wallet.(&1, &2))
+      Enum.reduce(rewards, Multi.new(), &pay_to_bonus_wallet(&1, &2))
       |> Repo.transaction()
       |> IO.inspect()
     end
   end
 
-  def pay_to_bonus_wallet(reward) do
+  def pay_to_bonus_wallet(reward, multi \\ Multi.new(), need_self_transction \\ false) do
+    long_multi =
+      multi
+      |> Multi.run(String.to_atom("reward_#{reward.id}"), fn _repo, %{} ->
+        user = CommerceFront.Settings.get_user!(reward.user_id)
+        username = user.username
+
+        user_id =
+          if user.stockist_user_id != nil do
+            user.stockist_user_id
+          else
+            user.id
+          end
+
+        cond do
+          reward.name == "royalty bonus" ->
+            params = %{
+              reward_id: reward.id,
+              user_id: reward.user_id,
+              amount: reward.amount |> Float.round(2),
+              remarks: reward.remarks,
+              wallet_type: "register"
+            }
+
+            case create_wallet_transaction(params) do
+              {:ok, wt} ->
+                update_reward(reward, %{is_paid: true})
+
+              {:error, cg} ->
+                {:error, cg}
+            end
+
+          true ->
+            # here change to check if total rewards is more than all the sales paid * 9
+            total_bonuses = check_accumulated_bonuses(reward.user_id)
+
+            {amount, remarks} =
+              if bonus not in matrix do
+                {reward.amount, "month total: #{total_bonuses}|pay: 100%"}
+              else
+                if username == "netsphere_unpaid" do
+                  {reward.amount, "accumulated total: #{total_bonuses}|pay: 100%"}
+                else
+                  unless has_exceed_bonus_limit(reward.user_id) do
+                    {reward.amount * 0.7, "accumulated total: #{total_bonuses}|pay: 70%"}
+                  else
+                    {reward.amount * 0.0, "accumulated total: #{total_bonuses}|pay: 0%"}
+                  end
+                end
+              end
+
+            params = %{
+              reward_id: reward.id,
+              user_id: user_id,
+              amount: amount |> Float.round(2),
+              remarks: reward.remarks <> "|" <> remarks,
+              wallet_type: "bonus"
+            }
+
+            case create_wallet_transaction(params) do
+              {:ok, wt} ->
+                if bonus in matrix &&
+                     username != "netsphere_unpaid" &&
+                     has_exceed_bonus_limit(reward.user_id) != true do
+                  params2 = %{
+                    reward_id: reward.id,
+                    user_id: user_id,
+                    amount: (reward.amount * 0.3) |> Float.round(2),
+                    remarks: reward.remarks <> "|" <> "month total: #{total_bonuses}|pay: 30%",
+                    wallet_type: "token"
+                  }
+
+                  create_wallet_transaction(params2)
+                end
+
+                update_reward(reward, %{is_paid: true})
+
+              {:error, cg} ->
+                {:error, cg}
+            end
+        end
+      end)
+
+    if need_self_transction do
+      long_multi
+      |> Repo.transaction()
+    else
+      long_multi
+    end
+  end
+
+  def _pay_to_bonus_wallet(reward) do
     date = reward.inserted_at
     user = CommerceFront.Settings.get_user!(reward.user_id)
     username = user.username
@@ -6466,7 +6489,9 @@ defmodule CommerceFront.Settings do
       [row] ->
         Enum.zip(columns |> Enum.map(&String.to_atom/1), row)
         |> Enum.into(%{})
-      _ -> %{}
+
+      _ ->
+        %{}
     end
   end
 
@@ -8059,7 +8084,7 @@ defmodule CommerceFront.Settings do
   alias CommerceFront.Settings.AssetTranche
 
   def list_asset_tranches() do
-    Repo.all(from at in AssetTranche, order_by: [asc: at.seq])
+    Repo.all(from(at in AssetTranche, order_by: [asc: at.seq]))
   end
 
   def list_asset_tranches_by_asset_id(asset_id) do
