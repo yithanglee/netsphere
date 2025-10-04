@@ -55,7 +55,11 @@ defmodule CommerceFrontWeb.Router do
     plug(CORSPlug,
       headers: ["phx-request", "authorization", "x-csrf-token", "content-type"],
       origin: [
-
+        "https://nph_api.damienslab.com",
+        "http://nph_api.damienslab.com",
+        "https://nph_admin.damienslab.com",
+        "http://nph_admin.damienslab.com",
+        "https://netspheremall.damienslab.com",
         "https://netspheremall.com",
         "https://www.netspheremall.com",
         "https://fonts.gstatic.com",
@@ -81,7 +85,10 @@ defmodule CommerceFrontWeb.Router do
 
     plug(CORSPlug,
       origin: [
-
+        "https://nph_api.damienslab.com",
+        "http://nph_api.damienslab.com",
+            "https://nph_admin.damienslab.com",
+        "http://nph_admin.damienslab.com",
         "https://netspheremall.com",
         "https://www.netspheremall.com",
         "https://fonts.gstatic.com",
