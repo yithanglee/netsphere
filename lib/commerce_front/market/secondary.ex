@@ -139,28 +139,44 @@ defmodule CommerceFront.Market.Secondary do
   Create a sell order for active_token assets.
   """
   def create_sell_order(user_id, asset_id, quantity, price_per_unit) do
-    total_amount = Decimal.mult(quantity, price_per_unit)
+    # Enforce only one active (pending) sell order per user per asset
+    existing_active_sell_count =
+      from(o in SecondaryMarketOrder,
+        where:
+          o.user_id == ^user_id and
+            o.asset_id == ^asset_id and
+            o.order_type == "sell" and
+            o.status == "pending",
+        select: count(o.id)
+      )
+      |> Repo.one()
 
-    # Check if user has sufficient active_token balance
-    unless Settings.has_sufficient_active_token_balance?(user_id, asset_id, quantity) do
-      {:error, "Insufficient active_token balance"}
+    if existing_active_sell_count > 0 do
+      {:error, "You already have an active sell order for this asset"}
     else
-      order_params = %{
-        user_id: user_id,
-        order_type: "sell",
-        asset_id: asset_id,
-        quantity: quantity,
-        price_per_unit: price_per_unit,
-        total_amount: total_amount,
-        status: "pending",
-        filled_quantity: Decimal.new("0"),
-        remaining_quantity: quantity
-      }
+      total_amount = Decimal.mult(quantity, price_per_unit)
 
-      with {:ok, order} <- Settings.create_secondary_market_order(order_params) do
-        # Try to match with existing buy orders
-        match_and_execute_trades(order)
-        {:ok, order}
+      # Check if user has sufficient active_token balance
+      unless Settings.has_sufficient_active_token_balance?(user_id, asset_id, quantity) do
+        {:error, "Insufficient active_token balance"}
+      else
+        order_params = %{
+          user_id: user_id,
+          order_type: "sell",
+          asset_id: asset_id,
+          quantity: quantity,
+          price_per_unit: price_per_unit,
+          total_amount: total_amount,
+          status: "pending",
+          filled_quantity: Decimal.new("0"),
+          remaining_quantity: quantity
+        }
+
+        with {:ok, order} <- Settings.create_secondary_market_order(order_params) do
+          # Try to match with existing buy orders
+          match_and_execute_trades(order)
+          {:ok, order}
+        end
       end
     end
   end
@@ -688,13 +704,16 @@ defmodule CommerceFront.Market.Secondary do
         if order.user_id != user_id do
           {:error, "Unauthorized"}
         else
-          case order.status do
-            "pending" ->
+          cond do
+            order.status == "filled" ->
+              {:error, "Order cannot be cancelled once completed"}
+
+            order.status == "cancelled" ->
+              {:error, "Order already cancelled"}
+
+            true ->
               Settings.update_secondary_market_order(order, %{status: "cancelled"})
               {:ok, order}
-
-            _ ->
-              {:error, "Order cannot be cancelled"}
           end
         end
     end
