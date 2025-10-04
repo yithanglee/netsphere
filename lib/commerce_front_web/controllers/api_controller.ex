@@ -83,17 +83,22 @@ defmodule CommerceFrontWeb.ApiController do
           CommerceFront.Market.Secondary.get_recent_trades(params["asset_id"])
 
         "create_sell_order" ->
-          {:ok, res} =
-            CommerceFront.Market.Secondary.create_sell_order(
+
+          case  CommerceFront.Market.Secondary.create_sell_order(
               id,
               params["asset_id"],
               params["quantity"],
               params["price_per_unit"]
-            )
+          ) do
 
-          IO.inspect(BluePotion.sanitize_struct(res), label: "res")
+            {:ok, res} ->
+              %{status: "ok", res: BluePotion.sanitize_struct(res)}
 
-          %{status: "ok", res: BluePotion.sanitize_struct(res)}
+            {:error, reason} ->
+              %{status: "error", reason: reason}
+          end
+
+
 
         "create_buy_order" ->
           {:ok, res} =
@@ -966,6 +971,16 @@ defmodule CommerceFrontWeb.ApiController do
 
     res =
       case params["scope"] do
+        "cancel_order" ->
+          IO.inspect("cancelorder")
+        case CommerceFront.Market.Secondary.cancel_order(params["order_id"], id) do
+          {:ok, r} ->
+            %{status: "ok"}
+
+          {:error, reason} ->
+            %{status: "error", reason: reason}
+        end
+
         "primary_buy_execute" ->
           sample = %{
             "asset_id" => "1",
