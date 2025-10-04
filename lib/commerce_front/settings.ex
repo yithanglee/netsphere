@@ -5416,7 +5416,6 @@ defmodule CommerceFront.Settings do
                   }
 
                   ewallets = create_wallet_transaction(params2)
-
                   current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
 
                   wt =
