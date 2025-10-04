@@ -5415,11 +5415,12 @@ defmodule CommerceFront.Settings do
                     wallet_type: "token"
                   }
 
-                  ewallets = create_wallet_transaction(params2)
+                 {:ok,ewallets}  = create_wallet_transaction(params2)
+
                   current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
 
-                  wt =
-                    ewallets
+
+                   wt = ewallets
                     |> Map.get(:wallet_transaction)
                     |> IO.inspect(label: "wallet transaction")
 
@@ -8412,6 +8413,51 @@ defmodule CommerceFront.Settings do
   def has_sufficient_token_balance?(user_id, required_amount) do
     current_balance = get_user_token_balance(user_id)
     Decimal.compare(current_balance, required_amount) != :lt
+  end
+
+
+  def token_point_auto_buy() do
+    # need to get all the wallet transaction belongs to token
+    subquery = """
+    select et.total, u.username, wt.remarks, wt.amount, wt.id as wallet_transaction_id , wt.reward_id, wt.inserted_at   from ewallets et  left join users u on et.user_id = u.id left join wallet_transactions wt on wt.ewallet_id = et.id
+    where et.wallet_type = 'token' and wt.amount > 0 and wt.reward_id is not null order by et.user_id, wt.id desc;
+    """
+
+    {:ok, %Postgrex.Result{columns: columns, rows: rows} = res} =
+      Ecto.Adapters.SQL.query(Repo, subquery, [])
+
+    result =
+      for row <- rows do
+        Enum.zip(columns |> Enum.map(&(&1 |> String.to_atom())), row) |> Enum.into(%{})
+      end
+
+    Multi.new()
+    |> Multi.run(:create_buy_order, fn _repo, _changes ->
+     res =
+       for %{
+            amount: amount,
+            inserted_at: inserted_at,
+            remarks: remarks,
+            reward_id: reward_id,
+            total: total,
+            username: username,
+            user_id: user_id,
+            wallet_transaction_id: wallet_transaction_id
+          } = map <- result do
+        current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
+
+
+        CommerceFront.Market.Secondary.create_buy_order(
+          user_id,
+          current_tranche.asset_id,
+          Decimal.from_float(amount / (current_tranche.unit_price |> Decimal.to_float())),
+          current_tranche.unit_price
+        ) |> IO.inspect(label: "create_buy_order")
+      end
+
+      {:ok, res }
+    end)
+    |> Repo.transaction()
   end
 
   alias CommerceFront.Settings.Order
