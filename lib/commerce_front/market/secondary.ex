@@ -16,6 +16,7 @@ defmodule CommerceFront.Market.Secondary do
   }
 
   require Decimal
+  require IEx
 
   # ============================================================================
   # TRANCHE HELPER FUNCTIONS
@@ -54,13 +55,15 @@ defmodule CommerceFront.Market.Secondary do
   Check if a tranche is fully sold after an update.
   """
   def is_tranche_fully_sold?(tranche_id) do
+
     case Repo.get(AssetTranche, tranche_id) do
       nil -> false
       tranche -> Decimal.compare(tranche.traded_qty, tranche.quantity) >= 0
     end
   end
-
+#todo check the compare 2 types
   defp close_tranche_if_filled(%AssetTranche{} = tranche) do
+
     if Decimal.compare(tranche.traded_qty, tranche.quantity) != :lt do
       # Close current tranche
       from(t in AssetTranche, where: t.id == ^tranche.id)
@@ -216,7 +219,7 @@ defmodule CommerceFront.Market.Secondary do
               remaining_quantity: quantity
             }
 
-            with {:ok, order} <- Settings.create_secondary_market_order(order_params) do
+            with {:ok, order} <- Settings.create_secondary_market_order(order_params) |> IO.inspect(label: "market order") do
               # Try to match with existing sell orders or inject liquidity
               match_and_execute_tranche_based_trades(order, current_tranche)
               {:ok, order}
@@ -277,18 +280,19 @@ defmodule CommerceFront.Market.Secondary do
 
     # Step 2: Execute trades with member orders first
     remaining_after_member_trades =
-      execute_member_trades(buy_order, member_sell_orders, remaining_to_fill)
+      execute_member_trades(buy_order, member_sell_orders, remaining_to_fill) |> IO.inspect(label: "remaining_after_member_trades")
 
     # Record traded quantity attributed to this tranche from member fills
-    member_filled_quantity = Decimal.sub(remaining_to_fill, remaining_after_member_trades)
+    member_filled_quantity = Decimal.sub(remaining_to_fill, remaining_after_member_trades) |> IO.inspect(label: "member_filled_quantity")
 
     if Decimal.compare(member_filled_quantity, Decimal.new("0")) == :gt do
-      update_tranche_traded_quantity(current_tranche.id, member_filled_quantity)
+      update_tranche_traded_quantity(current_tranche.id, member_filled_quantity) |> IO.inspect(label: "update_tranche_traded_quantity")
     end
 
     # Step 3: If still need to fill, inject from tranche
+    tranche_res =
     if Decimal.compare(remaining_after_member_trades, Decimal.new("0")) == :gt do
-      inject_from_tranche(buy_order, current_tranche, remaining_after_member_trades)
+      inject_from_tranche(buy_order, current_tranche, remaining_after_member_trades) |> IO.inspect(label: "remaining_after_inject_from_tranche")
     end
 
     # Step 4: Update order status
@@ -340,7 +344,7 @@ defmodule CommerceFront.Market.Secondary do
   @doc """
   Inject synthetic sell orders from tranche to fulfill buy orders.
   """
-  defp inject_from_tranche(buy_order, current_tranche, needed_quantity) do
+  def inject_from_tranche(buy_order, current_tranche, needed_quantity) do
     # Refresh tranche to avoid stale qty_sold/traded_qty
     tranche = Repo.get!(AssetTranche, current_tranche.id)
 
@@ -351,7 +355,6 @@ defmodule CommerceFront.Market.Secondary do
     # Determine how much we can inject from current tranche (respect both caps)
     injection_quantity =
       needed_quantity
-      |> Decimal.min(available_total)
       |> Decimal.min(available_company)
 
     if Decimal.compare(injection_quantity, Decimal.new("0")) == :gt do
@@ -361,7 +364,7 @@ defmodule CommerceFront.Market.Secondary do
              injection_quantity,
              tranche.unit_price,
              buy_order.user_id
-           ) do
+      )  do
         {:ok, {synthetic_order, trade_params}} ->
           # Update trade params with buy order ID
           trade_params = Map.put(trade_params, :buy_order_id, buy_order.id)
@@ -379,6 +382,7 @@ defmodule CommerceFront.Market.Secondary do
 
               if Decimal.compare(remaining_after_injection, Decimal.new("0")) == :gt do
                 # Try next tranche if current is exhausted
+
                 if is_tranche_fully_sold?(tranche.id) do
                   case get_current_open_tranche(buy_order.asset_id) do
                     nil ->
@@ -389,6 +393,7 @@ defmodule CommerceFront.Market.Secondary do
                   end
                 end
               end
+
 
               # After injection, check if tranche is filled and rotate
               tranche = Repo.get!(AssetTranche, tranche.id)
@@ -405,8 +410,11 @@ defmodule CommerceFront.Market.Secondary do
   end
 
   defp execute_synthetic_trade(trade_params, buy_order, tranche) do
-    with {:ok, _trade} <- Settings.create_secondary_market_trade(trade_params),
-         {:ok, _} <- execute_wallet_transfers(trade_params) do
+    with {:ok, wallet_tx_refs} <- execute_wallet_transfers(trade_params),
+         {:ok, _trade} <-
+                Settings.create_secondary_market_trade(
+                  Map.merge(trade_params, wallet_tx_refs)
+                ) do
       # Update buy order quantities
       update_order_filled_quantity(buy_order, trade_params.quantity)
 
@@ -511,8 +519,11 @@ defmodule CommerceFront.Market.Secondary do
   end
 
   defp execute_trade(trade_params, main_order, matching_order) do
-    with {:ok, _trade} <- Settings.create_secondary_market_trade(trade_params),
-         {:ok, _} <- execute_wallet_transfers(trade_params) do
+    with {:ok, wallet_tx_refs} <- execute_wallet_transfers(trade_params),
+         {:ok, _trade} <-
+                Settings.create_secondary_market_trade(
+                  Map.merge(trade_params, wallet_tx_refs)
+                ) do
       # Update order quantities
       update_order_filled_quantity(main_order, trade_params.quantity)
       update_order_filled_quantity(matching_order, trade_params.quantity)
@@ -667,11 +678,40 @@ defmodule CommerceFront.Market.Secondary do
 
     case Repo.transaction(multi) do
       {:ok, results} ->
-        IO.inspect(results, label: "results")
+        # Build wallet transaction id references from results
+        refs = %{}
+        refs =
+          case Map.get(results, :buyer_token_debit) do
+            %{wallet_transaction: wt} -> Map.put(refs, :buyer_token_tx_id, wt.id)
+            _ -> refs
+          end
+        refs =
+          case Map.get(results, :buyer_asset_credit) do
+            %{wallet_transaction: wt} -> Map.put(refs, :buyer_asset_tx_id, wt.id)
+            _ -> refs
+          end
+        refs =
+          case Map.get(results, :seller_token_credit) do
+            %{wallet_transaction: wt} -> Map.put(refs, :seller_token_tx_id, wt.id)
+            _ -> refs
+          end
+        refs =
+          case Map.get(results, :seller_bonus_credit) do
+            %{wallet_transaction: wt} -> Map.put(refs, :seller_bonus_tx_id, wt.id)
+            _ -> refs
+          end
+        refs =
+          case Map.get(results, :seller_active_token_debit) do
+            %{wallet_transaction: wt} -> Map.put(refs, :seller_active_token_tx_id, wt.id)
+            _ -> refs
+          end
+        refs =
+          case Map.get(results, :seller_asset_debit) do
+            %{wallet_transaction: wt} -> Map.put(refs, :seller_asset_tx_id, wt.id)
+            _ -> refs
+          end
 
-        # todo: auto buy again...
-
-        {:ok, :success}
+        {:ok, refs}
 
       {:error, _step, reason, _changes} ->
         {:error, "Wallet transfer failed: #{inspect(reason)}"}

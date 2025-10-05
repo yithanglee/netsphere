@@ -14,14 +14,45 @@ defmodule CommerceFront.Settings.SecondaryMarketTrade do
     belongs_to(:seller, CommerceFront.Settings.User)
     belongs_to(:asset, CommerceFront.Settings.Asset)
 
+    belongs_to(:buyer_token_tx, CommerceFront.Settings.WalletTransaction)
+    belongs_to(:buyer_asset_tx, CommerceFront.Settings.WalletTransaction)
+    belongs_to(:seller_token_tx, CommerceFront.Settings.WalletTransaction)
+    belongs_to(:seller_bonus_tx, CommerceFront.Settings.WalletTransaction)
+    belongs_to(:seller_active_token_tx, CommerceFront.Settings.WalletTransaction)
+    belongs_to(:seller_asset_tx, CommerceFront.Settings.WalletTransaction)
+
     timestamps()
   end
 
   @doc false
   def changeset(secondary_market_trade, attrs) do
     secondary_market_trade
-    |> cast(attrs, [:buy_order_id, :sell_order_id, :buyer_id, :seller_id, :asset_id, :quantity, :price_per_unit, :total_amount, :trade_date])
-    |> validate_required([:buyer_id, :seller_id, :asset_id, :quantity, :price_per_unit, :total_amount, :trade_date])
+    |> cast(attrs, [
+      :buy_order_id,
+      :sell_order_id,
+      :buyer_id,
+      :seller_id,
+      :asset_id,
+      :quantity,
+      :price_per_unit,
+      :total_amount,
+      :trade_date,
+      :buyer_token_tx_id,
+      :buyer_asset_tx_id,
+      :seller_token_tx_id,
+      :seller_bonus_tx_id,
+      :seller_active_token_tx_id,
+      :seller_asset_tx_id
+    ])
+    |> validate_required([
+      :buyer_id,
+      :seller_id,
+      :asset_id,
+      :quantity,
+      :price_per_unit,
+      :total_amount,
+      :trade_date
+    ])
     |> validate_number(:quantity, greater_than: 0)
     |> validate_number(:price_per_unit, greater_than: 0)
     |> validate_number(:total_amount, greater_than: 0)

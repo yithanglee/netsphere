@@ -6643,6 +6643,60 @@ defmodule CommerceFront.Settings do
     end
   end
 
+  # Backfill: recompute and update traded_qty for a specific tranche (default asset_id=1, seq=0)
+  # Logic: Sum secondary_market_trades.quantity for the asset at the tranche's unit_price
+  # within the tranche's active window: [seq0.inserted_at, COALESCE(next_tranche.released_at, now)]
+  # Optionally include only up to seq0.updated_at if provided.
+  def backfill_tranche_traded_qty(asset_id \\ 1, seq \\ 0) do
+    tranche =
+      Repo.one(
+        from at in CommerceFront.Settings.AssetTranche,
+          where: at.asset_id == ^asset_id and at.seq == ^seq
+      )
+
+    if is_nil(tranche) do
+      {:error, :tranche_not_found}
+    else
+      next_release =
+        Repo.one(
+          from at in CommerceFront.Settings.AssetTranche,
+            where: at.asset_id == ^asset_id and at.seq > ^seq,
+            order_by: [asc: at.seq],
+            select: at.released_at,
+            limit: 1
+        )
+
+      window_start = tranche.inserted_at
+      window_end =  DateTime.utc_now()
+
+      # Sum secondary trades that match this tranche by price and fall within the time window
+      traded_qty =
+        Repo.one(
+          from smt in CommerceFront.Settings.SecondaryMarketTrade,
+            where:
+              smt.asset_id == ^asset_id and
+              smt.price_per_unit == ^tranche.unit_price and
+              smt.trade_date >= ^window_start and
+              smt.trade_date <= ^window_end,
+            select: coalesce(sum(smt.quantity), 0)
+        )
+
+      {count, _} =
+        Repo.update_all(
+          from(at in CommerceFront.Settings.AssetTranche,
+            where: at.id == ^tranche.id
+          ),
+          set: [traded_qty: traded_qty]
+        )
+
+      if count == 1 do
+        {:ok, %{tranche_id: tranche.id, traded_qty: traded_qty, window_start: window_start, window_end: window_end}}
+      else
+        {:error, :update_failed}
+      end
+    end
+  end
+
   def monthly_outlet_trx(month \\ 7, year \\ 2024) do
     naive_date = Date.from_erl!({year, month, 1})
     end_naive_date = naive_date |> Timex.shift(months: 1)
