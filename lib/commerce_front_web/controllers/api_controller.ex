@@ -150,6 +150,37 @@ defmodule CommerceFrontWeb.ApiController do
           Settings.get_crypto_wallet_by_user_id(id)
           |> BluePotion.sanitize_struct()
 
+        "crypto_wallet_balance" ->
+          wallet = Settings.get_crypto_wallet_by_user_id(id)
+
+          if wallet do
+            token_address =
+              Application.get_env(:commerce_front, :token_contract_address) ||
+                System.get_env("TOKEN_CONTRACT_ADDRESS") ||
+                params["token_address"]
+
+            case token_address do
+              nil ->
+                %{status: "error", reason: "token contract not configured"}
+
+              _ ->
+                try do
+                  bal = ZkEvm.Token.balance_of(token_address, wallet.address)
+                  %{
+                    address: wallet.address,
+                    token_address: token_address,
+                    decimals: bal.decimals,
+                    raw: bal.raw,
+                    formatted: bal.formatted
+                  }
+                rescue
+                  e -> %{status: "error", reason: inspect(e)}
+                end
+            end
+          else
+            %{status: "error", reason: "no wallet"}
+          end
+
         "travel_fund_qualifiers" ->
           Settings.travel_fund_qualifier(
             params["year"] |> String.to_integer(),
