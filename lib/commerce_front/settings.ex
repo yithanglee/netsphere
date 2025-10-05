@@ -8412,6 +8412,7 @@ defmodule CommerceFront.Settings do
   # Check if user has enough token balance for buying
   def has_sufficient_token_balance?(user_id, required_amount) do
     current_balance = get_user_token_balance(user_id)
+    IO.inspect([current_balance |> Decimal.to_float() |> :erlang.float_to_binary( decimals: 2), required_amount |> Decimal.to_float() |> :erlang.float_to_binary( decimals: 2)], label: "current_balance, required_amount")
     Decimal.compare(current_balance, required_amount) != :lt
   end
 
@@ -8419,8 +8420,20 @@ defmodule CommerceFront.Settings do
   def token_point_auto_buy() do
     # need to get all the wallet transaction belongs to token
     subquery = """
-    select et.total, u.username, wt.remarks, wt.amount, wt.id as wallet_transaction_id , wt.reward_id, wt.inserted_at   from ewallets et  left join users u on et.user_id = u.id left join wallet_transactions wt on wt.ewallet_id = et.id
-    where et.wallet_type = 'token' and wt.amount > 0 and wt.reward_id is not null order by et.user_id, wt.id desc;
+    select
+    et.total,
+    u.username,
+    wt.remarks,
+    wt.user_id,
+    wt.amount,
+    wt.id as wallet_transaction_id ,
+    wt.reward_id, wt.inserted_at   from ewallets et
+    left join users u on et.user_id = u.id
+    left join wallet_transactions wt on wt.ewallet_id = et.id
+    where
+    et.wallet_type = 'token' and wt.amount > 0 and wt.reward_id is not null
+    and wt.inserted_at < '2025-10-04'
+    order by et.user_id, wt.id desc;
     """
 
     {:ok, %Postgrex.Result{columns: columns, rows: rows} = res} =
@@ -8430,6 +8443,7 @@ defmodule CommerceFront.Settings do
       for row <- rows do
         Enum.zip(columns |> Enum.map(&(&1 |> String.to_atom())), row) |> Enum.into(%{})
       end
+      |> IO.inspect(label: "result")
 
     Multi.new()
     |> Multi.run(:create_buy_order, fn _repo, _changes ->
@@ -8455,7 +8469,7 @@ defmodule CommerceFront.Settings do
         ) |> IO.inspect(label: "create_buy_order")
       end
 
-      {:ok, res }
+      {:error, res }
     end)
     |> Repo.transaction()
   end
