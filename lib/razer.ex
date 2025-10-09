@@ -20,10 +20,10 @@ defmodule Razer do
       end
 
     generate_signature = fn ->
-      merchant_id = @merchant_id
-      verify_key = @vkey
+      merchant_id = @merchant_id || ""
+      verify_key = @vkey || ""
 
-      str = amt <> @merchant_id <> reference_no <> @vkey
+      str = amt <> (merchant_id || "") <> reference_no <> (verify_key || "")
       IO.puts(str)
       md5 = :crypto.hash(:md5, str) |> Base.encode16(case: :lower)
       IO.puts(md5)

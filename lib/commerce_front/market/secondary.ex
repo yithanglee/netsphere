@@ -12,7 +12,8 @@ defmodule CommerceFront.Market.Secondary do
     SecondaryMarketOrder,
     SecondaryMarketTrade,
     AssetTranche,
-    StakeHolding, Ewallet
+    StakeHolding,
+    Ewallet
   }
 
   require Decimal
@@ -39,6 +40,103 @@ defmodule CommerceFront.Market.Secondary do
   end
 
   @doc """
+  Calculate how much quantity can be purchased with a given token budget across tranches.
+  Step-by-step approach:
+  1. Get available quantity in current tranche
+  2. Calculate max quantity buyable with token budget at current tranche price
+  3. Take minimum of (available, affordable)
+  4. If there's remaining budget, move to next tranche and repeat
+
+  Returns {:ok, total_qty, total_cost, tranches_breakdown} or {:error, reason}.
+  """
+  def calculate_quantity_from_budget(asset_id, token_budget) do
+    # Get current open tranche first
+    case get_current_open_tranche(asset_id) do
+      nil ->
+        {:error, "No open tranche available"}
+
+      current_tranche ->
+        # Get all tranches starting from current
+        tranches =
+          from(t in AssetTranche,
+            where: t.asset_id == ^asset_id and t.seq >= ^current_tranche.seq,
+            order_by: [asc: t.seq]
+          )
+          |> Repo.all()
+
+        calculate_budget_recursive(tranches, token_budget, Decimal.new("0"), Decimal.new("0"), [])
+        |> IO.inspect(label: "calculate_budget_recursive result")
+    end
+  end
+
+  defp calculate_budget_recursive([], _remaining_budget, total_qty, total_spent, breakdown) do
+    # No more tranches available
+    if Decimal.compare(total_qty, Decimal.new("0")) == :gt do
+      {:ok, total_qty, total_spent, Enum.reverse(breakdown)}
+    else
+      {:error, "No tranches available or insufficient budget"}
+    end
+  end
+
+  defp calculate_budget_recursive(
+         [tranche | rest],
+         remaining_budget,
+         total_qty,
+         total_spent,
+         breakdown
+       ) do
+    # Stop if budget is exhausted
+    if Decimal.compare(remaining_budget, Decimal.new("0")) in [:lt, :eq] do
+      {:ok, total_qty, total_spent, Enum.reverse(breakdown)}
+    else
+      # Step 1: Get available quantity in this tranche
+      available_in_tranche =
+        Decimal.sub(tranche.quantity, tranche.traded_qty)
+        |> IO.inspect(label: "available_in_tranche #{tranche.seq}")
+
+      # Step 2: Calculate max quantity buyable with remaining budget at this tranche price
+      max_qty_from_budget =
+        Decimal.div(remaining_budget, tranche.unit_price)
+        |> IO.inspect(label: "max_qty_from_budget at price #{tranche.unit_price}")
+
+      # Step 3: Take minimum (can't buy more than available, can't buy more than affordable)
+      qty_from_this_tranche =
+        Decimal.min(max_qty_from_budget, available_in_tranche)
+        |> IO.inspect(label: "qty_from_this_tranche #{tranche.seq}")
+
+      # Calculate actual cost for this quantity
+      cost_from_this_tranche =
+        Decimal.mult(qty_from_this_tranche, tranche.unit_price)
+        |> IO.inspect(label: "cost_from_this_tranche")
+
+      # Step 4: Calculate remainder
+      new_remaining_budget =
+        Decimal.sub(remaining_budget, cost_from_this_tranche)
+        |> IO.inspect(label: "new_remaining_budget")
+
+      new_total_qty = Decimal.add(total_qty, qty_from_this_tranche)
+      new_total_spent = Decimal.add(total_spent, cost_from_this_tranche)
+      new_breakdown = [{tranche, qty_from_this_tranche, cost_from_this_tranche} | breakdown]
+
+      # Step 5: If there's remaining budget and quantity from this tranche > 0, try next tranche
+      if Decimal.compare(new_remaining_budget, Decimal.new("0")) == :gt and
+           Decimal.compare(qty_from_this_tranche, Decimal.new("0")) == :gt do
+        # Still have budget, try next tranche
+        calculate_budget_recursive(
+          rest,
+          new_remaining_budget,
+          new_total_qty,
+          new_total_spent,
+          new_breakdown
+        )
+      else
+        # Budget exhausted or couldn't buy anything from this tranche
+        {:ok, new_total_qty, new_total_spent, Enum.reverse(new_breakdown)}
+      end
+    end
+  end
+
+  @doc """
   Update the sold quantity for a tranche.
   """
   def update_tranche_sold_quantity(tranche_id, additional_qty) do
@@ -47,23 +145,25 @@ defmodule CommerceFront.Market.Secondary do
   end
 
   def update_tranche_traded_quantity(tranche_id, additional_qty) do
-    from(t in AssetTranche, where: t.id == ^tranche_id)
-    |> Repo.update_all(inc: [traded_qty: Decimal.to_float(additional_qty)])
+    tranche = Repo.get!(AssetTranche, tranche_id)
+
+    Settings.update_asset_tranche(tranche, %{
+      traded_qty: Decimal.add(tranche.traded_qty, additional_qty)
+    })
   end
 
   @doc """
   Check if a tranche is fully sold after an update.
   """
   def is_tranche_fully_sold?(tranche_id) do
-
     case Repo.get(AssetTranche, tranche_id) do
       nil -> false
       tranche -> Decimal.compare(tranche.traded_qty, tranche.quantity) >= 0
     end
   end
-#todo check the compare 2 types
-  defp close_tranche_if_filled(%AssetTranche{} = tranche) do
 
+  # todo check the compare 2 types
+  defp close_tranche_if_filled(%AssetTranche{} = tranche) do
     if Decimal.compare(tranche.traded_qty, tranche.quantity) != :lt do
       # Close current tranche
       from(t in AssetTranche, where: t.id == ^tranche.id)
@@ -79,14 +179,16 @@ defmodule CommerceFront.Market.Secondary do
         )
         |> Repo.one()
 
-      if next do
-        from(t in AssetTranche, where: t.id == ^next.id)
-        |> Repo.update_all(set: [state: "open", released_at: DateTime.utc_now()])
+      with true <- next != nil,
+           {:ok, next_tranche} <-
+             Settings.update_asset_tranche(next, %{state: "open", released_at: DateTime.utc_now()}) do
+        {:closed, next_tranche}
+      else
+        nil ->
+          {:closed, nil}
       end
-
-      :closed
     else
-      :open
+      {:open, nil}
     end
   end
 
@@ -187,12 +289,15 @@ defmodule CommerceFront.Market.Secondary do
   @doc """
   Create a buy order for active_token assets.
   Now enforces tranche pricing - buy orders must be at current tranche price.
-  CommerceFront.Market.Secondary.create_buy_order(37, 1, 35000, 0.001)
+  Uses budget-based calculation to determine affordable quantity across multiple tranches.
 
+  Example: CommerceFront.Market.Secondary.create_buy_order(78, 1, 35000, 0.001, 35)
+
+  When member_token_amount is provided, it's used as the budget instead of user's current balance.
   """
-  def create_buy_order(user_id, asset_id, quantity, price_per_unit) do
+  def create_buy_order(user_id, asset_id, quantity, price_per_unit, member_token_amount \\ nil) do
     # First, get the current open tranche to enforce pricing
-    case get_current_open_tranche(asset_id) do
+    case get_current_open_tranche(asset_id) |> IO.inspect(label: "get_current_open_tranche") do
       nil ->
         {:error, "No open tranche available for this asset"}
 
@@ -201,32 +306,77 @@ defmodule CommerceFront.Market.Secondary do
         if Decimal.compare(price_per_unit, current_tranche.unit_price) != :eq do
           {:error, "Buy orders must be at current tranche price: #{current_tranche.unit_price}"}
         else
-          total_amount = Decimal.mult(quantity, price_per_unit)
-
-          # Check if user has sufficient token balance
-          unless Settings.has_sufficient_token_balance?(user_id, total_amount) do
-            {:error, "Insufficient token balance"}
-          else
-            order_params = %{
-              user_id: user_id,
-              order_type: "buy",
-              asset_id: asset_id,
-              quantity: quantity,
-              price_per_unit: price_per_unit,
-              total_amount: total_amount,
-              status: "pending",
-              filled_quantity: Decimal.new("0"),
-              remaining_quantity: quantity
-            }
-
-            with {:ok, order} <- Settings.create_secondary_market_order(order_params) |> IO.inspect(label: "market order") do
-              # Try to match with existing sell orders or inject liquidity
-              match_and_execute_tranche_based_trades(order, current_tranche)
-              {:ok, order}
+          # Get user's token budget (use member_token_amount if provided, otherwise get balance)
+          token_budget =
+            if member_token_amount do
+              case member_token_amount do
+                %Decimal{} -> member_token_amount
+                _ -> Decimal.new("#{member_token_amount}")
+              end
+            else
+              Settings.get_user_token_balance(user_id)
             end
+            |> IO.inspect(label: "token_budget")
+
+          # Calculate how much quantity can be purchased with available budget across tranches
+          case calculate_quantity_from_budget(asset_id, token_budget) do
+            {:ok, affordable_qty, actual_cost, breakdown} ->
+              IO.inspect(affordable_qty, label: "affordable_qty")
+              IO.inspect(actual_cost, label: "actual_cost")
+              IO.inspect(breakdown, label: "breakdown")
+
+              quantity =
+                breakdown
+                |> Enum.filter(&(elem(&1, 0).unit_price == price_per_unit))
+                |> List.first()
+                |> elem(1)
+
+              remainder_breakdowns =
+                breakdown |> Enum.filter(&(elem(&1, 0).unit_price != price_per_unit))
+
+              # Check if user can afford the requested quantity
+              if Decimal.compare(quantity, affordable_qty) == :gt do
+                {:error,
+                 "Insufficient token balance. You have #{token_budget} tokens, which can buy #{affordable_qty} units (costing #{actual_cost}), but you requested #{quantity} units."}
+              else
+                # User can afford it - create the order
+                # Use the simple calculation for the order record (for consistency with current tranche price)
+                total_amount = Decimal.mult(quantity, price_per_unit)
+
+                order_params = %{
+                  user_id: user_id,
+                  order_type: "buy",
+                  asset_id: asset_id,
+                  quantity: quantity,
+                  price_per_unit: price_per_unit,
+                  total_amount: total_amount,
+                  status: "pending",
+                  filled_quantity: Decimal.new("0"),
+                  remaining_quantity: quantity
+                }
+
+                with {:ok, order} <-
+                       Settings.create_secondary_market_order(order_params)
+                       |> IO.inspect(label: "market order") do
+                  # Try to match with existing sell orders or inject liquidity
+
+                  match_and_execute_tranche_based_trades(
+                    order,
+                    current_tranche,
+                    remainder_breakdowns
+                  )
+
+                  {:ok, order}
+                end
+              end
+
+            {:error, reason} ->
+              {:error,
+               "Cannot calculate affordable quantity: #{reason}. Token budget: #{token_budget}"}
           end
         end
     end
+    |> IO.inspect(label: "create_buy_order")
   end
 
   @doc """
@@ -243,11 +393,11 @@ defmodule CommerceFront.Market.Secondary do
   Match and execute trades using tranche-based rules.
   For buy orders: first try to match with member sells at tranche price, then inject if needed.
   """
-  def match_and_execute_tranche_based_trades(buy_order, current_tranche) do
+  def match_and_execute_tranche_based_trades(buy_order, current_tranche, remainder_breakdowns) do
     # Only handle buy orders with this new logic
     case buy_order.order_type do
       "buy" ->
-        match_buy_order_with_tranche_rules(buy_order, current_tranche)
+        match_buy_order_with_tranche_rules(buy_order, current_tranche, remainder_breakdowns)
 
       "sell" ->
         # Sell orders use existing logic for now
@@ -260,7 +410,8 @@ defmodule CommerceFront.Market.Secondary do
   # 2. If insufficient, inject synthetic sell orders from tranche
   # 3. Update tranche sold quantity
   # 4. Move to next tranche if current is exhausted
-  defp match_buy_order_with_tranche_rules(buy_order, current_tranche) do
+  defp match_buy_order_with_tranche_rules(buy_order, current_tranche, remainder_breakdowns) do
+    IO.inspect(buy_order, label: "buy_order")
     tranche_price = current_tranche.unit_price
     remaining_to_fill = buy_order.remaining_quantity
 
@@ -278,22 +429,20 @@ defmodule CommerceFront.Market.Secondary do
       )
       |> Repo.all()
 
+
     # Step 2: Execute trades with member orders first
-    remaining_after_member_trades =
-      execute_member_trades(buy_order, member_sell_orders, remaining_to_fill) |> IO.inspect(label: "remaining_after_member_trades")
+    {remaining_after_member_trades, post_current_tranche} =
+      execute_member_trades(buy_order, member_sell_orders, remaining_to_fill, current_tranche)
+      |> IO.inspect(label: "remaining_after_member_trades")
 
-    # Record traded quantity attributed to this tranche from member fills
-    member_filled_quantity = Decimal.sub(remaining_to_fill, remaining_after_member_trades) |> IO.inspect(label: "member_filled_quantity")
-
-    if Decimal.compare(member_filled_quantity, Decimal.new("0")) == :gt do
-      update_tranche_traded_quantity(current_tranche.id, member_filled_quantity) |> IO.inspect(label: "update_tranche_traded_quantity")
-    end
+    # buy kampiew's 1000 qty first, see the remainder...
 
     # Step 3: If still need to fill, inject from tranche
     tranche_res =
-    if Decimal.compare(remaining_after_member_trades, Decimal.new("0")) == :gt do
-      inject_from_tranche(buy_order, current_tranche, remaining_after_member_trades) |> IO.inspect(label: "remaining_after_inject_from_tranche")
-    end
+      if Decimal.compare(remaining_after_member_trades, Decimal.new("0")) == :gt do
+        inject_from_tranche(buy_order, post_current_tranche, remaining_after_member_trades)
+        |> IO.inspect(label: "remaining_after_inject_from_tranche")
+      end
 
     # Step 4: Update order status
     updated_buy_order = Repo.get!(SecondaryMarketOrder, buy_order.id)
@@ -302,43 +451,73 @@ defmodule CommerceFront.Market.Secondary do
       update_order_status(buy_order, "filled")
     end
 
+    # here should check if there's remainder token unused...
+
     # Step 5: If tranche filled, close and open next
     tranche = Repo.get!(AssetTranche, current_tranche.id)
-    close_tranche_if_filled(tranche)
+    {tranche_status, next_tranche} = close_tranche_if_filled(tranche)
+
+    if remainder_breakdowns != [] do
+      remainder = List.first(remainder_breakdowns)
+
+      if remainder != nil do
+
+        create_buy_order(
+          buy_order.user_id,
+          buy_order.asset_id,
+          remainder |> elem(1) |> Decimal.round(5),
+          next_tranche.unit_price
+        )
+      end
+    else
+      # need to put back pending wallet executed tokens.........
+      # Settings.get_outstanding_token_buys()
+    end
   end
 
-  defp execute_member_trades(buy_order, sell_orders, remaining_quantity) do
-    Enum.reduce_while(sell_orders, remaining_quantity, fn sell_order, remaining ->
-      if Decimal.compare(remaining, Decimal.new("0")) == :eq do
-        {:halt, remaining}
-      else
-        trade_quantity = Decimal.min(remaining, sell_order.remaining_quantity)
-        trade_price = sell_order.price_per_unit
-        trade_amount = Decimal.mult(trade_quantity, trade_price)
+  defp execute_member_trades(
+         buy_order,
+         sell_orders,
+         remaining_quantity,
+         continuous_current_tranche \\ nil
+       ) do
+    Enum.reduce_while(
+      sell_orders,
+      {remaining_quantity, continuous_current_tranche},
+      fn sell_order, {remaining, post_current_tranche} ->
+        if Decimal.compare(remaining, Decimal.new("0")) == :eq do
+          {:halt, remaining}
+        else
+          trade_quantity = Decimal.min(remaining, sell_order.remaining_quantity)
+          trade_price = sell_order.price_per_unit
+          trade_amount = Decimal.mult(trade_quantity, trade_price)
 
-        # Create the trade
-        trade_params = %{
-          buy_order_id: buy_order.id,
-          sell_order_id: sell_order.id,
-          buyer_id: buy_order.user_id,
-          seller_id: sell_order.user_id,
-          asset_id: buy_order.asset_id,
-          quantity: trade_quantity,
-          price_per_unit: trade_price,
-          total_amount: trade_amount,
-          trade_date: DateTime.utc_now()
-        }
+          # Create the trade
+          trade_params = %{
+            buy_order_id: buy_order.id,
+            sell_order_id: sell_order.id,
+            buyer_id: buy_order.user_id,
+            seller_id: sell_order.user_id,
+            asset_id: buy_order.asset_id,
+            quantity: trade_quantity,
+            price_per_unit: trade_price,
+            total_amount: trade_amount,
+            trade_date: DateTime.utc_now()
+          }
 
-        case execute_trade(trade_params, buy_order, sell_order) do
-          {:ok, _} ->
-            new_remaining = Decimal.sub(remaining, trade_quantity)
-            {:cont, new_remaining}
+          case execute_trade(trade_params, buy_order, sell_order, continuous_current_tranche) do
+            {:ok, _, post_current_tranche} ->
+              new_remaining = Decimal.sub(remaining, trade_quantity)
 
-          {:error, _} ->
-            {:halt, remaining}
+
+              {:cont, {new_remaining, post_current_tranche}}
+
+            {:error, _} ->
+              {:halt, {remaining, post_current_tranche}}
+          end
         end
       end
-    end)
+    )
   end
 
   @doc """
@@ -346,6 +525,7 @@ defmodule CommerceFront.Market.Secondary do
   """
   def inject_from_tranche(buy_order, current_tranche, needed_quantity) do
     # Refresh tranche to avoid stale qty_sold/traded_qty
+
     tranche = Repo.get!(AssetTranche, current_tranche.id)
 
     # Caps: total remaining and company remaining
@@ -355,7 +535,7 @@ defmodule CommerceFront.Market.Secondary do
     # Determine how much we can inject from current tranche (respect both caps)
     injection_quantity =
       needed_quantity
-      |> Decimal.min(available_company)
+      |> Decimal.min(available_total)
 
     if Decimal.compare(injection_quantity, Decimal.new("0")) == :gt do
       # Inject synthetic sell order
@@ -364,7 +544,7 @@ defmodule CommerceFront.Market.Secondary do
              injection_quantity,
              tranche.unit_price,
              buy_order.user_id
-      )  do
+           ) do
         {:ok, {synthetic_order, trade_params}} ->
           # Update trade params with buy order ID
           trade_params = Map.put(trade_params, :buy_order_id, buy_order.id)
@@ -377,26 +557,21 @@ defmodule CommerceFront.Market.Secondary do
               # Update total traded quantity (includes company injection)
               update_tranche_traded_quantity(tranche.id, injection_quantity)
 
-              # Check if we need to move to next tranche for remaining quantity
+              # TODO: Cross-tranche fulfillment disabled to avoid nested transaction wallet lock issues.
+              # To support cross-tranche orders, refactor to loop within match_buy_order_with_tranche_rules
+              # and aggregate all fills before a single wallet deduction.
               remaining_after_injection = Decimal.sub(needed_quantity, injection_quantity)
 
               if Decimal.compare(remaining_after_injection, Decimal.new("0")) == :gt do
-                # Try next tranche if current is exhausted
+                IO.inspect(remaining_after_injection,
+                  label: "remaining_unfilled_after_tranche_exhausted"
+                )
 
-                if is_tranche_fully_sold?(tranche.id) do
-                  case get_current_open_tranche(buy_order.asset_id) do
-                    nil ->
-                      :no_more_tranches
-
-                    next_tranche ->
-                      inject_from_tranche(buy_order, next_tranche, remaining_after_injection)
-                  end
-                end
+                # Order remains partially filled; next matching cycle can try next tranche
               end
 
-
               # After injection, check if tranche is filled and rotate
-              tranche = Repo.get!(AssetTranche, tranche.id)
+              tranche = Repo.get(AssetTranche, tranche.id)
               close_tranche_if_filled(tranche)
 
             {:error, reason} ->
@@ -410,11 +585,11 @@ defmodule CommerceFront.Market.Secondary do
   end
 
   defp execute_synthetic_trade(trade_params, buy_order, tranche) do
+    IO.inspect([trade_params, buy_order, tranche], label: "execute_synthetic_trade")
+
     with {:ok, wallet_tx_refs} <- execute_wallet_transfers(trade_params),
          {:ok, _trade} <-
-                Settings.create_secondary_market_trade(
-                  Map.merge(trade_params, wallet_tx_refs)
-                ) do
+           Settings.create_secondary_market_trade(Map.merge(trade_params, wallet_tx_refs)) do
       # Update buy order quantities
       update_order_filled_quantity(buy_order, trade_params.quantity)
 
@@ -518,12 +693,11 @@ defmodule CommerceFront.Market.Secondary do
     end
   end
 
-  defp execute_trade(trade_params, main_order, matching_order) do
-    with {:ok, wallet_tx_refs} <- execute_wallet_transfers(trade_params),
+  defp execute_trade(trade_params, main_order, matching_order, continuous_current_tranche \\ nil) do
+    with {:ok, wallet_tx_refs} <-
+           execute_wallet_transfers(trade_params, continuous_current_tranche),
          {:ok, _trade} <-
-                Settings.create_secondary_market_trade(
-                  Map.merge(trade_params, wallet_tx_refs)
-                ) do
+           Settings.create_secondary_market_trade(Map.merge(trade_params, wallet_tx_refs)) do
       # Update order quantities
       update_order_filled_quantity(main_order, trade_params.quantity)
       update_order_filled_quantity(matching_order, trade_params.quantity)
@@ -533,13 +707,20 @@ defmodule CommerceFront.Market.Secondary do
         update_order_status(matching_order, "filled")
       end
 
-      {:ok, :success}
+      {:ok, post_current_tranche} =
+        update_tranche_traded_quantity(continuous_current_tranche.id, trade_params.quantity)
+        |> IO.inspect(label: "update_tranche_traded_quantity")
+
+      {:ok, :success, post_current_tranche}
     else
-      error -> {:error, "Trade execution failed: #{inspect(error)}"}
+      error ->
+
+        {:error, "Trade execution failed: #{inspect(error)}", continuous_current_tranche}
     end
   end
 
-  defp execute_wallet_transfers(trade_params) do
+  defp execute_wallet_transfers(trade_params, continuous_current_tranche \\ nil) do
+    IO.inspect(trade_params, label: "trade_params")
     finance_user = Settings.finance_user()
     is_synthetic_seller = trade_params.seller_id == finance_user.id
 
@@ -547,7 +728,8 @@ defmodule CommerceFront.Market.Secondary do
     buyer_token_debit = %{
       user_id: trade_params.buyer_id,
       amount: -Decimal.to_float(trade_params.total_amount),
-      remarks: "secondary_market_buy_#{trade_params.asset_id}_#{trade_params.trade_date} | qty: #{trade_params.quantity}",
+      remarks:
+        "secondary_market_buy_#{trade_params.asset_id}_#{trade_params.trade_date} | qty: #{trade_params.quantity}",
       wallet_type: "token"
     }
 
@@ -600,12 +782,17 @@ defmodule CommerceFront.Market.Secondary do
             lock: "FOR UPDATE"
           )
           |> repo.one()
+          |> IO.inspect(label: "bal")
 
         cond do
-          is_nil(bal) -> {:error, :buyer_wallet_not_found}
+          is_nil(bal) ->
+            {:error, :buyer_wallet_not_found}
+
           Decimal.compare(Decimal.from_float(bal.total), trade_params.total_amount) == :lt ->
             {:error, :insufficient_funds}
-          true -> {:ok, bal}
+
+          true ->
+            {:ok, bal}
         end
       end)
       |> Multi.run(:buyer_token_debit, fn _repo, _ ->
@@ -655,56 +842,44 @@ defmodule CommerceFront.Market.Secondary do
           |> Multi.run(:seller_bonus_credit, fn _repo, _ ->
             Settings.create_wallet_transaction(seller_bonus_credit)
           end)
-          |> Multi.run(:secondary_market_buy, fn _repo,
-                                                 %{seller_token_credit: seller_token_credit} ->
-            current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
-
-            wt =
-              seller_token_credit
-              |> Map.get(:wallet_transaction)
-              |> IO.inspect(label: "wallet transaction")
-
-            CommerceFront.Market.Secondary.create_buy_order(
-              wt.user_id,
-              current_tranche.asset_id,
-              Decimal.from_float(wt.amount / (current_tranche.unit_price |> Decimal.to_float())),
-              current_tranche.unit_price
-            )
-
-            {:ok, nil}
-          end)
         end
       end)
 
-    case Repo.transaction(multi) do
+    case Repo.transaction(multi) |> IO.inspect(label: "multi results") do
       {:ok, results} ->
         # Build wallet transaction id references from results
         refs = %{}
+
         refs =
           case Map.get(results, :buyer_token_debit) do
             %{wallet_transaction: wt} -> Map.put(refs, :buyer_token_tx_id, wt.id)
             _ -> refs
           end
+
         refs =
           case Map.get(results, :buyer_asset_credit) do
             %{wallet_transaction: wt} -> Map.put(refs, :buyer_asset_tx_id, wt.id)
             _ -> refs
           end
+
         refs =
           case Map.get(results, :seller_token_credit) do
             %{wallet_transaction: wt} -> Map.put(refs, :seller_token_tx_id, wt.id)
             _ -> refs
           end
+
         refs =
           case Map.get(results, :seller_bonus_credit) do
             %{wallet_transaction: wt} -> Map.put(refs, :seller_bonus_tx_id, wt.id)
             _ -> refs
           end
+
         refs =
           case Map.get(results, :seller_active_token_debit) do
             %{wallet_transaction: wt} -> Map.put(refs, :seller_active_token_tx_id, wt.id)
             _ -> refs
           end
+
         refs =
           case Map.get(results, :seller_asset_debit) do
             %{wallet_transaction: wt} -> Map.put(refs, :seller_asset_tx_id, wt.id)

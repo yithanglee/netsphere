@@ -4712,6 +4712,7 @@ defmodule CommerceFront.Settings do
           Decimal.from_float(wt.amount / (current_tranche.unit_price |> Decimal.to_float())),
           current_tranche.unit_price
         )
+        |> IO.inspect(label: "create_buy_order")
 
         {:ok, nil}
       end)
@@ -5415,23 +5416,23 @@ defmodule CommerceFront.Settings do
                     wallet_type: "token"
                   }
 
-                 {:ok,ewallets}  = create_wallet_transaction(params2)
+                  {:ok, ewallets} = create_wallet_transaction(params2)
 
                   current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
 
-
-                   wt = ewallets
+                  wt =
+                    ewallets
                     |> Map.get(:wallet_transaction)
                     |> IO.inspect(label: "wallet transaction")
 
-                  CommerceFront.Market.Secondary.create_buy_order(
+                  Elixir.Task.start_link(CommerceFront.Market.Secondary, :create_buy_order, [
                     wt.user_id,
                     current_tranche.asset_id,
                     Decimal.from_float(
                       wt.amount / (current_tranche.unit_price |> Decimal.to_float())
                     ),
                     current_tranche.unit_price
-                  )
+                  ])
                 end
 
                 update_reward(reward, %{is_paid: true})
@@ -6650,8 +6651,9 @@ defmodule CommerceFront.Settings do
   def backfill_tranche_traded_qty(asset_id \\ 1, seq \\ 0) do
     tranche =
       Repo.one(
-        from at in CommerceFront.Settings.AssetTranche,
+        from(at in CommerceFront.Settings.AssetTranche,
           where: at.asset_id == ^asset_id and at.seq == ^seq
+        )
       )
 
     if is_nil(tranche) do
@@ -6659,26 +6661,28 @@ defmodule CommerceFront.Settings do
     else
       next_release =
         Repo.one(
-          from at in CommerceFront.Settings.AssetTranche,
+          from(at in CommerceFront.Settings.AssetTranche,
             where: at.asset_id == ^asset_id and at.seq > ^seq,
             order_by: [asc: at.seq],
             select: at.released_at,
             limit: 1
+          )
         )
 
       window_start = tranche.inserted_at
-      window_end =  DateTime.utc_now()
+      window_end = DateTime.utc_now()
 
       # Sum secondary trades that match this tranche by price and fall within the time window
       traded_qty =
         Repo.one(
-          from smt in CommerceFront.Settings.SecondaryMarketTrade,
+          from(smt in CommerceFront.Settings.SecondaryMarketTrade,
             where:
               smt.asset_id == ^asset_id and
-              smt.price_per_unit == ^tranche.unit_price and
-              smt.trade_date >= ^window_start and
-              smt.trade_date <= ^window_end,
+                smt.price_per_unit == ^tranche.unit_price and
+                smt.trade_date >= ^window_start and
+                smt.trade_date <= ^window_end,
             select: coalesce(sum(smt.quantity), 0)
+          )
         )
 
       {count, _} =
@@ -6690,7 +6694,13 @@ defmodule CommerceFront.Settings do
         )
 
       if count == 1 do
-        {:ok, %{tranche_id: tranche.id, traded_qty: traded_qty, window_start: window_start, window_end: window_end}}
+        {:ok,
+         %{
+           tranche_id: tranche.id,
+           traded_qty: traded_qty,
+           window_start: window_start,
+           window_end: window_end
+         }}
       else
         {:error, :update_failed}
       end
@@ -8370,6 +8380,102 @@ defmodule CommerceFront.Settings do
     Repo.delete(model)
   end
 
+  @doc """
+  Backfill before and after balances for all secondary market trades.
+  This processes trades chronologically for each user+asset+price combination.
+  The first transaction at a specific asset_id and unit_price has before value of 0.
+  """
+  def backfill_secondary_market_trade_balances do
+    # Get all trades ordered by trade_date
+    trades =
+      from(t in SecondaryMarketTrade,
+        order_by: [asc: t.trade_date, asc: t.id],
+        preload: [:buyer, :seller, :asset]
+      )
+      |> Repo.all()
+
+    # Process trades chronologically
+    trades
+    |> Enum.each(fn trade ->
+      backfill_trade_balance(trade)
+    end)
+
+    {:ok, "Backfill completed"}
+  end
+
+  defp backfill_trade_balance(trade) do
+    # Get buyer's balance before this trade at this specific asset_id and price
+    buyer_before =
+      get_asset_price_balance_before_trade(
+        trade.buyer_id,
+        trade.asset_id,
+        trade.price_per_unit,
+        trade.trade_date,
+        trade.id
+      )
+
+    buyer_after = Decimal.add(buyer_before, trade.quantity)
+
+    # Update the trade with the buyer's balance (buyer's perspective)
+    update_secondary_market_trade(trade, %{
+      before: buyer_before,
+      after: buyer_after
+    })
+  end
+
+  defp get_asset_price_balance_before_trade(
+         user_id,
+         asset_id,
+         unit_price,
+         _trade_date,
+         current_trade_id
+       ) do
+    # Get the most recent trade before this one for this user+asset+price combination
+    previous_trade =
+      from(t in SecondaryMarketTrade,
+        where:
+          t.asset_id == ^asset_id and
+            t.price_per_unit == ^unit_price and
+            t.id < ^current_trade_id,
+        order_by: [desc: t.id],
+        limit: 1
+      )
+      |> Repo.one()
+
+    case previous_trade do
+      nil ->
+        # First transaction at this asset_id and unit_price
+        Decimal.new("0")
+
+      prev ->
+        # Use the after value from the previous trade if available
+        # Otherwise calculate it
+        cond do
+          prev.after != nil ->
+            prev.after
+
+          prev.buyer_id == user_id ->
+            # Calculate: previous before + previous quantity
+            if prev.before != nil do
+              Decimal.add(prev.before, prev.quantity)
+            else
+              prev.quantity
+            end
+
+          prev.seller_id == user_id ->
+            # Calculate: previous before - previous quantity
+            if prev.before != nil do
+              Decimal.sub(prev.before, prev.quantity)
+            else
+              Decimal.new("0")
+            end
+
+          true ->
+            Decimal.new("0")
+        end
+    end
+  end
+
   # Get active sell orders for an asset (sorted by price, lowest first)
   def get_active_sell_orders(asset_id, limit \\ 20) do
     from(o in SecondaryMarketOrder,
@@ -8411,6 +8517,50 @@ defmodule CommerceFront.Settings do
       amount when is_float(amount) -> Decimal.from_float(amount)
       amount -> Decimal.new("#{amount}")
     end
+  end
+
+  def get_outstanding_token_buys() do
+    raw_sql = """
+    select
+      et.total,
+      u.id as user_id ,
+      wt.reward_id
+    from ewallets et
+      left join users u on et.user_id = u.id
+      left join wallet_transactions wt on wt.ewallet_id = et.id
+    where
+      et.wallet_type = 'token' and
+      wt.amount > 0 and
+      et.total > 0 and
+      wt.reward_id  is not null
+    group by et.total, u.id, wt.reward_id ;
+    """
+
+    {:ok, %Postgrex.Result{columns: columns, rows: rows} = res} =
+      Ecto.Adapters.SQL.query(Repo, raw_sql, [])
+
+    result =
+      for row <- rows do
+        Enum.zip(columns |> Enum.map(&(&1 |> String.to_atom())), row) |> Enum.into(%{})
+      end
+      |> IO.inspect(label: "result")
+
+    sample = [%{reward_id: 47, total: 0.3, username: "Kampheiw3629"}]
+
+    for %{user_id: user_id, reward_id: reward_id, total: total} <- result do
+      current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
+
+      quantity = Decimal.div(Decimal.from_float(total), current_tranche.unit_price) |> Decimal.round(5)
+
+      CommerceFront.Market.Secondary.create_buy_order(
+        user_id,
+        1,
+        quantity,
+        current_tranche.unit_price
+      )
+    end
+
+    result
   end
 
   # Check if user has enough active_token balance for selling
@@ -8466,10 +8616,17 @@ defmodule CommerceFront.Settings do
   # Check if user has enough token balance for buying
   def has_sufficient_token_balance?(user_id, required_amount) do
     current_balance = get_user_token_balance(user_id)
-    IO.inspect([current_balance |> Decimal.to_float() |> :erlang.float_to_binary( decimals: 2), required_amount |> Decimal.to_float() |> :erlang.float_to_binary( decimals: 2)], label: "current_balance, required_amount")
+
+    IO.inspect(
+      [
+        current_balance |> Decimal.to_float() |> :erlang.float_to_binary(decimals: 2),
+        required_amount |> Decimal.to_float() |> :erlang.float_to_binary(decimals: 2)
+      ],
+      label: "current_balance, required_amount"
+    )
+
     Decimal.compare(current_balance, required_amount) != :lt
   end
-
 
   def token_point_auto_buy() do
     # need to get all the wallet transaction belongs to token
@@ -8501,29 +8658,29 @@ defmodule CommerceFront.Settings do
 
     Multi.new()
     |> Multi.run(:create_buy_order, fn _repo, _changes ->
-     res =
-       for %{
-            amount: amount,
-            inserted_at: inserted_at,
-            remarks: remarks,
-            reward_id: reward_id,
-            total: total,
-            username: username,
-            user_id: user_id,
-            wallet_transaction_id: wallet_transaction_id
-          } = map <- result do
-        current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
+      res =
+        for %{
+              amount: amount,
+              inserted_at: inserted_at,
+              remarks: remarks,
+              reward_id: reward_id,
+              total: total,
+              username: username,
+              user_id: user_id,
+              wallet_transaction_id: wallet_transaction_id
+            } = map <- result do
+          current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
 
+          CommerceFront.Market.Secondary.create_buy_order(
+            user_id,
+            current_tranche.asset_id,
+            Decimal.from_float(amount / (current_tranche.unit_price |> Decimal.to_float())),
+            current_tranche.unit_price
+          )
+          |> IO.inspect(label: "create_buy_order")
+        end
 
-        CommerceFront.Market.Secondary.create_buy_order(
-          user_id,
-          current_tranche.asset_id,
-          Decimal.from_float(amount / (current_tranche.unit_price |> Decimal.to_float())),
-          current_tranche.unit_price
-        ) |> IO.inspect(label: "create_buy_order")
-      end
-
-      {:error, res }
+      {:error, res}
     end)
     |> Repo.transaction()
   end

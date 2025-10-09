@@ -7,6 +7,8 @@ defmodule CommerceFront.Settings.SecondaryMarketTrade do
     field :price_per_unit, :decimal
     field :total_amount, :decimal
     field :trade_date, :utc_datetime
+    field :before, :decimal
+    field :after, :decimal
 
     belongs_to(:buy_order, CommerceFront.Settings.SecondaryMarketOrder)
     belongs_to(:sell_order, CommerceFront.Settings.SecondaryMarketOrder)
@@ -37,6 +39,8 @@ defmodule CommerceFront.Settings.SecondaryMarketTrade do
       :price_per_unit,
       :total_amount,
       :trade_date,
+      :before,
+      :after,
       :buyer_token_tx_id,
       :buyer_asset_tx_id,
       :seller_token_tx_id,
