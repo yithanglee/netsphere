@@ -788,7 +788,7 @@ defmodule CommerceFront.Market.Secondary do
           is_nil(bal) ->
             {:error, :buyer_wallet_not_found}
 
-          Decimal.compare(Decimal.from_float(bal.total), trade_params.total_amount) == :lt ->
+          Decimal.compare(Decimal.from_float(bal.total), trade_params.total_amount |> Decimal.round(2)) == :lt ->
             {:error, :insufficient_funds}
 
           true ->
