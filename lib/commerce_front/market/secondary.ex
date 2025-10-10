@@ -297,6 +297,8 @@ defmodule CommerceFront.Market.Secondary do
   """
   def create_buy_order(user_id, asset_id, quantity, price_per_unit, member_token_amount \\ nil) do
     # First, get the current open tranche to enforce pricing
+    IO.inspect([user_id, price_per_unit, member_token_amount], label: "create_buy_order")
+
     case get_current_open_tranche(asset_id) |> IO.inspect(label: "get_current_open_tranche") do
       nil ->
         {:error, "No open tranche available for this asset"}
@@ -318,61 +320,66 @@ defmodule CommerceFront.Market.Secondary do
             end
             |> IO.inspect(label: "token_budget")
 
-          # Calculate how much quantity can be purchased with available budget across tranches
-          case calculate_quantity_from_budget(asset_id, token_budget) do
-            {:ok, affordable_qty, actual_cost, breakdown} ->
-              IO.inspect(affordable_qty, label: "affordable_qty")
-              IO.inspect(actual_cost, label: "actual_cost")
-              IO.inspect(breakdown, label: "breakdown")
+          if Decimal.compare(token_budget, Decimal.new("0")) == :gt do
+            # Calculate how much quantity can be purchased with available budget across tranches
+            case calculate_quantity_from_budget(asset_id, token_budget) do
+              {:ok, affordable_qty, actual_cost, breakdown} ->
+                IO.inspect(affordable_qty, label: "affordable_qty")
+                IO.inspect(actual_cost, label: "actual_cost")
+                IO.inspect(breakdown, label: "breakdown")
 
-              quantity =
-                breakdown
-                |> Enum.filter(&(elem(&1, 0).unit_price == price_per_unit))
-                |> List.first()
-                |> elem(1)
+                quantity =
+                  breakdown
+                  |> Enum.filter(&(elem(&1, 0).unit_price == price_per_unit))
+                  |> List.first()
+                  |> elem(1)
 
-              remainder_breakdowns =
-                breakdown |> Enum.filter(&(elem(&1, 0).unit_price != price_per_unit))
+                remainder_breakdowns =
+                  breakdown |> Enum.filter(&(elem(&1, 0).unit_price != price_per_unit))
 
-              # Check if user can afford the requested quantity
-              if Decimal.compare(quantity, affordable_qty) == :gt do
-                {:error,
-                 "Insufficient token balance. You have #{token_budget} tokens, which can buy #{affordable_qty} units (costing #{actual_cost}), but you requested #{quantity} units."}
-              else
-                # User can afford it - create the order
-                # Use the simple calculation for the order record (for consistency with current tranche price)
-                total_amount = Decimal.mult(quantity, price_per_unit)
+                # Check if user can afford the requested quantity
+                if Decimal.compare(quantity, affordable_qty) == :gt do
+                  {:error,
+                   "Insufficient token balance. You have #{token_budget} tokens, which can buy #{affordable_qty} units (costing #{actual_cost}), but you requested #{quantity} units."}
+                else
+                  # User can afford it - create the order
+                  # Use the simple calculation for the order record (for consistency with current tranche price)
+                  total_amount = Decimal.mult(quantity, price_per_unit)
 
-                order_params = %{
-                  user_id: user_id,
-                  order_type: "buy",
-                  asset_id: asset_id,
-                  quantity: quantity,
-                  price_per_unit: price_per_unit,
-                  total_amount: total_amount,
-                  status: "pending",
-                  filled_quantity: Decimal.new("0"),
-                  remaining_quantity: quantity
-                }
+                  order_params = %{
+                    user_id: user_id,
+                    order_type: "buy",
+                    asset_id: asset_id,
+                    quantity: quantity,
+                    price_per_unit: price_per_unit,
+                    total_amount: total_amount,
+                    status: "pending",
+                    filled_quantity: Decimal.new("0"),
+                    remaining_quantity: quantity
+                  }
 
-                with {:ok, order} <-
-                       Settings.create_secondary_market_order(order_params)
-                       |> IO.inspect(label: "market order") do
-                  # Try to match with existing sell orders or inject liquidity
+                  with {:ok, order} <-
+                         Settings.create_secondary_market_order(order_params)
+                         |> IO.inspect(label: "market order") do
+                    # Try to match with existing sell orders or inject liquidity
 
-                  match_and_execute_tranche_based_trades(
-                    order,
-                    current_tranche,
-                    remainder_breakdowns
-                  )
+                    match_and_execute_tranche_based_trades(
+                      order,
+                      current_tranche,
+                      remainder_breakdowns
+                    )
 
-                  {:ok, order}
+                    {:ok, order}
+                  end
                 end
-              end
 
-            {:error, reason} ->
-              {:error,
-               "Cannot calculate affordable quantity: #{reason}. Token budget: #{token_budget}"}
+              {:error, reason} ->
+                {:error,
+                 "Cannot calculate affordable quantity: #{reason}. Token budget: #{token_budget}"}
+            end
+          else
+            {:error,
+             "Insufficient token balance. You have #{token_budget} tokens, but you requested #{quantity} units."}
           end
         end
     end
@@ -429,7 +436,6 @@ defmodule CommerceFront.Market.Secondary do
       )
       |> Repo.all()
 
-
     # Step 2: Execute trades with member orders first
     {remaining_after_member_trades, post_current_tranche} =
       execute_member_trades(buy_order, member_sell_orders, remaining_to_fill, current_tranche)
@@ -461,7 +467,6 @@ defmodule CommerceFront.Market.Secondary do
       remainder = List.first(remainder_breakdowns)
 
       if remainder != nil do
-
         create_buy_order(
           buy_order.user_id,
           buy_order.asset_id,
@@ -508,7 +513,6 @@ defmodule CommerceFront.Market.Secondary do
           case execute_trade(trade_params, buy_order, sell_order, continuous_current_tranche) do
             {:ok, _, post_current_tranche} ->
               new_remaining = Decimal.sub(remaining, trade_quantity)
-
 
               {:cont, {new_remaining, post_current_tranche}}
 
@@ -714,7 +718,6 @@ defmodule CommerceFront.Market.Secondary do
       {:ok, :success, post_current_tranche}
     else
       error ->
-
         {:error, "Trade execution failed: #{inspect(error)}", continuous_current_tranche}
     end
   end
@@ -788,7 +791,10 @@ defmodule CommerceFront.Market.Secondary do
           is_nil(bal) ->
             {:error, :buyer_wallet_not_found}
 
-          Decimal.compare(Decimal.from_float(bal.total), trade_params.total_amount |> Decimal.round(2)) == :lt ->
+          Decimal.compare(
+            Decimal.from_float(bal.total),
+            trade_params.total_amount |> Decimal.round(2)
+          ) == :lt ->
             {:error, :insufficient_funds}
 
           true ->

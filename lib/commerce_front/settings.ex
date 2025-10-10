@@ -4710,7 +4710,8 @@ defmodule CommerceFront.Settings do
           user.id,
           current_tranche.asset_id,
           Decimal.from_float(wt.amount / (current_tranche.unit_price |> Decimal.to_float())),
-          current_tranche.unit_price
+          current_tranche.unit_price,
+          Decimal.from_float(wt.amount)
         )
         |> IO.inspect(label: "create_buy_order")
 
