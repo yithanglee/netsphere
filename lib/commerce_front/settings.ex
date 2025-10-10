@@ -4755,7 +4755,6 @@ defmodule CommerceFront.Settings do
       end)
       |> Multi.run(:placement, fn _repo, %{user: user} ->
         if params["upgrade"] != nil do
-
           parent_p = get_placement_by_username(params["upgrade"])
 
           if parent_p == nil do
@@ -5001,7 +5000,7 @@ defmodule CommerceFront.Settings do
         if params["register"] != nil do
           wallet_info = ZkEvm.Wallet.generate_wallet()
 
-          Settings.create_crypto_wallet(%{
+          CommerceFront.Settings.create_crypto_wallet(%{
             user_id: user.id,
             address: wallet_info.address,
             private_key: wallet_info.private_key,
@@ -5470,15 +5469,16 @@ defmodule CommerceFront.Settings do
                   #   current_tranche.unit_price
                   # ])
 
-                  CommerceFront.Market.Secondary.create_buy_order(wt.user_id,
-                  current_tranche.asset_id,
-                  Decimal.from_float(
-                    wt.amount / (current_tranche.unit_price |> Decimal.to_float())
-                  ) |> Decimal.round(2),
-                  current_tranche.unit_price,
-                  wt.amount)
-
-
+                  CommerceFront.Market.Secondary.create_buy_order(
+                    wt.user_id,
+                    current_tranche.asset_id,
+                    Decimal.from_float(
+                      wt.amount / (current_tranche.unit_price |> Decimal.to_float())
+                    )
+                    |> Decimal.round(2),
+                    current_tranche.unit_price,
+                    wt.amount
+                  )
                 end
 
                 update_reward(reward, %{is_paid: true})
@@ -8210,7 +8210,23 @@ defmodule CommerceFront.Settings do
   end
 
   def get_crypto_wallet_by_user_id(user_id) do
-    Repo.get_by(CryptoWallet, user_id: user_id)
+    check = Repo.get_by(CryptoWallet, user_id: user_id)
+
+    if check do
+      check
+    else
+      wallet_info = ZkEvm.Wallet.generate_wallet()
+
+      {:ok, cw} =
+        CommerceFront.Settings.create_crypto_wallet(%{
+          user_id: user_id,
+          address: wallet_info.address,
+          private_key: wallet_info.private_key,
+          public_key: wallet_info.public_key
+        })
+
+      cw
+    end
   end
 
   def create_crypto_wallet(params \\ %{}) do

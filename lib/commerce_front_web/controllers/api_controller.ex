@@ -183,6 +183,8 @@ defmodule CommerceFrontWeb.ApiController do
                   offset: 1000
                 ]
 
+
+
                 case ZkEvm.Wallet.token_transfers(wallet.address, api_key, opts) do
                   {:ok, transfers} ->
                     decimals =
@@ -224,7 +226,8 @@ defmodule CommerceFrontWeb.ApiController do
                       token_address: token_address,
                       decimals: decimals,
                       raw: raw_balance,
-                      formatted: formatted
+                      formatted: formatted,
+                      transfers: transfers
                     }
 
                   {:error, reason} ->

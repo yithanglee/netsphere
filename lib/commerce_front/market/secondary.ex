@@ -967,7 +967,7 @@ defmodule CommerceFront.Market.Secondary do
   def get_recent_trades(asset_id, limit \\ 20) do
     from(t in SecondaryMarketTrade,
       where: t.asset_id == ^asset_id,
-      order_by: [desc: t.trade_date],
+      order_by: [desc: t.trade_date, desc: t.id],
       limit: ^limit,
       preload: [:buyer, :seller, :asset]
     )
