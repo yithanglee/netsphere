@@ -105,8 +105,9 @@ defmodule CommerceFrontWeb.ApiController do
             CommerceFront.Market.Secondary.create_buy_order(
               id,
               params["asset_id"],
-              params["quantity"],
-              params["price_per_unit"]
+              Decimal.new(params["quantity"]) |> Decimal.round(2),
+              Decimal.new(params["price_per_unit"]),
+              Decimal.mult(Decimal.new(params["quantity"]) |> Decimal.round(2), Decimal.new(params["price_per_unit"])) |> Decimal.round(2)
             )
 
           %{status: "ok", res: BluePotion.sanitize_struct(res)}

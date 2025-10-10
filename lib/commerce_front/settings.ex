@@ -1653,20 +1653,28 @@ defmodule CommerceFront.Settings do
             }
           end
 
-        Repo.get_by(Placement, user_id: res.id)
-        |> IO.inspect()
-        |> Repo.preload(:user)
-        |> BluePotion.sanitize_struct()
-        |> Map.merge(%{
-          total_left: gs_summary.total_left,
-          total_right: gs_summary.total_right,
-          balance_left: gs_summary.balance_left,
-          balance_right: gs_summary.balance_right,
-          new_left: gs_summary.new_left,
-          new_right: gs_summary.new_right,
-          sum_left: gs_summary.sum_left,
-          sum_right: gs_summary.sum_right
-        })
+        placement =
+          Repo.get_by(Placement, user_id: res.id)
+          |> IO.inspect()
+
+        if placement != nil do
+          placement
+          |> Repo.preload(:user)
+          |> BluePotion.sanitize_struct()
+          |> Map.merge(%{
+            total_left: gs_summary.total_left,
+            total_right: gs_summary.total_right,
+            balance_left: gs_summary.balance_left,
+            balance_right: gs_summary.balance_right,
+            new_left: gs_summary.new_left,
+            new_right: gs_summary.new_right,
+            sum_left: gs_summary.sum_left,
+            sum_right: gs_summary.sum_right
+          })
+        else
+          # placeholder
+          nil
+        end
       end
     end
   end
@@ -4747,9 +4755,36 @@ defmodule CommerceFront.Settings do
       end)
       |> Multi.run(:placement, fn _repo, %{user: user} ->
         if params["upgrade"] != nil do
+
           parent_p = get_placement_by_username(params["upgrade"])
 
-          {:ok, %CommerceFront.Settings.Placement{id: parent_p.id}}
+          if parent_p == nil do
+            user = CommerceFront.Settings.get_user_by_username(params["upgrade"])
+
+            sponsor =
+              CommerceFront.Settings.check_uplines(user.username, :referral)
+              |> List.first()
+              |> Map.get(:parent)
+
+            preferred_position = fn ->
+              if user.preferred_position == "auto" do
+                nil
+              else
+                user.preferred_position
+              end
+            end
+
+            {position, parent_p} = determine_position(sponsor, true, preferred_position.())
+
+            create_placement(%{
+              parent_user_id: parent_p.user_id,
+              parent_placement_id: parent_p.id,
+              position: position,
+              user_id: user.id
+            })
+          else
+            {:ok, %CommerceFront.Settings.Placement{id: parent_p.id}}
+          end
         else
           {position, parent_p} =
             determine_position(params["sponsor"], true, params["placement"]["position"])
@@ -5658,6 +5693,43 @@ defmodule CommerceFront.Settings do
         select: %{period: [r.month, r.year], name: r.name, sum: sum(r.amount)}
       )
     )
+  end
+
+  def manually_create_placement(user_id) do
+    Multi.new()
+    |> Multi.run(:placement, fn _repo, %{} ->
+      # maybe check if the user has a placement already
+      check = Repo.all(from(p in Placement, where: p.user_id == ^user_id))
+
+      if check == [] do
+        user = get_user!(user_id)
+
+        sponsor =
+          CommerceFront.Settings.check_uplines(user.username, :referral)
+          |> List.first()
+          |> Map.get(:parent)
+
+        preferred_position = fn ->
+          if user.preferred_position == "auto" do
+            nil
+          else
+            user.preferred_position
+          end
+        end
+
+        {position, parent_p} = determine_position(sponsor, true, preferred_position.())
+
+        create_placement(%{
+          parent_user_id: parent_p.user_id,
+          parent_placement_id: parent_p.id,
+          position: position,
+          user_id: user.id
+        })
+      else
+        {:ok, nil}
+      end
+    end)
+    |> Repo.transaction()
   end
 
   def approve_topup(params) do
@@ -8551,7 +8623,8 @@ defmodule CommerceFront.Settings do
     for %{user_id: user_id, reward_id: reward_id, total: total} <- result do
       current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
 
-      quantity = Decimal.div(Decimal.from_float(total), current_tranche.unit_price) |> Decimal.round(5)
+      quantity =
+        Decimal.div(Decimal.from_float(total), current_tranche.unit_price) |> Decimal.round(5)
 
       CommerceFront.Market.Secondary.create_buy_order(
         user_id,
