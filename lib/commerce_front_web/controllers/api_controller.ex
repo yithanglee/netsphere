@@ -160,22 +160,75 @@ defmodule CommerceFrontWeb.ApiController do
                 System.get_env("TOKEN_CONTRACT_ADDRESS") ||
                 params["token_address"]
 
+            api_key =
+              Application.get_env(:commerce_front, :etherscan_api_key) ||
+                System.get_env("ETHERSCAN_API_KEY") ||
+                System.get_env("POLYGONSCAN_API_KEY")
+
             case token_address do
               nil ->
                 %{status: "error", reason: "token contract not configured"}
 
+              _ when api_key in [nil, ""] ->
+                %{status: "error", reason: "explorer api key not configured"}
+
               _ ->
-                try do
-                  bal = ZkEvm.Token.balance_of(token_address, wallet.address)
-                  %{
-                    address: wallet.address,
-                    token_address: token_address,
-                    decimals: bal.decimals,
-                    raw: bal.raw,
-                    formatted: bal.formatted
-                  }
-                rescue
-                  e -> %{status: "error", reason: inspect(e)}
+                opts = [
+                  provider: :etherscan_v2,
+                  chainid: 137,
+                  contractaddress: token_address,
+                  startblock: 0,
+                  endblock: 99_999_999,
+                  sort: "asc",
+                  offset: 1000
+                ]
+
+                case ZkEvm.Wallet.token_transfers(wallet.address, api_key, opts) do
+                  {:ok, transfers} ->
+                    decimals =
+                      case transfers do
+                        [h | _] ->
+                          (h["tokenDecimal"] || "18")
+                          |> to_string()
+                          |> String.to_integer()
+
+                        _ ->
+                          18
+                      end
+
+                    addr = String.downcase(wallet.address)
+                    token_addr_down = String.downcase(token_address)
+
+                    filtered =
+                      Enum.filter(transfers, fn tx ->
+                        String.downcase(tx["contractAddress"] || "") == token_addr_down
+                      end)
+
+                    raw_balance =
+                      Enum.reduce(filtered, 0, fn tx, acc ->
+                        value = (tx["value"] || "0") |> to_string() |> String.to_integer()
+                        from = String.downcase(tx["from"] || "")
+                        to = String.downcase(tx["to"] || "")
+
+                        cond do
+                          to == addr -> acc + value
+                          from == addr -> acc - value
+                          true -> acc
+                        end
+                      end)
+
+                    formatted = raw_balance / :math.pow(10, decimals)
+
+                    %{
+                      address: wallet.address,
+                      token_address: token_address,
+                      decimals: decimals,
+                      raw: raw_balance,
+                      formatted: formatted
+                    }
+
+                  {:error, reason} ->
+                    %{status: "error", reason: inspect(reason)}
                 end
             end
           else
