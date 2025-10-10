@@ -72,7 +72,7 @@ config :commerce_front, CommerceFront.Scheduler,
     {"15 0 * * *", {CommerceFront.Settings, :run_daily_staking_release, []}}
   ]
 
-
+config :commerce_front, token_contract_address: System.get_env("TOKEN_CONTRACT_ADDRESS")
 
 config :commerce_front, CommerceFront.Mailer,
   adapter: Bamboo.SMTPAdapter,
