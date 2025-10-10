@@ -291,7 +291,7 @@ defmodule CommerceFront.Market.Secondary do
   Now enforces tranche pricing - buy orders must be at current tranche price.
   Uses budget-based calculation to determine affordable quantity across multiple tranches.
 
-  Example: CommerceFront.Market.Secondary.create_buy_order(78, 1, 35000, 0.001, 35)
+  Example: CommerceFront.Market.Secondary.create_buy_order(68, 1, 27.2727, 0.0011, 0.03)
 
   When member_token_amount is provided, it's used as the budget instead of user's current balance.
   """
@@ -328,49 +328,57 @@ defmodule CommerceFront.Market.Secondary do
                 IO.inspect(actual_cost, label: "actual_cost")
                 IO.inspect(breakdown, label: "breakdown")
 
-                quantity =
+                pre_quantity =
                   breakdown
                   |> Enum.filter(&(elem(&1, 0).unit_price == price_per_unit))
                   |> List.first()
-                  |> elem(1)
 
-                remainder_breakdowns =
-                  breakdown |> Enum.filter(&(elem(&1, 0).unit_price != price_per_unit))
+                if pre_quantity != nil do
+                  quantity =
+                    pre_quantity
+                    |> elem(1)
 
-                # Check if user can afford the requested quantity
-                if Decimal.compare(quantity, affordable_qty) == :gt do
-                  {:error,
-                   "Insufficient token balance. You have #{token_budget} tokens, which can buy #{affordable_qty} units (costing #{actual_cost}), but you requested #{quantity} units."}
-                else
-                  # User can afford it - create the order
-                  # Use the simple calculation for the order record (for consistency with current tranche price)
-                  total_amount = Decimal.mult(quantity, price_per_unit)
+                  remainder_breakdowns =
+                    breakdown |> Enum.filter(&(elem(&1, 0).unit_price != price_per_unit))
 
-                  order_params = %{
-                    user_id: user_id,
-                    order_type: "buy",
-                    asset_id: asset_id,
-                    quantity: quantity,
-                    price_per_unit: price_per_unit,
-                    total_amount: total_amount,
-                    status: "pending",
-                    filled_quantity: Decimal.new("0"),
-                    remaining_quantity: quantity
-                  }
+                  # Check if user can afford the requested quantity
+                  if Decimal.compare(quantity, affordable_qty) == :gt do
+                    {:error,
+                     "Insufficient token balance. You have #{token_budget} tokens, which can buy #{affordable_qty} units (costing #{actual_cost}), but you requested #{quantity} units."}
+                  else
+                    # User can afford it - create the order
+                    # Use the simple calculation for the order record (for consistency with current tranche price)
+                    total_amount = Decimal.mult(quantity, price_per_unit)
 
-                  with {:ok, order} <-
-                         Settings.create_secondary_market_order(order_params)
-                         |> IO.inspect(label: "market order") do
-                    # Try to match with existing sell orders or inject liquidity
+                    order_params = %{
+                      user_id: user_id,
+                      order_type: "buy",
+                      asset_id: asset_id,
+                      quantity: quantity,
+                      price_per_unit: price_per_unit,
+                      total_amount: total_amount,
+                      status: "pending",
+                      filled_quantity: Decimal.new("0"),
+                      remaining_quantity: quantity
+                    }
 
-                    match_and_execute_tranche_based_trades(
-                      order,
-                      current_tranche,
-                      remainder_breakdowns
-                    )
+                    with {:ok, order} <-
+                           Settings.create_secondary_market_order(order_params)
+                           |> IO.inspect(label: "market order") do
+                      # Try to match with existing sell orders or inject liquidity
 
-                    {:ok, order}
+                      match_and_execute_tranche_based_trades(
+                        order,
+                        current_tranche,
+                        remainder_breakdowns
+                      )
+
+                      {:ok, order}
+                    end
                   end
+                else
+                  {:error,
+                   "Insufficient token balance. You have #{token_budget} tokens, but you requested #{quantity} units."}
                 end
 
               {:error, reason} ->
