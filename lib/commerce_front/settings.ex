@@ -5461,14 +5461,24 @@ defmodule CommerceFront.Settings do
                     |> Map.get(:wallet_transaction)
                     |> IO.inspect(label: "wallet transaction")
 
-                  Elixir.Task.start_link(CommerceFront.Market.Secondary, :create_buy_order, [
-                    wt.user_id,
-                    current_tranche.asset_id,
-                    Decimal.from_float(
-                      wt.amount / (current_tranche.unit_price |> Decimal.to_float())
-                    ),
-                    current_tranche.unit_price
-                  ])
+                  # Elixir.Task.start_link(CommerceFront.Market.Secondary, :create_buy_order, [
+                  #   wt.user_id,
+                  #   current_tranche.asset_id,
+                  #   Decimal.from_float(
+                  #     wt.amount / (current_tranche.unit_price |> Decimal.to_float())
+                  #   ),
+                  #   current_tranche.unit_price
+                  # ])
+
+                  CommerceFront.Market.Secondary.create_buy_order(wt.user_id,
+                  current_tranche.asset_id,
+                  Decimal.from_float(
+                    wt.amount / (current_tranche.unit_price |> Decimal.to_float())
+                  ) |> Decimal.round(2),
+                  current_tranche.unit_price,
+                  wt.amount)
+
+
                 end
 
                 update_reward(reward, %{is_paid: true})
