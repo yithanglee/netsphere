@@ -356,13 +356,15 @@ body {
 }
 
 .badge {
-  width: 30px;
-  height: 30px;
+ 
   border-radius: 8px;
   background: conic-gradient(from 140deg, var(--brand), var(--brand2), #7df8ff);
   box-shadow: 0 0 14px rgba(25, 162, 255, .45)
 }
-
+.badge.bg-danger {
+	background: conic-gradient(from 140deg, #e04cd0, #ff1919, #8413c4);
+	box-shadow: 0 0 14px rgba(232, 7, 175, 0.45);
+}
 .name {
   font-weight: 800;
   letter-spacing: .3px

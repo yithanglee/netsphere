@@ -157,7 +157,7 @@ defmodule CommerceFrontWeb.PageController do
 
     IO.inspect(server_url)
 
-    css = "<link rel='stylesheet' href='#{server_url}/css/app.css' >
+    css = "<link rel='stylesheet' href='#{server_url}/css/bootstrap.css' >
         <link rel='stylesheet' href='#{server_url}/css/all.css' >"
 
     pdf_params = %{
@@ -233,7 +233,7 @@ defmodule CommerceFrontWeb.PageController do
 
     IO.inspect(server_url)
 
-    css = "<link rel='stylesheet' href='#{server_url}/css/app.css' >
+    css = "<link rel='stylesheet' href='#{server_url}/css/boostrap.css' >
         <link rel='stylesheet' href='#{server_url}/css/all.css' >"
 
     pdf_params = %{
@@ -428,7 +428,7 @@ defmodule CommerceFrontWeb.PageController do
     sale =
       CommerceFront.Settings.get_sale!(id)
       |> CommerceFront.Repo.preload([:country, :merchant])
-      
+
 
     conn
     |> render("co_pdf.html",
@@ -462,7 +462,7 @@ defmodule CommerceFrontWeb.PageController do
 
     IO.inspect(server_url)
 
-    css = "<link rel='stylesheet' href='#{server_url}/css/app.css' >
+    css = "<link rel='stylesheet' href='#{server_url}/css/bootstrap.css' >
         <link rel='stylesheet' href='#{server_url}/css/all.css' >"
 
     pdf_params = %{

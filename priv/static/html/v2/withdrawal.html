@@ -1,4 +1,4 @@
-<section class="col-12 col-lg-8 offset-lg-2 p-4">
+<section class="col-12  p-4">
   <div class="card ">
     <div class="card-body ">
       <div class="d-flex justify-content-between align-items-center mb-4">
@@ -17,9 +17,9 @@ function payData(params) {
   var rowData = phxApp.rowData(params)
   console.log(rowData)
   if (rowData.withdrawal_batch != null) {
-    phxApp.modal({ selector: "#mySubModal", header: "Details", content: `
+    phxApp.modal({ selector: "#mySubModal", autoClose: false, header: "Details", content: `
 
-      <p>` + rowData.withdrawal_batch.remarks + `</p>
+      <p>From Admin: ` + rowData.withdrawal_batch.remarks + `</p>
   <div class="btn btn-primary delete">Delete Request
       </div>
       ` })
@@ -90,8 +90,8 @@ $(document).ready(() => {
         null,
         ['id',
           'amount',
-          'bank_name',
-          'bank_account_number',
+          {label: 'bank_name', hidden: true, data: 'USDT'},
+          {label: 'bank_account_number', alt_name: 'WALLET ADDRESS'},
           'remarks',
 
           {
@@ -255,7 +255,9 @@ $(document).ready(() => {
       iconName: "fa fa-info",
       color: "btn-sm btn-outline-warning",
       onClickFunction: payData,
+
       fnParams: {
+        autoClose: false,
 
       }
     }, ],
