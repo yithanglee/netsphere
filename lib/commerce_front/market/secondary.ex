@@ -738,7 +738,7 @@ defmodule CommerceFront.Market.Secondary do
     # Precompute wallet transaction param maps
     buyer_token_debit = %{
       user_id: trade_params.buyer_id,
-      amount: -Decimal.to_float(trade_params.total_amount),
+      amount: -Decimal.to_float(trade_params.total_amount) |> Float.round(2),
       remarks:
         "secondary_market_buy_#{trade_params.asset_id}_#{trade_params.trade_date} | qty: #{trade_params.quantity}",
       wallet_type: "token"

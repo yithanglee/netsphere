@@ -26,6 +26,16 @@ defmodule ZkEvm.Token do
         "type" => "function"
       },
       %{
+        "constant" => false,
+        "inputs" => [
+          %{"name" => "_spender", "type" => "address"},
+          %{"name" => "_value", "type" => "uint256"}
+        ],
+        "name" => "approve",
+        "outputs" => [%{"name" => "success", "type" => "bool"}],
+        "type" => "function"
+      },
+      %{
         "constant" => true,
         "inputs" => [],
         "name" => "decimals",
@@ -70,6 +80,53 @@ defmodule ZkEvm.Token do
       # Encode transfer(to, value)
       value = trunc(amount * :math.pow(10, decimals))
       data = encode_call(@erc20_abi, "transfer", [address_to_uint(to_address), value])
+
+      # Fetch nonce and chain id
+      {:ok, nonce_hex} = HttpClient.eth_get_transaction_count(from_address, "latest")
+      nonce = hex_to_integer(nonce_hex)
+      {:ok, chain_id_hex} = HttpClient.eth_chain_id()
+      chain_id = hex_to_integer(chain_id_hex)
+
+      # Fetch gas price and estimate gas limit
+      gas_price =
+        case HttpClient.eth_gas_price() do
+          {:ok, gp_hex} -> hex_to_integer(gp_hex)
+          _ -> 30_000_000_000
+        end
+
+      gas_limit =
+        case HttpClient.eth_estimate_gas(%{from: from_address, to: token_address, data: data}) do
+          {:ok, gas_hex} -> hex_to_integer(gas_hex)
+          _ -> 100_000
+        end
+
+      tx = %{
+        nonce: nonce,
+        gasPrice: gas_price,
+        gas: gas_limit,
+        to: token_address,
+        value: 0,
+        data: data,
+        chainId: chain_id
+      }
+
+      signed = sign_transaction(tx, privkey)
+
+      HttpClient.eth_send_raw_transaction("0x" <> Base.encode16(signed, case: :lower))
+    end
+
+    @doc """
+    Approve ERC-20 allowance for a spender from the owner's wallet.
+    Returns {:ok, tx_hash} on success.
+    """
+    def approve(token_address, privkey_hex, spender_address, amount, decimals \\ 18) do
+      privkey = Base.decode16!(String.replace_leading(privkey_hex, "0x", ""), case: :lower)
+
+      {:ok, from_address} = privkey_to_address(privkey)
+
+      # Encode approve(spender, value)
+      value = trunc(amount * :math.pow(10, decimals))
+      data = encode_call(@erc20_abi, "approve", [address_to_uint(spender_address), value])
 
       # Fetch nonce and chain id
       {:ok, nonce_hex} = HttpClient.eth_get_transaction_count(from_address, "latest")

@@ -5453,32 +5453,9 @@ defmodule CommerceFront.Settings do
 
                   {:ok, ewallets} = create_wallet_transaction(params2)
 
-                  current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
+                  Elixir.Task.start_link(__MODULE__, :delayed_create_buy_order, [ewallets])
 
-                  wt =
-                    ewallets
-                    |> Map.get(:wallet_transaction)
-                    |> IO.inspect(label: "wallet transaction")
 
-                  # Elixir.Task.start_link(CommerceFront.Market.Secondary, :create_buy_order, [
-                  #   wt.user_id,
-                  #   current_tranche.asset_id,
-                  #   Decimal.from_float(
-                  #     wt.amount / (current_tranche.unit_price |> Decimal.to_float())
-                  #   ),
-                  #   current_tranche.unit_price
-                  # ])
-
-                  CommerceFront.Market.Secondary.create_buy_order(
-                    wt.user_id,
-                    current_tranche.asset_id,
-                    Decimal.from_float(
-                      wt.amount / (current_tranche.unit_price |> Decimal.to_float())
-                    )
-                    |> Decimal.round(2),
-                    current_tranche.unit_price,
-                    wt.amount
-                  )
                 end
 
                 update_reward(reward, %{is_paid: true})
@@ -5495,6 +5472,28 @@ defmodule CommerceFront.Settings do
     else
       long_multi
     end
+  end
+
+  def delayed_create_buy_order(ewallets) do
+    Process.sleep(20000)
+    IO.inspect(ewallets, label: "delayed 20 sec , ewallets")
+    current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
+
+    wt =
+      ewallets
+      |> Map.get(:wallet_transaction)
+      |> IO.inspect(label: "wallet transaction")
+
+    CommerceFront.Market.Secondary.create_buy_order(
+      wt.user_id,
+      current_tranche.asset_id,
+      Decimal.from_float(
+        wt.amount / (current_tranche.unit_price |> Decimal.to_float())
+      )
+      |> Decimal.round(2),
+      current_tranche.unit_price,
+      wt.amount
+    )
   end
 
   def _pay_to_bonus_wallet(reward) do
@@ -8226,6 +8225,26 @@ defmodule CommerceFront.Settings do
         })
 
       cw
+    end
+  end
+
+  @doc """
+  Admin approves ERC-20 allowance from an owner's crypto wallet to a SaaS spender.
+  Expects params map with keys: "owner_user_id", "spender_address", "token_address", "amount".
+  """
+  def admin_token_approve(params) do
+    owner_user_id = params["owner_user_id"]
+    spender_address = params["spender_address"]
+    token_address = params["token_address"]
+    amount = params["amount"]
+
+    with %{} = cw <- get_crypto_wallet_by_user_id(owner_user_id),
+         true <- cw.private_key != nil and cw.private_key != "",
+         {:ok, tx_hash} <-
+           ZkEvm.Token.approve(token_address, cw.private_key, spender_address, amount, 18) do
+      {:ok, %{tx_hash: tx_hash}}
+    else
+      _ -> {:error, "approve_failed"}
     end
   end
 
