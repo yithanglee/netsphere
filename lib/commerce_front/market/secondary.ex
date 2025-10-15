@@ -474,7 +474,7 @@ defmodule CommerceFront.Market.Secondary do
     if remainder_breakdowns != [] do
       remainder = List.first(remainder_breakdowns)
 
-      if remainder != nil do
+      if remainder != nil && next_tranche != nil do
         create_buy_order(
           buy_order.user_id,
           buy_order.asset_id,
@@ -878,8 +878,16 @@ defmodule CommerceFront.Market.Secondary do
 
         refs =
           case Map.get(results, :seller_token_credit) do
-            %{wallet_transaction: wt} -> Map.put(refs, :seller_token_tx_id, wt.id)
-            _ -> refs
+            %{wallet_transaction: wt} ->
+
+if wt.user_id != CommerceFront.Settings.finance_user.id do
+  CommerceFront.Settings.manual_create_buy_order(wt.user_id, wt.amount)
+
+end
+
+              Map.put(refs, :seller_token_tx_id, wt.id)
+            _ ->
+              refs
           end
 
         refs =

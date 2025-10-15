@@ -8682,6 +8682,27 @@ defmodule CommerceFront.Settings do
     result
   end
 
+  def manual_create_buy_order(user_id, amount) do
+    current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
+
+    quantity =
+      Decimal.div(Decimal.from_float(amount), current_tranche.unit_price) |> Decimal.round(5)
+
+
+      Multi.new()
+      |> Multi.run(:create_buy_order, fn _repo, _ ->
+        CommerceFront.Market.Secondary.create_buy_order(
+          user_id,
+          1,
+          quantity,
+          current_tranche.unit_price
+        )
+      end)
+      |> Repo.transaction()
+
+
+  end
+
   # Check if user has enough active_token balance for selling
   def has_sufficient_active_token_balance?(user_id, asset_id, required_quantity) do
     current_balance = get_user_active_token_balance(user_id, asset_id)
