@@ -83,22 +83,18 @@ defmodule CommerceFrontWeb.ApiController do
           CommerceFront.Market.Secondary.get_recent_trades(params["asset_id"])
 
         "create_sell_order" ->
-
-          case  CommerceFront.Market.Secondary.create_sell_order(
-              id,
-              params["asset_id"],
-              params["quantity"],
-              params["price_per_unit"]
-          ) do
-
+          case CommerceFront.Market.Secondary.create_sell_order(
+                 id,
+                 params["asset_id"],
+                 params["quantity"],
+                 params["price_per_unit"]
+               ) do
             {:ok, res} ->
               %{status: "ok", res: BluePotion.sanitize_struct(res)}
 
             {:error, reason} ->
               %{status: "error", reason: reason}
           end
-
-
 
         "create_buy_order" ->
           {:ok, res} =
@@ -107,7 +103,11 @@ defmodule CommerceFrontWeb.ApiController do
               params["asset_id"],
               Decimal.new(params["quantity"]) |> Decimal.round(2),
               Decimal.new(params["price_per_unit"]),
-              Decimal.mult(Decimal.new(params["quantity"]) |> Decimal.round(2), Decimal.new(params["price_per_unit"])) |> Decimal.round(2)
+              Decimal.mult(
+                Decimal.new(params["quantity"]) |> Decimal.round(2),
+                Decimal.new(params["price_per_unit"])
+              )
+              |> Decimal.round(2)
             )
 
           %{status: "ok", res: BluePotion.sanitize_struct(res)}
@@ -115,10 +115,6 @@ defmodule CommerceFrontWeb.ApiController do
         "list_asset_tranches" ->
           Settings.list_asset_tranches()
           |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
-
-
-
-
 
         "list_assets" ->
           Settings.list_assets() |> BluePotion.sanitize_struct()
@@ -131,7 +127,8 @@ defmodule CommerceFrontWeb.ApiController do
           %{
             lines:
               Enum.map(q.lines, fn l ->
-                %{seq: l.seq,
+                %{
+                  seq: l.seq,
                   asset_tranche_id: l.asset_tranche_id,
                   qty: to_string(l.qty),
                   unit_price: to_string(l.unit_price)
@@ -182,8 +179,6 @@ defmodule CommerceFrontWeb.ApiController do
                   sort: "asc",
                   offset: 1000
                 ]
-
-
 
                 case ZkEvm.Wallet.token_transfers(wallet.address, api_key, opts) do
                   {:ok, transfers} ->
@@ -1061,13 +1056,14 @@ defmodule CommerceFrontWeb.ApiController do
       case params["scope"] do
         "cancel_order" ->
           IO.inspect("cancelorder")
-        case CommerceFront.Market.Secondary.cancel_order(params["order_id"], id) do
-          {:ok, r} ->
-            %{status: "ok"}
 
-          {:error, reason} ->
-            %{status: "error", reason: reason}
-        end
+          case CommerceFront.Market.Secondary.cancel_order(params["order_id"], id) do
+            {:ok, r} ->
+              %{status: "ok"}
+
+            {:error, reason} ->
+              %{status: "error", reason: reason}
+          end
 
         "primary_buy_execute" ->
           sample = %{
@@ -1401,6 +1397,20 @@ defmodule CommerceFrontWeb.ApiController do
         "approve_merchant_withdrawal" ->
           params["id"]
           |> Settings.approve_merchant_withdrawal()
+          |> case do
+            {:ok, _res} ->
+              %{status: "ok"}
+
+            {:error, "already paid"} ->
+              %{status: "error", reason: "already paid"}
+
+            _ ->
+              %{status: "error"}
+          end
+
+        "approve_token_withdrawal_batch" ->
+          params["id"]
+          |> Settings.approve_withdrawal_batch(:active_token)
           |> case do
             {:ok, _res} ->
               %{status: "ok"}

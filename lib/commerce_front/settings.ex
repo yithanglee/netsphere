@@ -486,32 +486,49 @@ defmodule CommerceFront.Settings do
 
   def create_wallet_withdrawal(params \\ %{}) do
     params =
-      if "amount" in Map.keys(params) do
+      if "withdrawal_type" in Map.keys(params) do
         amount = params |> Map.get("amount") |> Float.parse() |> elem(0)
 
-        params =
-          Map.merge(params, %{
-            "final_amount_in_myr" => amount * 0.97 * 5,
-            "amount_in_myr" => amount * 5,
-            "processing_fee" => amount * 0.03,
-            "processing_fee_in_myr" => amount * 0.03 * 5
-          })
+        if params["withdrawal_type"] == "active_token" do
+          params =
+            Map.merge(params, %{
+              "processing_fee" => 1.00,
+              "bank_name" => "NETSPHERE POLYGON"
+            })
+        else
+          params =
+            params =
+            Map.merge(params, %{
+              "processing_fee" => amount * 0.05
+            })
+        end
       else
         params
       end
 
-    cg = WalletWithdrawal.changeset(%WalletWithdrawal{}, params)
+    cg =
+      WalletWithdrawal.changeset(%WalletWithdrawal{}, params)
+      |> IO.inspect(label: "cg")
+
+    withdrawal_type = params["withdrawal_type"] |> String.to_atom() || :bonus
 
     wallet =
       list_ewallets_by_user_id(params["user_id"])
-      |> Enum.filter(&(&1.wallet_type == :bonus))
+      |> Enum.filter(&(&1.wallet_type == withdrawal_type))
       |> List.first()
+
+    wallet =
+      if wallet == nil do
+        %CommerceFront.Settings.Ewallet{total: 0}
+      else
+        wallet
+      end
 
     {amount, _tail} = Float.parse(params["amount"])
 
     cond do
-      amount < 100 ->
-        {:error, Ecto.Changeset.add_error(cg, :amount, "Cannot be less than 100")}
+      amount < 0.01 ->
+        {:error, Ecto.Changeset.add_error(cg, :amount, "Cannot be less than 0.01")}
 
       amount > wallet.total ->
         {:error,
@@ -587,33 +604,73 @@ defmodule CommerceFront.Settings do
     end
   end
 
-  def approve_withdrawal_batch(id) do
+  def approve_withdrawal_batch(id, withdrawal_type \\ :bonus) do
     wb = get_withdrawal_batch!(id)
 
     if wb.paid_date == nil do
-      withdrawals = Repo.all(from(ww in WalletWithdrawal, where: ww.withdrawal_batch_id == ^id))
+      withdrawals =
+        Repo.all(
+          from(ww in WalletWithdrawal,
+            where: ww.withdrawal_batch_id == ^id and ww.withdrawal_type == ^withdrawal_type
+          )
+        )
 
       Multi.new()
       |> Multi.run(:approve_withdrawal, fn _repo, %{} ->
         res =
           for withdrawal <- withdrawals do
-            update_wallet_withdrawal(withdrawal, %{is_paid: true})
+         {:ok, withdrawal} =   update_wallet_withdrawal(withdrawal, %{is_paid: true})
 
-            CommerceFront.Settings.create_wallet_transaction(%{
-              user_id: withdrawal.user_id,
-              amount: (withdrawal.amount * -0.97) |> Float.round(2),
-              remarks:
-                "withdrawal #{wb.code} to #{withdrawal.bank_name} #{withdrawal.bank_account_number}",
-              wallet_type: "bonus"
-            })
+            case withdrawal_type do
+              :bonus ->
+                CommerceFront.Settings.create_wallet_transaction(%{
+                  user_id: withdrawal.user_id,
+                  amount: ((withdrawal.amount - 1.0) |> Float.round(2)) * -1,
+                  remarks:
+                    "withdrawal #{wb.code} to #{withdrawal.bank_name} #{withdrawal.bank_account_number}",
+                  wallet_type: "bonus"
+                })
 
-            CommerceFront.Settings.create_wallet_transaction(%{
-              user_id: withdrawal.user_id,
-              amount: (withdrawal.amount * -0.03) |> Float.round(2),
-              remarks:
-                "#{wb.code} processing fee #{withdrawal.amount} * 0.03 = #{withdrawal.amount * 0.03} ",
-              wallet_type: "bonus"
-            })
+                CommerceFront.Settings.create_wallet_transaction(%{
+                  user_id: withdrawal.user_id,
+                  amount: -1.0 |> Float.round(2),
+                  remarks: "#{wb.code} processing fee - 1.00} ",
+                  wallet_type: "bonus"
+                })
+
+              :active_token ->
+                CommerceFront.Settings.create_wallet_transaction(%{
+                  user_id: withdrawal.user_id,
+                  amount: ((withdrawal.amount * 0.95) |> Float.round(2)) * -1,
+                  remarks:
+                    "withdrawal #{wb.code} to #{withdrawal.bank_name} #{withdrawal.bank_account_number}",
+                  wallet_type: "token"
+                })
+
+                CommerceFront.Settings.create_wallet_transaction(%{
+                  user_id: withdrawal.user_id,
+                  amount: ((withdrawal.amount * 0.05) |> Float.round(2)) * -1,
+                  remarks:
+                    "#{wb.code} processing fee - #{(withdrawal.amount * 0.05) |> Float.round(2)} ",
+                  wallet_type: "token"
+                })
+
+                case CommerceFront.Settings.admin_token_approve(%{
+                       owner_user_id: withdrawal.user_id,
+                       spender_address: withdrawal.bank_account_number,
+                       token_address:
+                         Application.get_env(:commerce_front, :token_contract_address),
+                       amount: (withdrawal.amount * 0.95) |> Float.round(2)
+                     }) do
+                  {:ok, %{tx_hash: hash}} ->
+
+
+                    update_wallet_withdrawal(withdrawal, %{"tx_hash" => hash})
+                     %{status: "ok", tx_hash: hash}
+                  {:error, reason} ->
+                    %{status: "error", reason: reason}
+                end
+            end
           end
 
         update_withdrawal_batch(wb, %{"paid_date" => Date.utc_today()})
@@ -5454,8 +5511,6 @@ defmodule CommerceFront.Settings do
                   {:ok, ewallets} = create_wallet_transaction(params2)
 
                   Elixir.Task.start_link(__MODULE__, :delayed_create_buy_order, [ewallets])
-
-
                 end
 
                 update_reward(reward, %{is_paid: true})
@@ -5487,9 +5542,7 @@ defmodule CommerceFront.Settings do
     CommerceFront.Market.Secondary.create_buy_order(
       wt.user_id,
       current_tranche.asset_id,
-      Decimal.from_float(
-        wt.amount / (current_tranche.unit_price |> Decimal.to_float())
-      )
+      Decimal.from_float(wt.amount / (current_tranche.unit_price |> Decimal.to_float()))
       |> Decimal.round(2),
       current_tranche.unit_price,
       wt.amount
@@ -8688,19 +8741,16 @@ defmodule CommerceFront.Settings do
     quantity =
       Decimal.div(Decimal.from_float(amount), current_tranche.unit_price) |> Decimal.round(5)
 
-
-      Multi.new()
-      |> Multi.run(:create_buy_order, fn _repo, _ ->
-        CommerceFront.Market.Secondary.create_buy_order(
-          user_id,
-          1,
-          quantity,
-          current_tranche.unit_price
-        )
-      end)
-      |> Repo.transaction()
-
-
+    Multi.new()
+    |> Multi.run(:create_buy_order, fn _repo, _ ->
+      CommerceFront.Market.Secondary.create_buy_order(
+        user_id,
+        1,
+        quantity,
+        current_tranche.unit_price
+      )
+    end)
+    |> Repo.transaction()
   end
 
   # Check if user has enough active_token balance for selling

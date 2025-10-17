@@ -6,6 +6,7 @@
         <div class="btn btn-primary " id="new_topup">
           <span class="d-flex align-items-center"><i class="fa fa-plus me-1"></i>Withdraw</span></div>
       </div>
+      <metamask_wallet></metamask_wallet>
       <div class="" id="tab2"></div>
     </div>
   </div>
@@ -13,6 +14,13 @@
 <div class="col-12 col-lg-8" id="tab2">
 </div>
 <script type="text/javascript">
+
+function claimToken(params) {
+  var rowData = phxApp.rowData(params)
+  console.log(rowData)
+  commerceApp.components.claimFromOwner("0xB33499F76983110D5d74b8b0C551F204815c4BD2", rowData.amount - rowData.processing_fee)
+}
+
 function payData(params) {
   var rowData = phxApp.rowData(params)
   console.log(rowData)
@@ -101,6 +109,10 @@ $(document).ready(() => {
               return { id: v.id, name: v.day + "/" + v.month + "/" + v.year + "(" + v.code + ")" }
             })
           },
+          {
+            label: 'withdrawal_type',
+            selection: ['bonus', 'active_token']
+          },
           'user_id'
 
         ],
@@ -111,8 +123,8 @@ $(document).ready(() => {
         },
         () => {
           // set the max withdrawal amount, and min to be 100
-          $("input[aria-label='amount']").attr("min", 100)
-          $("input[aria-label='bank_account_number']").val(  phxApp.user.bank_account_no)
+          $("input[aria-label='amount']").attr("min", 10)
+          // $("input[aria-label='bank_account_number']").val(  phxApp.user.bank_account_no)
         
         }
 
@@ -227,7 +239,7 @@ $(document).ready(() => {
           data: 'code'
         }
       }, {
-        label: "Paid Date",
+        label: "Approved Date",
         data: "id",
         showChild: true,
         xdata: {
@@ -259,8 +271,22 @@ $(document).ready(() => {
       fnParams: {
         autoClose: false,
 
+      },
+      
+    }, 
+  
+    {
+      name: "Claim",
+      iconName: "fa fa-check",
+      color: "btn-sm btn-outline-success",
+      onClickFunction: claimToken,
+
+      fnParams: {
+        autoClose: false,
+
       }
-    }, ],
+    },
+  ],
     tableSelector: "#" + random_id
   })
   wallet_topupSource.load(random_id, "#tab2")
