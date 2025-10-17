@@ -566,7 +566,7 @@ defmodule CommerceFront.Market.Secondary do
             {:ok, _} ->
               # Update tranche sold quantity
               IO.inspect(injection_quantity, label: "injection_quantity")
-              IEx.pry
+
               update_tranche_sold_quantity(tranche.id, injection_quantity)
               # Update total traded quantity (includes company injection)
               update_tranche_traded_quantity(tranche.id, injection_quantity)
