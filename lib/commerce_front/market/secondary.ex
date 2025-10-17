@@ -547,7 +547,7 @@ defmodule CommerceFront.Market.Secondary do
     # Determine how much we can inject from current tranche (respect both caps)
     injection_quantity =
       needed_quantity
-      |> Decimal.min(available_total)
+      |> Decimal.min(available_company)
 
     if Decimal.compare(injection_quantity, Decimal.new("0")) == :gt do
       # Inject synthetic sell order
@@ -565,6 +565,8 @@ defmodule CommerceFront.Market.Secondary do
           case execute_synthetic_trade(trade_params, buy_order, tranche) do
             {:ok, _} ->
               # Update tranche sold quantity
+              IO.inspect(injection_quantity, label: "injection_quantity")
+              IEx.pry
               update_tranche_sold_quantity(tranche.id, injection_quantity)
               # Update total traded quantity (includes company injection)
               update_tranche_traded_quantity(tranche.id, injection_quantity)
