@@ -491,15 +491,17 @@ defmodule CommerceFront.Settings do
 
         if params["withdrawal_type"] == "active_token" do
           params =
-            Map.merge(params, %{
-              "processing_fee" => 1.00,
-              "bank_name" => "NETSPHERE POLYGON"
-            })
-        else
-          params =
             params =
             Map.merge(params, %{
               "processing_fee" => amount * 0.005
+            })
+
+
+        else
+          params =
+            Map.merge(params, %{
+              "processing_fee" => 1.00,
+              "bank_name" => "NETSPHERE POLYGON"
             })
         end
       else
@@ -651,7 +653,7 @@ defmodule CommerceFront.Settings do
                   user_id: withdrawal.user_id,
                   amount: ((withdrawal.amount * 0.05) |> Float.round(2)) * -1,
                   remarks:
-                    "#{wb.code} processing fee - #{(withdrawal.amount * 0.05) |> Float.round(2)} ",
+                    "#{wb.code} processing fee - #{(withdrawal.amount * 0.005) |> Float.round(2)} ",
                   wallet_type: "token"
                 })
 
