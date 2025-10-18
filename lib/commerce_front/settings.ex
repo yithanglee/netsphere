@@ -499,7 +499,7 @@ defmodule CommerceFront.Settings do
           params =
             params =
             Map.merge(params, %{
-              "processing_fee" => amount * 0.05
+              "processing_fee" => amount * 0.005
             })
         end
       else
