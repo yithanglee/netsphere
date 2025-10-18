@@ -544,10 +544,12 @@ defmodule CommerceFront.Market.Secondary do
     available_total = Decimal.sub(tranche.quantity, tranche.traded_qty)
     available_company = Decimal.sub(tranche.quantity, tranche.qty_sold)
 
+    # damien: difficult to tell, actually need the backfill function and get last traded quantity after amount.
+    # as long as the backfill function the
     # Determine how much we can inject from current tranche (respect both caps)
     injection_quantity =
       needed_quantity
-      |> Decimal.min(available_company)
+      |> Decimal.min(available_total)
 
     if Decimal.compare(injection_quantity, Decimal.new("0")) == :gt do
       # Inject synthetic sell order
@@ -881,13 +883,12 @@ defmodule CommerceFront.Market.Secondary do
         refs =
           case Map.get(results, :seller_token_credit) do
             %{wallet_transaction: wt} ->
-
-if wt.user_id != CommerceFront.Settings.finance_user.id do
-  CommerceFront.Settings.manual_create_buy_order(wt.user_id, wt.amount)
-
-end
+              if wt.user_id != CommerceFront.Settings.finance_user().id do
+                CommerceFront.Settings.manual_create_buy_order(wt.user_id, wt.amount)
+              end
 
               Map.put(refs, :seller_token_tx_id, wt.id)
+
             _ ->
               refs
           end
