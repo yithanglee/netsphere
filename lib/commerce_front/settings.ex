@@ -639,7 +639,7 @@ defmodule CommerceFront.Settings do
                   remarks: "#{wb.code} processing fee - 1.00} ",
                   wallet_type: "bonus"
                 })
-                
+
 
               :active_token ->
                 CommerceFront.Settings.create_wallet_transaction(%{
@@ -4771,17 +4771,23 @@ defmodule CommerceFront.Settings do
         {:ok, final_multi_res}
       end)
       |> Multi.run(:secondary_market_buy, fn _repo, %{user: user, ewallets: ewallets} ->
-        current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
-        wt = ewallets |> Map.get(:wallet_transaction) |> IO.inspect(label: "wallet transaction")
+        if params["stockist"] != nil do
+        else
+          current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
+          wt = ewallets |> Map.get(:wallet_transaction) |> IO.inspect(label: "wallet transaction")
 
-        CommerceFront.Market.Secondary.create_buy_order(
-          user.id,
-          current_tranche.asset_id,
-          Decimal.from_float(wt.amount / (current_tranche.unit_price |> Decimal.to_float())),
-          current_tranche.unit_price,
-          Decimal.from_float(wt.amount)
-        )
-        |> IO.inspect(label: "create_buy_order")
+          CommerceFront.Market.Secondary.create_buy_order(
+            user.id,
+            current_tranche.asset_id,
+            Decimal.from_float(wt.amount / (current_tranche.unit_price |> Decimal.to_float())),
+            current_tranche.unit_price,
+            Decimal.from_float(wt.amount)
+          )
+          |> IO.inspect(label: "create_buy_order")
+
+
+
+        end
 
         {:ok, nil}
       end)
