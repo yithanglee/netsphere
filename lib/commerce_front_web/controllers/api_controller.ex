@@ -148,6 +148,41 @@ defmodule CommerceFrontWeb.ApiController do
           Settings.get_crypto_wallet_by_user_id(id)
           |> BluePotion.sanitize_struct()
 
+        "crypto_assets" ->
+          token_address =
+            Application.get_env(:commerce_front, :token_contract_address) ||
+              System.get_env("TOKEN_CONTRACT_ADDRESS")
+
+          usdt_address =
+            Application.get_env(:commerce_front, :usdt_contract_address) ||
+              System.get_env("USDT_CONTRACT_ADDRESS")
+
+          %{
+            assets: [
+              %{symbol: "POL", type: "native"},
+              %{symbol: "NETSPH", type: "erc20", contract: token_address},
+              %{symbol: "USDT", type: "erc20", contract: usdt_address}
+            ]
+          }
+
+        "crypto_native_balance" ->
+          wallet = Settings.get_crypto_wallet_by_user_id(id)
+
+          if wallet do
+            case Ethereumex.HttpClient.eth_get_balance(wallet.address, "latest") do
+              {:ok, hex} ->
+                raw = String.replace_prefix(hex, "0x", "") |> String.to_integer(16)
+                decimals = 18
+                formatted = raw / :math.pow(10, decimals)
+                %{address: wallet.address, raw: raw, decimals: decimals, formatted: formatted}
+
+              {:error, reason} ->
+                %{status: "error", reason: inspect(reason)}
+            end
+          else
+            %{status: "error", reason: "no wallet"}
+          end
+
         "crypto_wallet_balance" ->
           wallet = Settings.get_crypto_wallet_by_user_id(id)
 

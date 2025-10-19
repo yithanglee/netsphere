@@ -639,6 +639,7 @@ defmodule CommerceFront.Settings do
                   remarks: "#{wb.code} processing fee - 1.00} ",
                   wallet_type: "bonus"
                 })
+                
 
               :active_token ->
                 CommerceFront.Settings.create_wallet_transaction(%{
