@@ -340,6 +340,53 @@ defmodule ZkEvm.Token do
     request_polygonscan(params)
   end
 
+  @doc """
+  Transfer native POL from a wallet to a recipient.
+  Requires private key of sender. Amount is in POL (ether units).
+  Returns {:ok, tx_hash} on success.
+  """
+  def transfer_native(privkey_hex, to_address, amount) do
+    privkey = Base.decode16!(String.replace_leading(privkey_hex, "0x", ""), case: :lower)
+
+    {:ok, from_address} = privkey_to_address(privkey)
+
+    # Convert amount (POL) to wei
+    value = trunc(amount * :math.pow(10, 18))
+
+    # Fetch nonce and chain id
+    {:ok, nonce_hex} = HttpClient.eth_get_transaction_count(from_address, "latest")
+    nonce = hex_to_integer(nonce_hex)
+    {:ok, chain_id_hex} = HttpClient.eth_chain_id()
+    chain_id = hex_to_integer(chain_id_hex)
+
+    gas_price =
+      case HttpClient.eth_gas_price() do
+        {:ok, gp_hex} -> hex_to_integer(gp_hex)
+        _ -> 30_000_000_000
+      end
+
+    # Estimate gas for simple transfer
+    gas_limit =
+      case HttpClient.eth_estimate_gas(%{from: from_address, to: to_address, value: "0x" <> Integer.to_string(value, 16)}) do
+        {:ok, gas_hex} -> hex_to_integer(gas_hex)
+        _ -> 21_000
+      end
+
+    tx = %{
+      nonce: nonce,
+      gasPrice: gas_price,
+      gas: gas_limit,
+      to: to_address,
+      value: value,
+      data: "0x",
+      chainId: chain_id
+    }
+
+    signed = sign_transaction(tx, privkey)
+
+    HttpClient.eth_send_raw_transaction("0x" <> Base.encode16(signed, case: :lower))
+  end
+
   defp request_polygonscan(params) do
     url = @polygonscan_zkevm_api <> "?" <> URI.encode_query(params)
 

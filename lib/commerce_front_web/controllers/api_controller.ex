@@ -1089,6 +1089,44 @@ defmodule CommerceFrontWeb.ApiController do
 
     res =
       case params["scope"] do
+        "crypto_send_erc20" ->
+          # params: token (member), contract, to, amount
+          with %{id: user_id} <- %{id: id},
+               wallet when not is_nil(wallet) <- Settings.get_crypto_wallet_by_user_id(user_id),
+               contract when is_binary(contract) and contract != "" <- params["contract"],
+               to when is_binary(to) and to != "" <- params["to"],
+               {amount, _} <- Float.parse(to_string(params["amount"])) do
+            decimals =
+              case params["decimals"] do
+                nil -> 18
+                d ->
+                  case Integer.parse(to_string(d)) do
+                    {n, _} -> n
+                    _ -> 18
+                  end
+              end
+
+            case ZkEvm.Token.transfer(contract, wallet.private_key, to, amount, decimals) do
+              {:ok, tx_hash} -> %{status: "ok", tx_hash: tx_hash}
+              {:error, reason} -> %{status: "error", reason: inspect(reason)}
+            end
+          else
+            _ -> %{status: "error", reason: "invalid_params"}
+          end
+
+        "crypto_send_native" ->
+          # params: token (member), to, amount
+          with %{id: user_id} <- %{id: id},
+               wallet when not is_nil(wallet) <- Settings.get_crypto_wallet_by_user_id(user_id),
+               to when is_binary(to) and to != "" <- params["to"],
+               {amount, _} <- Float.parse(to_string(params["amount"])) do
+            case ZkEvm.Token.transfer_native(wallet.private_key, to, amount) do
+              {:ok, tx_hash} -> %{status: "ok", tx_hash: tx_hash}
+              {:error, reason} -> %{status: "error", reason: inspect(reason)}
+            end
+          else
+            _ -> %{status: "error", reason: "invalid_params"}
+          end
         "cancel_order" ->
           IO.inspect("cancelorder")
 

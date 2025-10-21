@@ -8743,7 +8743,8 @@ defmodule CommerceFront.Settings do
 
     result
   end
-  # CommerceFront.Settings.manual_create_buy_order(user_id, 20.16)
+  # CommerceFront.Settings.manual_create_buy_order(51, 20.16)
+  # CommerceFront.Settings.manual_create_buy_order(149, 20.16)
   def manual_create_buy_order(user_id, amount) do
     current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
 
