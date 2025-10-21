@@ -96,7 +96,7 @@ defmodule CommerceFrontWeb.PageController do
 
         translate = fn keyword, html ->
           if keyword == "Sales History" && html |> String.contains?("Sales History") do
-            # IEx.pry()
+
           end
 
           String.replace(html, keyword, translation_map[keyword])
