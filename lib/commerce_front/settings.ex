@@ -6901,6 +6901,7 @@ defmodule CommerceFront.Settings do
       sales l
       left join payments p on p.sales_id = l.id
       full join drp_data dp on dp.id = l.id
+      where l.status in ('processing', 'pending_delivery', 'sent')
       group by  to_char( l.inserted_at , 'YYYY') order by to_char( l.inserted_at , 'YYYY') desc ;
 
 
@@ -6971,6 +6972,7 @@ defmodule CommerceFront.Settings do
       sales l
       left join payments p on p.sales_id = l.id
       full join drp_data dp on dp.id = l.id
+      where l.status in ('processing', 'pending_delivery', 'sent')
       group by  to_char( l.inserted_at , 'YYYY') order by to_char( l.inserted_at , 'YYYY') desc ;
 
 
@@ -7010,6 +7012,8 @@ defmodule CommerceFront.Settings do
       sum(l.subtotal) FILTER(WHERE to_char( l.inserted_at , 'YYYY') = to_char( l.inserted_at , 'YYYY') and to_char( l.inserted_at , 'MM') = '12') AS dec
     from
       sales l
+
+      where l.status in ('processing', 'pending_delivery', 'sent')
       group by to_char( l.inserted_at , 'YYYY') order by to_char( l.inserted_at , 'YYYY') desc ;
     """
 
