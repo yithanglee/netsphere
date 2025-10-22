@@ -183,6 +183,71 @@ defmodule CommerceFrontWeb.ApiController do
             %{status: "error", reason: "no wallet"}
           end
 
+        "crypto_native_transfers" ->
+          wallet = Settings.get_crypto_wallet_by_user_id(id)
+
+          if wallet do
+            api_key =
+              Application.get_env(:commerce_front, :etherscan_api_key) ||
+                System.get_env("ETHERSCAN_API_KEY") ||
+                System.get_env("POLYGONSCAN_API_KEY")
+
+            if api_key in [nil, ""] do
+              %{status: "error", reason: "explorer api key not configured"}
+            else
+              chain_id =
+                case Application.get_env(:commerce_front, :chain_id) do
+                  nil -> 137
+                  v when is_integer(v) -> v
+                  v when is_binary(v) ->
+                    case Integer.parse(v) do
+                      {n, _} -> n
+                      _ -> 137
+                    end
+                  _ -> 137
+                end
+              opts = [
+                provider: :etherscan_v2,
+                chainid: chain_id,
+                startblock: 0,
+                endblock: 99_999_999,
+                sort: "desc",
+                offset: 100
+              ]
+
+              normal = case ZkEvm.Wallet.tx_history(wallet.address, api_key, opts) do
+                {:ok, list} -> list
+                _ -> []
+              end
+
+              internal = case ZkEvm.Wallet.internal_tx_history(wallet.address, api_key, opts) do
+                {:ok, list} -> list
+                _ -> []
+              end
+
+              # Normalize basic fields; value in wei; include type to distinguish
+              norm = fn list, type ->
+                Enum.map(list, fn t ->
+                  %{
+                    type: type,
+                    hash: t["hash"],
+                    from: t["from"],
+                    to: t["to"],
+                    value: t["value"] || t["valueWei"],
+                    timeStamp: t["timeStamp"],
+                    isError: t["isError"] || "0"
+                  }
+                end)
+              end
+
+              transfers = norm.(normal, "normal") ++ norm.(internal, "internal")
+
+              %{address: wallet.address, decimals: 18, transfers: transfers}
+            end
+          else
+            %{status: "error", reason: "no wallet"}
+          end
+
         "crypto_wallet_balance" ->
           wallet = Settings.get_crypto_wallet_by_user_id(id)
 
@@ -205,9 +270,20 @@ defmodule CommerceFrontWeb.ApiController do
                 %{status: "error", reason: "explorer api key not configured"}
 
               _ ->
+                chain_id =
+                  case Application.get_env(:commerce_front, :chain_id) do
+                    nil -> 137
+                    v when is_integer(v) -> v
+                    v when is_binary(v) ->
+                      case Integer.parse(v) do
+                        {n, _} -> n
+                        _ -> 137
+                      end
+                    _ -> 137
+                  end
                 opts = [
                   provider: :etherscan_v2,
-                  chainid: 137,
+                  chainid: chain_id,
                   contractaddress: token_address,
                   startblock: 0,
                   endblock: 99_999_999,
@@ -867,6 +943,23 @@ defmodule CommerceFrontWeb.ApiController do
         "gen_inputs" ->
           BluePotion.test_module(params["module"])
 
+        "chain_config" ->
+          chain_id =
+            case Application.get_env(:commerce_front, :chain_id) do
+              nil -> 137
+              v when is_integer(v) -> v
+              v when is_binary(v) ->
+                case Integer.parse(v) do
+                  {n, _} -> n
+                  _ -> 137
+                end
+              _ -> 137
+            end
+          %{
+            chain_id: chain_id,
+            chain_id_hex: "0x" <> Integer.to_string(chain_id, 16)
+          }
+
         _ ->
           %{status: "ok"}
       end
@@ -1437,6 +1530,14 @@ defmodule CommerceFrontWeb.ApiController do
           end
 
         # params["status"]
+
+        "withhold_reward" ->
+          Settings.update_reward(Settings.get_reward!(params["id"]), %{is_withheld: true})
+          %{status: "ok"}
+
+          "unwithhold_reward" ->
+            Settings.update_reward(Settings.get_reward!(params["id"]), %{is_withheld: false})
+            %{status: "ok"}
 
         "pay_reward" ->
           Settings.pay_unpaid_bonus(

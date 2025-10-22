@@ -73,6 +73,7 @@ config :commerce_front, CommerceFront.Scheduler,
   ]
 
 config :commerce_front,
+chain_id: System.get_env("CHAIN_ID"),
 etherscan_api_key: System.get_env("ETHERSCAN_API_KEY"),
 token_contract_address: System.get_env("TOKEN_CONTRACT_ADDRESS")
 

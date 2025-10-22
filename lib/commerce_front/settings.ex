@@ -5420,7 +5420,7 @@ defmodule CommerceFront.Settings do
   end
 
   # todo 2025:09:06: need to add the reward limit [team bonus], max their current package pv x 9.
-  def pay_unpaid_bonus(date, bonus_list) do
+  def pay_unpaid_bonus(date, bonus_list, excluded_reward_ids \\ []) do
     {y, m, d} = date |> Date.to_erl()
 
     matrix = ["sharing bonus", "team bonus", "matching bonus", "elite leader"]
@@ -5431,6 +5431,7 @@ defmodule CommerceFront.Settings do
           from(r in Reward,
             where:
               r.is_paid == false and
+                r.is_withheld == false and
                 r.name == ^bonus and r.day == ^d and r.month == ^m and
                 r.year == ^y
           )
