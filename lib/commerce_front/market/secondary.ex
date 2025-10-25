@@ -140,8 +140,12 @@ defmodule CommerceFront.Market.Secondary do
   Update the sold quantity for a tranche.
   """
   def update_tranche_sold_quantity(tranche_id, additional_qty) do
-    from(t in AssetTranche, where: t.id == ^tranche_id)
-    |> Repo.update_all(inc: [qty_sold: Decimal.to_float(additional_qty)])
+    tranche = Repo.get!(AssetTranche, tranche_id)
+    qty_sold = Decimal.add(tranche.qty_sold, additional_qty)
+
+    Settings.update_asset_tranche(tranche, %{
+      qty_sold: qty_sold
+    })
   end
 
   def update_tranche_traded_quantity(tranche_id, additional_qty) do
@@ -367,11 +371,13 @@ defmodule CommerceFront.Market.Secondary do
                            |> IO.inspect(label: "market order") do
                       # Try to match with existing sell orders or inject liquidity
 
-                      match_and_execute_tranche_based_trades(
-                        order,
-                        current_tranche,
-                        remainder_breakdowns
-                      )
+                      trade_res =
+                        match_and_execute_tranche_based_trades(
+                          order,
+                          current_tranche,
+                          remainder_breakdowns
+                        )
+                        |> IO.inspect(label: "trade_res")
 
                       {:ok, order}
                     end
@@ -568,27 +574,34 @@ defmodule CommerceFront.Market.Secondary do
             {:ok, _} ->
               # Update tranche sold quantity
               IO.inspect(injection_quantity, label: "injection_quantity")
+              update1 = update_tranche_sold_quantity(tranche.id, injection_quantity)
+              update2 = update_tranche_traded_quantity(tranche.id, injection_quantity)
+IEx.pry
+              with {:ok, updated_tranche1} <- update1,
+                   # Update total traded quantity (includes company injection)
+                   {:ok, updated_tranche2} <- update2 do
+                # TODO: Cross-tranche fulfillment disabled to avoid nested transaction wallet lock issues.
+                # To support cross-tranche orders, refactor to loop within match_buy_order_with_tranche_rules
+                # and aggregate all fills before a single wallet deduction.
+                remaining_after_injection = Decimal.sub(needed_quantity, injection_quantity)
 
-              update_tranche_sold_quantity(tranche.id, injection_quantity)
-              # Update total traded quantity (includes company injection)
-              update_tranche_traded_quantity(tranche.id, injection_quantity)
+                if Decimal.compare(remaining_after_injection, Decimal.new("0")) == :gt do
+                  IO.inspect(remaining_after_injection,
+                    label: "remaining_unfilled_after_tranche_exhausted"
+                  )
 
-              # TODO: Cross-tranche fulfillment disabled to avoid nested transaction wallet lock issues.
-              # To support cross-tranche orders, refactor to loop within match_buy_order_with_tranche_rules
-              # and aggregate all fills before a single wallet deduction.
-              remaining_after_injection = Decimal.sub(needed_quantity, injection_quantity)
+                  # Order remains partially filled; next matching cycle can try next tranche
+                end
 
-              if Decimal.compare(remaining_after_injection, Decimal.new("0")) == :gt do
-                IO.inspect(remaining_after_injection,
-                  label: "remaining_unfilled_after_tranche_exhausted"
-                )
-
-                # Order remains partially filled; next matching cycle can try next tranche
+                # After injection, check if tranche is filled and rotate
+                tranche = Repo.get(AssetTranche, tranche.id)
+                close_tranche_if_filled(tranche)
+              else
+                _ ->
+                  IEx.pry
+                  nil
+                  {:error, "Failed to execute synthetic trade: oversold tranche}"}
               end
-
-              # After injection, check if tranche is filled and rotate
-              tranche = Repo.get(AssetTranche, tranche.id)
-              close_tranche_if_filled(tranche)
 
             {:error, reason} ->
               {:error, "Failed to execute synthetic trade: #{inspect(reason)}"}

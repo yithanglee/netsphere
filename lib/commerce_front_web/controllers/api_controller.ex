@@ -155,7 +155,7 @@ defmodule CommerceFrontWeb.ApiController do
 
           usdt_address =
             Application.get_env(:commerce_front, :usdt_contract_address) ||
-              System.get_env("USDT_CONTRACT_ADDRESS")
+              System.get_env("USDT_CONTRACT_ADDRESS") || "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"
 
           %{
             assets: [
@@ -253,9 +253,9 @@ defmodule CommerceFrontWeb.ApiController do
 
           if wallet do
             token_address =
-              Application.get_env(:commerce_front, :token_contract_address) ||
-                System.get_env("TOKEN_CONTRACT_ADDRESS") ||
-                params["token_address"]
+              params["token_address"] || Application.get_env(:commerce_front, :token_contract_address) ||
+                System.get_env("TOKEN_CONTRACT_ADDRESS")
+
 
             api_key =
               Application.get_env(:commerce_front, :etherscan_api_key) ||
