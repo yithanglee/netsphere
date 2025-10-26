@@ -446,9 +446,64 @@ defmodule CommerceFront.Calculation do
   compress until the total_point_value is paid completely...
 
   need to pay the rest to unpaid account
+  Sarha Andya Angela
+sale =  CommerceFront.Settings.get_sale!(146)
+
+  CommerceFront.Calculation.sharing_bonus(sale.user.username , sale.total_point_value, sale, nil)
 
   """
-  def sharing_bonus(username, total_point_value, sale, referral) do
+   def sharing_bonus(username, total_point_value, sale, referral) do
+    unpaid_node = unpaid_node()
+
+    uplines =
+      CommerceFront.Settings.check_uplines(username, :referal)
+      |> Enum.reverse()
+      |> List.insert_at(0, unpaid_node)
+      |> List.insert_at(0, unpaid_node)
+      |> List.insert_at(0, unpaid_node)
+      |> Enum.reverse()
+      |> Enum.with_index(1)
+
+
+    run_calc = fn {upline, index}, {calc_index, eval_matrix, remainder_point_value} ->
+      user = CommerceFront.Settings.get_user_by_username(upline.parent)
+      rank = user.rank_id |> CommerceFront.Settings.get_rank!() |> IO.inspect()
+
+      perc = 0.08
+
+      with true <- calc_index < 2  do
+        bonus = remainder_point_value * perc
+
+        {:ok, r} =
+          CommerceFront.Settings.create_reward(%{
+            sales_id: sale.id,
+            is_paid: false,
+            remarks:
+              "sales-#{sale.id}|#{remainder_point_value} * #{perc} = #{bonus}|lvl:#{calc_index}/#{rank.name}",
+            name: "sharing bonus",
+            amount: bonus |> Float.round(2),
+            user_id: user.id,
+            day: Date.utc_today().day,
+            month: Date.utc_today().month,
+            year: Date.utc_today().year
+          })
+
+        CommerceFront.Settings.pay_to_bonus_wallet(r, Multi.new(), true)
+
+        # remainder_point_value - bonus
+        {calc_index + 1, [],total_point_value}
+      else
+        _ ->
+          {calc_index, eval_matrix, total_point_value}
+      end
+    end
+
+    Enum.reduce(uplines, {1, [], total_point_value}, &run_calc.(&1, &2))
+
+    {:ok, nil}
+  end
+
+  def legacy_sharing_bonus(username, total_point_value, sale, referral) do
     unpaid_node = unpaid_node()
 
     uplines =
