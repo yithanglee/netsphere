@@ -576,7 +576,7 @@ defmodule CommerceFront.Market.Secondary do
               IO.inspect(injection_quantity, label: "injection_quantity")
               update1 = update_tranche_sold_quantity(tranche.id, injection_quantity)
               update2 = update_tranche_traded_quantity(tranche.id, injection_quantity)
-IEx.pry
+
               with {:ok, updated_tranche1} <- update1,
                    # Update total traded quantity (includes company injection)
                    {:ok, updated_tranche2} <- update2 do
@@ -598,7 +598,7 @@ IEx.pry
                 close_tranche_if_filled(tranche)
               else
                 _ ->
-                  IEx.pry
+
                   nil
                   {:error, "Failed to execute synthetic trade: oversold tranche}"}
               end

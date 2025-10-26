@@ -495,8 +495,6 @@ defmodule CommerceFront.Settings do
             Map.merge(params, %{
               "processing_fee" => amount * 0.005
             })
-
-
         else
           params =
             Map.merge(params, %{
@@ -621,7 +619,7 @@ defmodule CommerceFront.Settings do
       |> Multi.run(:approve_withdrawal, fn _repo, %{} ->
         res =
           for withdrawal <- withdrawals do
-         {:ok, withdrawal} =   update_wallet_withdrawal(withdrawal, %{is_paid: true})
+            {:ok, withdrawal} = update_wallet_withdrawal(withdrawal, %{is_paid: true})
 
             case withdrawal_type do
               :bonus ->
@@ -639,7 +637,6 @@ defmodule CommerceFront.Settings do
                   remarks: "#{wb.code} processing fee - 1.00} ",
                   wallet_type: "bonus"
                 })
-
 
               :active_token ->
                 CommerceFront.Settings.create_wallet_transaction(%{
@@ -666,10 +663,9 @@ defmodule CommerceFront.Settings do
                        amount: (withdrawal.amount * 0.95) |> Float.round(2)
                      }) do
                   {:ok, %{tx_hash: hash}} ->
-
-
                     update_wallet_withdrawal(withdrawal, %{"tx_hash" => hash})
-                     %{status: "ok", tx_hash: hash}
+                    %{status: "ok", tx_hash: hash}
+
                   {:error, reason} ->
                     %{status: "error", reason: reason}
                 end
@@ -4776,17 +4772,43 @@ defmodule CommerceFront.Settings do
           current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
           wt = ewallets |> Map.get(:wallet_transaction) |> IO.inspect(label: "wallet transaction")
 
+          token_needed =
+            Decimal.mult(
+              Decimal.sub(current_tranche.quantity, current_tranche.qty_sold),
+              current_tranche.unit_price
+            )
+
+          tranche =
+            if wt.amount > Decimal.to_float(token_needed ) do
+              # correction to take place
+              CommerceFront.Settings.backfill_secondary_market_trade_balances()
+
+              after_amt =
+                Repo.all(
+                  from(smt in CommerceFront.Settings.SecondaryMarketTrade, order_by: [desc: smt.id], select: smt.after)
+                )
+                |> List.first()
+
+              {:ok, updated_tranche} =
+                current_tranche
+                |> CommerceFront.Settings.update_asset_tranche(%{
+                  qty_sold: after_amt,
+                  traded_qty: after_amt
+                })
+
+              updated_tranche
+            else
+              current_tranche
+            end
+
           CommerceFront.Market.Secondary.create_buy_order(
             user.id,
-            current_tranche.asset_id,
-            Decimal.from_float(wt.amount / (current_tranche.unit_price |> Decimal.to_float())),
-            current_tranche.unit_price,
+            tranche.asset_id,
+            Decimal.from_float(wt.amount / (tranche.unit_price |> Decimal.to_float())),
+            tranche.unit_price,
             Decimal.from_float(wt.amount)
           )
           |> IO.inspect(label: "create_buy_order")
-
-
-
         end
 
         {:ok, nil}
@@ -8748,6 +8770,7 @@ defmodule CommerceFront.Settings do
 
     result
   end
+
   # CommerceFront.Settings.manual_create_buy_order(51, 20.16)
   # CommerceFront.Settings.manual_create_buy_order(149, 20.16)
   def manual_create_buy_order(user_id, amount) do
