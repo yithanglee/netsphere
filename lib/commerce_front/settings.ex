@@ -4779,13 +4779,16 @@ defmodule CommerceFront.Settings do
             )
 
           tranche =
-            if wt.amount > Decimal.to_float(token_needed ) do
+            if wt.amount > Decimal.to_float(token_needed) do
               # correction to take place
               CommerceFront.Settings.backfill_secondary_market_trade_balances()
 
               after_amt =
                 Repo.all(
-                  from(smt in CommerceFront.Settings.SecondaryMarketTrade, order_by: [desc: smt.id], select: smt.after)
+                  from(smt in CommerceFront.Settings.SecondaryMarketTrade,
+                    order_by: [desc: smt.id],
+                    select: smt.after
+                  )
                 )
                 |> List.first()
 
@@ -7958,7 +7961,28 @@ defmodule CommerceFront.Settings do
   end
 
   def generate_link(params) do
-    user = get_user_by_username(params["username"])
+    user =
+      get_user_by_username(params["username"])
+      |> Repo.preload(:stockist_users)
+      |> IO.inspect(label: "user")
+
+    user =
+      if params["recruit"] == "u2" do
+        user.stockist_users
+        |> Enum.filter(&(&1.username |> String.contains?("-U2")))
+        |> List.first()
+      else
+        user
+      end
+
+    user =
+      if params["recruit"] == "u3" do
+        user.stockist_users
+        |> Enum.filter(&(&1.username |> String.contains?("-U3")))
+        |> List.first()
+      else
+        user
+      end
 
     {:ok, l} =
       create_share_link(%{
