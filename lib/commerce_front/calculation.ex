@@ -447,7 +447,7 @@ defmodule CommerceFront.Calculation do
 
   need to pay the rest to unpaid account
   Sarha Andya Angela
-sale =  CommerceFront.Settings.get_sale!(146)
+  sale =  CommerceFront.Settings.get_sale!(146)
 
   CommerceFront.Calculation.sharing_bonus(sale.user.username , sale.total_point_value, sale, nil)
 
@@ -463,6 +463,7 @@ sale =  CommerceFront.Settings.get_sale!(146)
       |> List.insert_at(0, unpaid_node)
       |> Enum.reverse()
       |> Enum.with_index(1)
+      |> IO.inspect(label: "uplines")
 
 
     run_calc = fn {upline, index}, {calc_index, eval_matrix, remainder_point_value} ->
