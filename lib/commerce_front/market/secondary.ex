@@ -249,6 +249,17 @@ defmodule CommerceFront.Market.Secondary do
   """
   def create_sell_order(user_id, asset_id, quantity, price_per_unit) do
     # Enforce only one active (pending) sell order per user per asset
+
+    total_sales_by_members =
+      CommerceFront.Repo.all(
+        from(s in CommerceFront.Settings.Sale,
+          where: s.user_id == ^user_id,
+          group_by: s.user_id,
+          select: sum(s.subtotal)
+        )
+      )
+      |> List.first()
+
     existing_active_sell_count =
       from(o in SecondaryMarketOrder,
         where:
@@ -260,32 +271,64 @@ defmodule CommerceFront.Market.Secondary do
       )
       |> Repo.one()
 
+    existing_sell_amount =
+      from(o in SecondaryMarketOrder,
+        where:
+          o.user_id == ^user_id and
+            o.asset_id == ^asset_id and
+            o.order_type == "sell" and
+            o.status == "filled",
+        select: sum(o.total_amount)
+      )
+      |> Repo.one()
+      |> case do
+        nil -> Decimal.new("0")
+        amount -> amount
+      end
+
+    total_amount = Decimal.mult(quantity, price_per_unit)
+
     if existing_active_sell_count > 0 do
       {:error, "You already have an active sell order for this asset"}
     else
-      total_amount = Decimal.mult(quantity, price_per_unit)
 
       # Check if user has sufficient active_token balance
       unless Settings.has_sufficient_active_token_balance?(user_id, asset_id, quantity) do
         {:error, "Insufficient active_token balance"}
       else
-        order_params = %{
-          user_id: user_id,
-          order_type: "sell",
-          asset_id: asset_id,
-          quantity: quantity,
-          price_per_unit: price_per_unit,
-          total_amount: total_amount,
-          status: "pending",
-          filled_quantity: Decimal.new("0"),
-          remaining_quantity: quantity
-        }
 
-        with {:ok, order} <- Settings.create_secondary_market_order(order_params) do
-          # Try to match with existing buy orders
-          match_and_execute_trades(order)
-          {:ok, order}
+
+
+        current_sell_limit = (total_sales_by_members * 0.5) |> Decimal.from_float
+        upcoming_sell_amount = Decimal.add(existing_sell_amount, total_amount)
+        remaining_sell_limit = Decimal.sub(current_sell_limit, existing_sell_amount)
+
+
+
+        if Decimal.to_float(upcoming_sell_amount)  > Decimal.to_float(current_sell_limit) do
+          {:error, "You have reached the sell limit. You can only sell up to #{current_sell_limit} tokens. Balance: #{remaining_sell_limit}. Selling #{total_amount}, #{upcoming_sell_amount}"}
+        else
+          order_params = %{
+            user_id: user_id,
+            order_type: "sell",
+            asset_id: asset_id,
+            quantity: quantity,
+            price_per_unit: price_per_unit,
+            total_amount: total_amount,
+            status: "pending",
+            filled_quantity: Decimal.new("0"),
+            remaining_quantity: quantity
+          }
+
+          with {:ok, order} <- Settings.create_secondary_market_order(order_params) do
+            # Try to match with existing buy orders
+            match_and_execute_trades(order)
+            {:ok, order}
+          end
+
         end
+
+
       end
     end
   end
@@ -598,7 +641,6 @@ defmodule CommerceFront.Market.Secondary do
                 close_tranche_if_filled(tranche)
               else
                 _ ->
-
                   nil
                   {:error, "Failed to execute synthetic trade: oversold tranche}"}
               end

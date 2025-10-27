@@ -5842,38 +5842,6 @@ defmodule CommerceFront.Settings do
           wallet_type: "register"
         })
       end)
-      |> Multi.run(:placement, fn _repo, %{} ->
-        # maybe check if the user has a placement already
-        check = Repo.all(from(p in Placement, where: p.user_id == ^topup.user_id))
-
-        if check == [] do
-          user = get_user!(topup.user_id)
-
-          sponsor =
-            CommerceFront.Settings.check_uplines(user.username, :referral)
-            |> List.first()
-            |> Map.get(:parent)
-
-          preferred_position = fn ->
-            if user.preferred_position == "auto" do
-              nil
-            else
-              user.preferred_position
-            end
-          end
-
-          {position, parent_p} = determine_position(sponsor, true, preferred_position.())
-
-          create_placement(%{
-            parent_user_id: parent_p.user_id,
-            parent_placement_id: parent_p.id,
-            position: position,
-            user_id: user.id
-          })
-        else
-          {:ok, nil}
-        end
-      end)
       |> Repo.transaction()
       |> IO.inspect()
       |> case do
