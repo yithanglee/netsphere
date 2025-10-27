@@ -468,8 +468,8 @@ defmodule CommerceFront.Calculation do
 
     run_calc = fn {upline, index}, {calc_index, eval_matrix, remainder_point_value} ->
       user = CommerceFront.Settings.get_user_by_username(upline.parent)
-      rank = user.rank_id |> CommerceFront.Settings.get_rank!() |> IO.inspect()
-
+      rank = user.rank_id |> CommerceFront.Settings.get_rank!()
+      IO.inspect([user, rank], label: "user and rank")
       perc = 0.08
 
       with true <- calc_index < 2  do
