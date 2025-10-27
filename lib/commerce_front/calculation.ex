@@ -458,10 +458,6 @@ defmodule CommerceFront.Calculation do
     uplines =
       CommerceFront.Settings.check_uplines(username, :referal)
       |> Enum.reverse()
-      |> List.insert_at(0, unpaid_node)
-      |> List.insert_at(0, unpaid_node)
-      |> List.insert_at(0, unpaid_node)
-      |> Enum.reverse()
       |> Enum.with_index(1)
       |> IO.inspect(label: "uplines")
 
