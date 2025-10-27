@@ -4981,16 +4981,11 @@ defmodule CommerceFront.Settings do
         else
           if sale.total_point_value > 0 do
             unless "merchant" in Map.keys(params) do
-              # uplines = CommerceFront.Settings.check_uplines(user.username)
-              # referral = get_referral_by_username(List.first(uplines).child)
 
               if sale.subtotal >= 3600 do
                 sharing_bonus(user.username, sale.total_point_value / 3, sale, referral)
               else
-                # sale = CommerceFront.Settings.get_sale!(9)
-                # referral = CommerceFront.Settings.get_referral_by_username(sale.user.username)
-                # CommerceFront.Calculation.sharing_bonus(sale.user.username, sale.total_point_value, sale, referral)
-                #
+
                 sharing_bonus(user.username, sale.total_point_value, sale, referral)
               end
             else
@@ -5185,7 +5180,7 @@ defmodule CommerceFront.Settings do
     # |> where([m, pt, m2], m.id <= ^child_user_id)
     |> where([m, pt, m2], not is_nil(m2.id))
     |> select_statement.()
-    # |> order_by([m, pt, m2], desc: pt.id)
+    |> order_by([m, pt, m2], desc: pt.id)
     |> Repo.all()
   end
 
