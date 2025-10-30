@@ -6,7 +6,17 @@ defmodule CommerceFront.Application do
   use Application
 
   def start(_type, _args) do
+
+
+    source =
+      {:service_account,
+       File.read!("#{Application.app_dir(:commerce_front) <> "/priv/static"}/service-account.json")
+       |> Jason.decode!()}
+
+
     children = [
+
+      {Goth, name: CommerceFront.Goth, source: source},
       # {CommerceFront.Queue, []},
       CommerceFront.Repo,
       # Start the Telemetry supervisor

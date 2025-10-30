@@ -7,6 +7,7 @@ defmodule CommerceFront.Settings.CryptoWallet do
     field :private_key, :string
     field :public_key, :string
     field :user_id, :integer
+    field :second_password, :string
 
     timestamps()
   end
@@ -14,7 +15,7 @@ defmodule CommerceFront.Settings.CryptoWallet do
   @doc false
   def changeset(crypto_wallet, attrs) do
     crypto_wallet
-    |> cast(attrs, [:user_id, :address, :private_key, :public_key])
+    |> cast(attrs, [:user_id, :address, :private_key, :public_key, :second_password])
     |> validate_required([:user_id, :address, :private_key, :public_key])
   end
 end

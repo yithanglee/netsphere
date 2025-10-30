@@ -50,7 +50,7 @@ defmodule CommerceFront.Settings.WalletWithdrawal do
       :amount,
       # :remarks,
       # :is_paid,
-      :withdrawal_batch_id,
+      # :withdrawal_batch_id,
       # :paid_date,
       :bank_name,
       :bank_account_number

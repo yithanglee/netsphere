@@ -93,7 +93,8 @@ config :commerce_front, CommerceFront.Mailer,
   no_mx_lookups: false,
   auth: :if_available
 
-
+config :commerce_front, :encryption,
+  key: System.get_env("ENCRYPTION_KEY")
 
 config :ethereumex,
   url:  System.get_env("RPC")

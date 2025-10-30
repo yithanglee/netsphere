@@ -57,8 +57,6 @@ defmodule CommerceFrontWeb.ApiController do
     json(conn, Phoenix.Controller.get_csrf_token())
   end
 
-  require IEx
-
   def get(conn, params) do
     # can get data from conn.private.plug_session
     token = params |> Map.get("token")
@@ -75,6 +73,41 @@ defmodule CommerceFrontWeb.ApiController do
 
     res =
       case params["scope"] do
+        "get_sponsor_info" ->
+          res =
+            CommerceFront.Settings.get_share_link_by_code(params["code"])
+            |> Repo.preload(:user)
+            |> BluePotion.sanitize_struct()
+
+          {position, parent_p} =
+            CommerceFront.Settings.determine_position(res.user.username, true, res.position)
+
+          %{
+            status: "ok",
+            res:
+              res
+              |> Map.put(:placement, BluePotion.sanitize_struct(parent_p |> Repo.preload(:user)))
+          }
+
+        "check_second_password" ->
+          wallet = Settings.get_crypto_wallet_by_user_id(id)
+
+          if wallet do
+            cond do
+              wallet.second_password in [nil, ""] ->
+                %{status: "error", reason: "not_set"}
+
+              CommerceFront.Encryption.decrypt(wallet.second_password) ==
+                  params["second_password"] ->
+                %{status: "ok"}
+
+              true ->
+                %{status: "error", reason: "invalid_second_password"}
+            end
+          else
+            %{status: "error", reason: "no wallet"}
+          end
+
         "get_market_depth" ->
           CommerceFront.Market.Secondary.get_market_depth(params["asset_id"])
           |> BluePotion.sanitize_struct()
@@ -155,7 +188,8 @@ defmodule CommerceFrontWeb.ApiController do
 
           usdt_address =
             Application.get_env(:commerce_front, :usdt_contract_address) ||
-              System.get_env("USDT_CONTRACT_ADDRESS") || "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"
+              System.get_env("USDT_CONTRACT_ADDRESS") ||
+              "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"
 
           %{
             assets: [
@@ -197,15 +231,22 @@ defmodule CommerceFrontWeb.ApiController do
             else
               chain_id =
                 case Application.get_env(:commerce_front, :chain_id) do
-                  nil -> 137
-                  v when is_integer(v) -> v
+                  nil ->
+                    137
+
+                  v when is_integer(v) ->
+                    v
+
                   v when is_binary(v) ->
                     case Integer.parse(v) do
                       {n, _} -> n
                       _ -> 137
                     end
-                  _ -> 137
+
+                  _ ->
+                    137
                 end
+
               opts = [
                 provider: :etherscan_v2,
                 chainid: chain_id,
@@ -215,15 +256,17 @@ defmodule CommerceFrontWeb.ApiController do
                 offset: 100
               ]
 
-              normal = case ZkEvm.Wallet.tx_history(wallet.address, api_key, opts) do
-                {:ok, list} -> list
-                _ -> []
-              end
+              normal =
+                case ZkEvm.Wallet.tx_history(wallet.address, api_key, opts) do
+                  {:ok, list} -> list
+                  _ -> []
+                end
 
-              internal = case ZkEvm.Wallet.internal_tx_history(wallet.address, api_key, opts) do
-                {:ok, list} -> list
-                _ -> []
-              end
+              internal =
+                case ZkEvm.Wallet.internal_tx_history(wallet.address, api_key, opts) do
+                  {:ok, list} -> list
+                  _ -> []
+                end
 
               # Normalize basic fields; value in wei; include type to distinguish
               norm = fn list, type ->
@@ -253,9 +296,9 @@ defmodule CommerceFrontWeb.ApiController do
 
           if wallet do
             token_address =
-              params["token_address"] || Application.get_env(:commerce_front, :token_contract_address) ||
+              params["token_address"] ||
+                Application.get_env(:commerce_front, :token_contract_address) ||
                 System.get_env("TOKEN_CONTRACT_ADDRESS")
-
 
             api_key =
               Application.get_env(:commerce_front, :etherscan_api_key) ||
@@ -272,15 +315,22 @@ defmodule CommerceFrontWeb.ApiController do
               _ ->
                 chain_id =
                   case Application.get_env(:commerce_front, :chain_id) do
-                    nil -> 137
-                    v when is_integer(v) -> v
+                    nil ->
+                      137
+
+                    v when is_integer(v) ->
+                      v
+
                     v when is_binary(v) ->
                       case Integer.parse(v) do
                         {n, _} -> n
                         _ -> 137
                       end
-                    _ -> 137
+
+                    _ ->
+                      137
                   end
+
                 opts = [
                   provider: :etherscan_v2,
                   chainid: chain_id,
@@ -946,15 +996,22 @@ defmodule CommerceFrontWeb.ApiController do
         "chain_config" ->
           chain_id =
             case Application.get_env(:commerce_front, :chain_id) do
-              nil -> 137
-              v when is_integer(v) -> v
+              nil ->
+                137
+
+              v when is_integer(v) ->
+                v
+
               v when is_binary(v) ->
                 case Integer.parse(v) do
                   {n, _} -> n
                   _ -> 137
                 end
-              _ -> 137
+
+              _ ->
+                137
             end
+
           %{
             chain_id: chain_id,
             chain_id_hex: "0x" <> Integer.to_string(chain_id, 16)
@@ -1167,6 +1224,8 @@ defmodule CommerceFrontWeb.ApiController do
     json(conn, res)
   end
 
+  require IEx
+
   def post(conn, params) do
     token = params |> Map.get("token")
 
@@ -1182,6 +1241,54 @@ defmodule CommerceFrontWeb.ApiController do
 
     res =
       case params["scope"] do
+        "user_fcm_token" ->
+          check_staff = params["user_token"] |> CommerceFront.Settings.get_cookie_user_by_cookie()
+
+          if check_staff != nil do
+            # this is a Staff struct
+            Settings.create_messaging_device(%{
+              "staff_id" => check_staff.user.id,
+              "uuid" => params["token"]
+            })
+          end
+
+          %{status: "ok"}
+
+        "set_second_password" ->
+          with %{id: user_id} <- %{id: id},
+               wallet when not is_nil(wallet) <- Settings.get_crypto_wallet_by_user_id(user_id) do
+            new_pw = params["second_password"]
+            new_pw_valid = is_binary(new_pw) and new_pw != ""
+
+            if new_pw_valid do
+              # If already set, require old_password to change
+              cond do
+                wallet.second_password in [nil, ""] ->
+                  case Settings.update_crypto_wallet(wallet, %{
+                         second_password: CommerceFront.Encryption.encrypt(new_pw)
+                       }) do
+                    {:ok, _cw} -> %{status: "ok"}
+                    {:error, _} -> %{status: "error", reason: "update_failed"}
+                  end
+
+                CommerceFront.Encryption.decrypt(wallet.second_password) == params["old_password"] ->
+                  case Settings.update_crypto_wallet(wallet, %{
+                         second_password: CommerceFront.Encryption.encrypt(new_pw)
+                       }) do
+                    {:ok, _cw} -> %{status: "ok"}
+                    {:error, _} -> %{status: "error", reason: "update_failed"}
+                  end
+
+                true ->
+                  %{status: "error", reason: "invalid_old_password"}
+              end
+            else
+              %{status: "error", reason: "invalid_params"}
+            end
+          else
+            _ -> %{status: "error", reason: "invalid_params"}
+          end
+
         "crypto_send_erc20" ->
           # params: token (member), contract, to, amount
           with %{id: user_id} <- %{id: id},
@@ -1191,7 +1298,9 @@ defmodule CommerceFrontWeb.ApiController do
                {amount, _} <- Float.parse(to_string(params["amount"])) do
             decimals =
               case params["decimals"] do
-                nil -> 18
+                nil ->
+                  18
+
                 d ->
                   case Integer.parse(to_string(d)) do
                     {n, _} -> n
@@ -1199,7 +1308,9 @@ defmodule CommerceFrontWeb.ApiController do
                   end
               end
 
-            case ZkEvm.Token.transfer(contract, wallet.private_key, to, amount, decimals) do
+            private_key = CommerceFront.Encryption.decrypt(wallet.private_key)
+            # private_key = wallet.private_key
+            case ZkEvm.Token.transfer(contract, private_key, to, amount, decimals) do
               {:ok, tx_hash} -> %{status: "ok", tx_hash: tx_hash}
               {:error, reason} -> %{status: "error", reason: inspect(reason)}
             end
@@ -1220,6 +1331,7 @@ defmodule CommerceFrontWeb.ApiController do
           else
             _ -> %{status: "error", reason: "invalid_params"}
           end
+
         "cancel_order" ->
           IO.inspect("cancelorder")
 
@@ -1535,9 +1647,9 @@ defmodule CommerceFrontWeb.ApiController do
           Settings.update_reward(Settings.get_reward!(params["id"]), %{is_withheld: true})
           %{status: "ok"}
 
-          "unwithhold_reward" ->
-            Settings.update_reward(Settings.get_reward!(params["id"]), %{is_withheld: false})
-            %{status: "ok"}
+        "unwithhold_reward" ->
+          Settings.update_reward(Settings.get_reward!(params["id"]), %{is_withheld: false})
+          %{status: "ok"}
 
         "pay_reward" ->
           Settings.pay_unpaid_bonus(
@@ -2290,8 +2402,6 @@ defmodule CommerceFrontWeb.ApiController do
         |> send_resp(500, Jason.encode!(%{status: final_reason}))
     end
   end
-
-  require IEx
 
   def datatable(conn, params) do
     decode_token = fn params ->

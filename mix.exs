@@ -47,6 +47,7 @@ defmodule CommerceFront.MixProject do
       {:ex_abi, "~> 0.5"},        # ABI encoding/decoding
       {:ex_sha3, "~> 0.1"},       # Keccak hashing
       {:ex_secp256k1, "0.7.4"},   # ECDSA signing for transactions
+      {:goth, "~> 1.3"},
       {:mime, "~> 1.0"},
       {:phoenix, "~> 1.5.13"},
       {:phoenix_ecto, "~> 4.1"},
@@ -68,7 +69,7 @@ defmodule CommerceFront.MixProject do
       {:web_push_encryption, "~> 0.3"},
       {:timex, "~> 3.0"},
       {:quantum, "~> 2.0"},
-      
+
     ]
   end
 

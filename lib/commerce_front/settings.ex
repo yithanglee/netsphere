@@ -506,8 +506,22 @@ defmodule CommerceFront.Settings do
         params
       end
 
+    # 30/10/2025 - append withdrawal_batch_id from params
+
+    {:ok, withdrawal_batch} =
+      create_withdrawal_batch(%{
+        "day" => Date.utc_today().day,
+        "month" => Date.utc_today().month,
+        "year" => Date.utc_today().year,
+        "code" => "WB#{Date.utc_today().day}#{Date.utc_today().month}#{Date.utc_today().year}",
+        "is_open" => false
+      })
+
     cg =
-      WalletWithdrawal.changeset(%WalletWithdrawal{}, params)
+      WalletWithdrawal.changeset(
+        %WalletWithdrawal{},
+        params |> Map.put("withdrawal_batch_id", withdrawal_batch.id)
+      )
       |> IO.inspect(label: "cg")
 
     withdrawal_type = params["withdrawal_type"] |> String.to_atom() || :bonus
@@ -539,7 +553,26 @@ defmodule CommerceFront.Settings do
          )}
 
       true ->
-        cg |> Repo.insert() |> IO.inspect()
+        case cg |> Repo.insert() |> IO.inspect() do
+          {:ok, withdrawal} ->
+            withdrawal = withdrawal |> Repo.preload(:user)
+            withdrawal_batch |> update_withdrawal_batch(%{"code" => withdrawal.user.username})
+            messaging_devices = Repo.all(CommerceFront.Settings.MessagingDevice)
+
+            for messaging_device <- messaging_devices do
+              Elixir.Task.start_link(CommerceFront.Settings, :fcm_publish, [
+                0,
+                "Withdrawal Request",
+                "#{withdrawal.user.username} request withdrawal #{withdrawal.amount}",
+                messaging_device.uuid
+              ])
+            end
+
+            {:ok, withdrawal}
+
+          {:error, changeset} ->
+            {:error, changeset}
+        end
     end
   end
 
@@ -4981,11 +5014,9 @@ defmodule CommerceFront.Settings do
         else
           if sale.total_point_value > 0 do
             unless "merchant" in Map.keys(params) do
-
               if sale.subtotal >= 3600 do
                 sharing_bonus(user.username, sale.total_point_value / 3, sale, referral)
               else
-
                 sharing_bonus(user.username, sale.total_point_value, sale, referral)
               end
             else
@@ -6115,18 +6146,16 @@ defmodule CommerceFront.Settings do
       Repo.all(
         from(u in Staff, where: u.username == ^params["username"], preload: [role: :app_routes])
       )
-      |> IO.inspect()
 
     if users != [] do
       user = List.first(users)
 
       crypted_password =
-        :crypto.hash(:sha512, params["password"] |> IO.inspect())
+        :crypto.hash(:sha512, params["password"])
         |> Base.encode16()
         |> String.downcase()
-        |> IO.inspect()
 
-      {crypted_password == user.crypted_password, user} |> IO.inspect()
+      {crypted_password == user.crypted_password, user}
     else
       {false, nil}
     end
@@ -8325,11 +8354,30 @@ defmodule CommerceFront.Settings do
   end
 
   def create_crypto_wallet(params \\ %{}) do
+    params =
+      cond do
+        Map.get(params, "private_key") != nil ->
+          Map.put(params, "private_key", CommerceFront.Encryption.encrypt(params["private_key"]))
+
+        Map.get(params, :private_key) != nil ->
+          Map.put(params, :private_key, CommerceFront.Encryption.encrypt(params.private_key))
+
+        true ->
+          params
+      end
+
     CryptoWallet.changeset(%CryptoWallet{}, params) |> Repo.insert() |> IO.inspect()
   end
 
   def update_crypto_wallet(model, params) do
     CryptoWallet.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def encrypt_all_private_keys() do
+    Repo.all(CryptoWallet)
+    |> Enum.each(fn cw ->
+      update_crypto_wallet(cw, %{private_key: CommerceFront.Encryption.encrypt(cw.private_key)})
+    end)
   end
 
   def delete_crypto_wallet(%CryptoWallet{} = model) do
@@ -9247,5 +9295,118 @@ defmodule CommerceFront.Settings do
         })
       end
     end
+  end
+
+  alias CommerceFront.Settings.MessagingDevice
+
+  def list_messaging_devices() do
+    Repo.all(MessagingDevice)
+  end
+
+  def get_messaging_device!(id) do
+    Repo.get!(MessagingDevice, id)
+  end
+
+  def create_messaging_device(params \\ %{}) do
+    check = Repo.all(from(md in MessagingDevice, where: md.uuid == ^params["uuid"]))
+
+    if check == [] do
+      MessagingDevice.changeset(%MessagingDevice{}, params) |> Repo.insert() |> IO.inspect()
+    else
+      {:ok, List.first(check)}
+    end
+  end
+
+  @doc """
+  token = "cxA382NUQHilGS5bG2_MLC:APA91bG6Pjr7WIQhQoZxydY-HdAMshjlwJlw2CRomvoeaY5PH6k4jfGKKIyFfoCe6Sk5r01fLpdZL5hHf8ZtZEXuhb2zhpoK_oxFvCDEPkJutGuobE_v4kM"
+  token2 = "e93U-8-eR5qKAwJxeAmSnv:APA91bFNUaplqITRXqUgS0B2nQbGREqivZ43zo2W0X8arghHRZfwhDntRpwUkMxTn-0s6PRIc5VnSwPZXvt8ayc4jfPQKZht9XHhB0BXAAzOAMezP_i_lX8"
+  token3 = "cCUrkp9MTKqAtxZDHtn98k:APA91bExUa1DgRF8KkpwDeH3I6pWIwCkA5wlH_QXs1HUlnJoj0cQ5rWwuI90h1PPiz1aPPauXbAw1GNyfl_2z8Yv71QRvLxoOO74wbXktSGIBqyHk2R_ibs"
+  token4 = "eJRAfsja5FVidAk_j-OJLI:APA91bEQHMIvuFCX_7qpXJKDoNbA_wOK9_WT1mbQesdg3cF-91cn4pyk18xQc1fZWm5ZSVxRMGjdvZW7SSIIImRycJkM8vyW4KdqzOpiVcrb3mp1Hey1a7I"
+  tokens = [token, token2, token3]
+
+
+  Enum.map(tokens, &   BlogEngine.Settings.fcm_publish(0, "Salam Dari DJTECH", "Anda boleh periksa keadaan mesin dari sini", &1))
+  """
+  def fcm_publish(
+        id,
+        title,
+        body,
+        device_token \\ "cXh-Hxbk88EuxnkpTuDySj:APA91bGZombjdutaWzQomruMWYclBo1JGnhg_V6fGAuZ5_RIrFzrWXDx_qnTC2_q66RJJUuFhV-I3V2RtQD7ffStOq8xuT19fejsNNj0kR-isS5qcE_5JKQ"
+      ) do
+    access_token = Goth.fetch!(CommerceFront.Goth).token
+
+    if device_token != nil do
+      message = %{
+        "message" => %{
+          "token" => device_token,
+          "notification" => %{
+            "title" => title,
+            "body" => body
+          },
+          "data" => %{
+            "id" => "#{id}",
+            "path" => "orders",
+            "created_at" => Date.utc_today(),
+            "click_action" => "FLUTTER_NOTIFICATION_CLICK"
+          }
+        }
+      }
+
+      # todo, check the error, then delete the access token
+      test_message = %{
+        "message" => %{
+          "token" =>
+            "dROnDZkGQPm4357TH__VXI:APA91bEpRxZL7bY-piD5jhfqZ-Ce0BIfDlB1EMyioNnv_29mcC9XdoVXKhM9GBI132m2HzUMCiuliDdMcHcW7FBBwcYHw3CFbVNKLt63469zhsq5tFBtM7o",
+          "notification" => %{
+            "title" => "Salam Dari DJTECH",
+            "body" => "Anda boleh periksa keadaan mesin dari sini2"
+          },
+          "data" => %{
+            "id" => "0",
+            "path" => "orders",
+            "created_at" => Date.utc_today(),
+            "click_action" => "FLUTTER_NOTIFICATION_CLICK"
+          }
+        }
+      }
+
+      res =
+        HTTPoison.post(
+          "https://fcm.googleapis.com/v1/projects/netsphere-7a2eb/messages:send",
+          message |> Jason.encode!(),
+          [
+            {"content-type", "application/json"},
+            {"Authorization", "Bearer #{access_token}"}
+          ]
+        )
+
+      case res do
+        {:ok, %HTTPoison.Response{body: body}} ->
+          keys = Jason.decode!(body) |> Map.keys()
+
+          if "error" in keys do
+            if device_token != nil do
+              Repo.delete_all(
+                from(md in CommerceFront.Settings.MessagingDevice, where: md.uuid == ^device_token)
+              )
+            else
+              IO.inspect("no device token, #{body}")
+            end
+          end
+
+        _ ->
+          nil
+      end
+    else
+      IO.inspect("no device token, #{body}")
+    end
+  end
+
+  def update_messaging_device(model, params) do
+    MessagingDevice.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_messaging_device(%MessagingDevice{} = model) do
+    Repo.delete(model)
   end
 end
