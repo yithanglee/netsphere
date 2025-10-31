@@ -9321,11 +9321,11 @@ defmodule CommerceFront.Settings do
   token = "cxA382NUQHilGS5bG2_MLC:APA91bG6Pjr7WIQhQoZxydY-HdAMshjlwJlw2CRomvoeaY5PH6k4jfGKKIyFfoCe6Sk5r01fLpdZL5hHf8ZtZEXuhb2zhpoK_oxFvCDEPkJutGuobE_v4kM"
   token2 = "e93U-8-eR5qKAwJxeAmSnv:APA91bFNUaplqITRXqUgS0B2nQbGREqivZ43zo2W0X8arghHRZfwhDntRpwUkMxTn-0s6PRIc5VnSwPZXvt8ayc4jfPQKZht9XHhB0BXAAzOAMezP_i_lX8"
   token3 = "cCUrkp9MTKqAtxZDHtn98k:APA91bExUa1DgRF8KkpwDeH3I6pWIwCkA5wlH_QXs1HUlnJoj0cQ5rWwuI90h1PPiz1aPPauXbAw1GNyfl_2z8Yv71QRvLxoOO74wbXktSGIBqyHk2R_ibs"
-  token4 = "eJRAfsja5FVidAk_j-OJLI:APA91bEQHMIvuFCX_7qpXJKDoNbA_wOK9_WT1mbQesdg3cF-91cn4pyk18xQc1fZWm5ZSVxRMGjdvZW7SSIIImRycJkM8vyW4KdqzOpiVcrb3mp1Hey1a7I"
-  tokens = [token, token2, token3]
+  token4 = "ce-E7saniECsD4Y2USrb0H:APA91bEqYOpX2u_Sp2QQlzxrZZ2ItMgKhKaDALtq0nROPSwMxWyIfoPH-52XoQtcMNlLbIVgMeHeKdgB3BL08SeP4e77EqliH8gBqoLP6Uwn2-3E-uu0ldA"
+  tokens = [token4]
 
 
-  Enum.map(tokens, &   BlogEngine.Settings.fcm_publish(0, "Salam Dari DJTECH", "Anda boleh periksa keadaan mesin dari sini", &1))
+  Enum.map(tokens, &   CommerceFront.Settings.fcm_publish(0, "Salam Dari DJTECH", "Anda boleh periksa keadaan mesin dari sini", &1))
   """
   def fcm_publish(
         id,

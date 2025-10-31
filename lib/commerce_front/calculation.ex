@@ -1513,45 +1513,12 @@ defmodule CommerceFront.Calculation do
 
     subquery2 = """
 
-        select
-
-          sum(s.grand_total) as grand_total,
-          sum(s.total_point_value) as pv,
-          coalesce(u3.username , u.username ) as parent,
-          r.name,
-          u.id as parent_user_id
-        from
-          sales s
-        left join referrals r2 on
-          r2.user_id = s.user_id
-        left join users u on
-          u.id = r2.parent_user_id
-        left join ranks r on
-          u.rank_id = r.id
-        left join users u2 on
-          u2.id = s.user_id
-        full join users u3 on
-          u.stockist_user_id = u3.id
-        where
-          u.id is not null
-          and
-            r.name in ('Diamond')
-          and
-            convert_from(s.registration_details, 'UTF8')::json ->> 'scope' = 'register'
-          and
-            s.month = $1
-          and s.year = $2
-        group by
-          u3.username,
-          u.username,
-          u.id ,
-          r.name,
-          s.month,
-          s.year ;
+        select u2.username, u2.id from users u full join users u2 on u2.id = u.stockist_user_id
+        where u.stockist_user_id is not null group by u2.id, u2.username, u.stockist_user_id ;
     """
 
     {:ok, %Postgrex.Result{columns: columns, rows: rows} = res} =
-      Ecto.Adapters.SQL.query(Repo, subquery2, [month, year])
+      Ecto.Adapters.SQL.query(Repo, subquery2, [])
 
     unpaid_node = unpaid_node()
 
@@ -1592,11 +1559,12 @@ defmodule CommerceFront.Calculation do
         one_star_qualifier =
           for weak_leg <- users_weak_leg do
 
-            if  weak_leg.pv > 600 do
-              weak_leg
-            else
-              nil
-            end
+            # if  weak_leg.pv > 600 do
+            #   weak_leg
+            # else
+            #   nil
+            # end
+            weak_leg
           end
           |> Enum.reject(&(&1 == nil))
 
@@ -1606,17 +1574,15 @@ defmodule CommerceFront.Calculation do
           one_star_amount = total_sales_pv * 0.03 / count
 
           for weak_leg <- one_star_qualifier do
-            weak_amount =
-              weak_leg.pv
 
             CommerceFront.Settings.create_reward(%{
               sales_id: 0,
               is_paid: false,
               remarks:
-                "#{total_sales_pv} * 0.03/ #{count} = #{one_star_amount |> :erlang.float_to_binary(decimals: 2)}|total PV: #{weak_amount}|pool qualifiers: #{count}",
+                "#{total_sales_pv} * 0.03/ #{count} = #{one_star_amount |> :erlang.float_to_binary(decimals: 2)}|pool qualifiers: #{count}",
               name: "elite leader",
               amount: one_star_amount |> Float.round(2),
-              user_id: weak_leg.parent_user_id,
+              user_id: weak_leg.id,
               day: Timex.end_of_month(date).day,
               month: month,
               year: year
