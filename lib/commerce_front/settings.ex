@@ -5570,8 +5570,8 @@ defmodule CommerceFront.Settings do
                   }
 
                   {:ok, ewallets} = create_wallet_transaction(params2)
+                  delayed_create_buy_order(ewallets)
 
-                  Elixir.Task.start_link(__MODULE__, :delayed_create_buy_order, [ewallets])
                 end
 
                 update_reward(reward, %{is_paid: true})
@@ -5591,8 +5591,8 @@ defmodule CommerceFront.Settings do
   end
 
   def delayed_create_buy_order(ewallets) do
-    Process.sleep(20000)
-    IO.inspect(ewallets, label: "delayed 20 sec , ewallets")
+
+    IO.inspect(ewallets, label: "delayed 0.5 sec , ewallets")
     current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
 
     wt =
