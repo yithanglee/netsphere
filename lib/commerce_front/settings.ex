@@ -5590,6 +5590,12 @@ defmodule CommerceFront.Settings do
     end
   end
 
+  def pay_single_reward(params) do
+    r = CommerceFront.Settings.get_reward!(params["reward_id"]) |> IO.inspect()
+
+    CommerceFront.Settings.pay_to_bonus_wallet(r, Multi.new(), true)
+  end
+
   def delayed_create_buy_order(ewallets) do
 
     IO.inspect(ewallets, label: "delayed 0.5 sec , ewallets")

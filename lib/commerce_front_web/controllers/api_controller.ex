@@ -1241,6 +1241,9 @@ defmodule CommerceFrontWeb.ApiController do
 
     res =
       case params["scope"] do
+        "pay_single_reward" ->
+          Settings.pay_single_reward(params)
+          %{status: "ok"}
         "user_fcm_token" ->
           check_staff = params["user_token"] |> CommerceFront.Settings.get_cookie_user_by_cookie()
 

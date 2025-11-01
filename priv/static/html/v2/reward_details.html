@@ -61,6 +61,9 @@ $(document).ready(() => {
       if (data.is_paid) {
         paid = `<span class="badge bg-success">PAID</span>`
       }
+      function replaceLabel(label) {
+        return label.replace("matching bonus", "weekly matching bonus").replace("elite leader", "3% Pool Bonus");
+      }
 
       var card = `
           <div class="dropdown">
@@ -74,7 +77,7 @@ $(document).ready(() => {
               </div>
 
               <div class="row">
-               <div class="col-6 text-start">` + data.name + `</div>
+               <div class="col-6 text-start">` + replaceLabel(data.name) + `</div>
                <div class="col-6 text-end  format-float ` + font_class + `">` + data.amount + `</div>
               </div>
             </div>
