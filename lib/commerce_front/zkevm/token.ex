@@ -88,11 +88,27 @@ defmodule ZkEvm.Token do
     end
 
     @doc """
+    Read token decimals from the contract.
+    """
+    def decimals(token_address) do
+      decimals_hex = encode_call(@erc20_abi, "decimals", [])
+
+      {:ok, decimals_result} =
+        HttpClient.eth_call(%{to: token_address, data: decimals_hex}, "latest")
+
+      hex_to_integer(decimals_result)
+    end
+
+    @doc """
     Transfer ERC-20 tokens from a wallet to a recipient.
     Requires private key of sender.
     returns a {:ok, transctionId }
     the transactionId is the polygon scan transation.
     """
+    def transfer(token_address, privkey_hex, to_address, amount) do
+      transfer(token_address, privkey_hex, to_address, amount, decimals(token_address))
+    end
+
     def transfer(token_address, privkey_hex, to_address, amount, decimals \\ 18) do
       privkey = Base.decode16!(String.replace_leading(privkey_hex, "0x", ""), case: :lower)
 
@@ -133,7 +149,13 @@ defmodule ZkEvm.Token do
 
       signed = sign_transaction(tx, privkey)
 
-      HttpClient.eth_send_raw_transaction("0x" <> Base.encode16(signed, case: :lower))
+      case HttpClient.eth_send_raw_transaction("0x" <> Base.encode16(signed, case: :lower)) do
+        {:ok, tx_hash} -> {:ok, tx_hash}
+        {:error, %{"code" => code, "message" => msg}} -> {:error, {code, msg}}
+        {:error, %{"message" => msg}} -> {:error, msg}
+        {:error, reason} -> {:error, reason}
+        other -> other
+      end
     end
 
     @doc """
@@ -180,7 +202,13 @@ defmodule ZkEvm.Token do
 
       signed = sign_transaction(tx, privkey)
 
-      HttpClient.eth_send_raw_transaction("0x" <> Base.encode16(signed, case: :lower))
+      case HttpClient.eth_send_raw_transaction("0x" <> Base.encode16(signed, case: :lower)) do
+        {:ok, tx_hash} -> {:ok, tx_hash}
+        {:error, %{"code" => code, "message" => msg}} -> {:error, {code, msg}}
+        {:error, %{"message" => msg}} -> {:error, msg}
+        {:error, reason} -> {:error, reason}
+        other -> other
+      end
     end
 
     @doc """
@@ -247,7 +275,13 @@ defmodule ZkEvm.Token do
       }
 
       signed = sign_transaction(tx, privkey)
-      HttpClient.eth_send_raw_transaction("0x" <> Base.encode16(signed, case: :lower))
+      case HttpClient.eth_send_raw_transaction("0x" <> Base.encode16(signed, case: :lower)) do
+        {:ok, tx_hash} -> {:ok, tx_hash}
+        {:error, %{"code" => code, "message" => msg}} -> {:error, {code, msg}}
+        {:error, %{"message" => msg}} -> {:error, msg}
+        {:error, reason} -> {:error, reason}
+        other -> other
+      end
     end
 
     ## Helpers
@@ -472,7 +506,13 @@ defmodule ZkEvm.Token do
 
     signed = sign_transaction(tx, privkey)
 
-    HttpClient.eth_send_raw_transaction("0x" <> Base.encode16(signed, case: :lower))
+    case HttpClient.eth_send_raw_transaction("0x" <> Base.encode16(signed, case: :lower)) do
+      {:ok, tx_hash} -> {:ok, tx_hash}
+      {:error, %{"code" => code, "message" => msg}} -> {:error, {code, msg}}
+      {:error, %{"message" => msg}} -> {:error, msg}
+      {:error, reason} -> {:error, reason}
+      other -> other
+    end
   end
 
   defp request_polygonscan(params) do

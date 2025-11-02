@@ -1344,23 +1344,26 @@ defmodule CommerceFrontWeb.ApiController do
                contract when is_binary(contract) and contract != "" <- params["contract"],
                to when is_binary(to) and to != "" <- params["to"],
                {amount, _} <- Float.parse(to_string(params["amount"])) do
-            decimals =
-              case params["decimals"] do
-                nil ->
-                  18
+            private_key = CommerceFront.Encryption.decrypt(wallet.private_key)
+            # private_key = wallet.private_key
+            case params["decimals"] do
+              nil ->
+                case ZkEvm.Token.transfer(contract, private_key, to, amount) do
+                  {:ok, tx_hash} -> %{status: "ok", tx_hash: tx_hash}
+                  {:error, reason} -> %{status: "error", reason: inspect(reason)}
+                end
 
-                d ->
+              d ->
+                decimals =
                   case Integer.parse(to_string(d)) do
                     {n, _} -> n
                     _ -> 18
                   end
-              end
 
-            private_key = CommerceFront.Encryption.decrypt(wallet.private_key)
-            # private_key = wallet.private_key
-            case ZkEvm.Token.transfer(contract, private_key, to, amount, decimals) do
-              {:ok, tx_hash} -> %{status: "ok", tx_hash: tx_hash}
-              {:error, reason} -> %{status: "error", reason: inspect(reason)}
+                case ZkEvm.Token.transfer(contract, private_key, to, amount, decimals) do
+                  {:ok, tx_hash} -> %{status: "ok", tx_hash: tx_hash}
+                  {:error, reason} -> %{status: "error", reason: inspect(reason)}
+                end
             end
           else
             _ -> %{status: "error", reason: "invalid_params"}
