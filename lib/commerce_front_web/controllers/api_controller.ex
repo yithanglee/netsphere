@@ -73,6 +73,17 @@ defmodule CommerceFrontWeb.ApiController do
 
     res =
       case params["scope"] do
+
+        "swap_back_config" ->
+          %{
+            status: "ok",
+            res: %{
+              treasury_address: "0xc36340f58ff6561e428df698189ce0361c90586f",
+              rate: 1.0,
+              min_amount: 0,
+              confirmations: 1
+            }
+          }
         "get_sponsor_info" ->
           res =
             CommerceFront.Settings.get_share_link_by_code(params["code"])
@@ -178,8 +189,12 @@ defmodule CommerceFrontWeb.ApiController do
           }
 
         "crypto_wallet" ->
-          Settings.get_crypto_wallet_by_user_id(id)
-          |> BluePotion.sanitize_struct()
+          if id > 0 do
+            Settings.get_crypto_wallet_by_user_id(id)
+            |> BluePotion.sanitize_struct()
+          else
+            %{status: "error", reason: "session expired"}
+          end
 
         "crypto_assets" ->
           token_address =
@@ -200,23 +215,25 @@ defmodule CommerceFrontWeb.ApiController do
           }
 
         "crypto_native_balance" ->
-          wallet = Settings.get_crypto_wallet_by_user_id(id)
+          if id > 0 do
+            wallet = Settings.get_crypto_wallet_by_user_id(id)
 
-          if wallet do
-            case Ethereumex.HttpClient.eth_get_balance(wallet.address, "latest") do
-              {:ok, hex} ->
-                raw = String.replace_prefix(hex, "0x", "") |> String.to_integer(16)
-                decimals = 18
-                formatted = raw / :math.pow(10, decimals)
-                %{address: wallet.address, raw: raw, decimals: decimals, formatted: formatted}
-
-              {:error, reason} ->
-                %{status: "error", reason: inspect(reason)}
+            if wallet do
+              case Ethereumex.HttpClient.eth_get_balance(wallet.address, "latest") do
+                {:ok, hex} ->
+                  raw = String.replace_prefix(hex, "0x", "") |> String.to_integer(16)
+                  decimals = 18
+                  formatted = raw / :math.pow(10, decimals)
+                  %{address: wallet.address, raw: raw, decimals: decimals, formatted: formatted}
+                {:error, reason} ->
+                  %{status: "error", reason: inspect(reason)}
+              end
+            else
+              %{status: "error", reason: "no wallet"}
             end
           else
-            %{status: "error", reason: "no wallet"}
+            %{status: "error", reason: "session expired"}
           end
-
         "crypto_native_transfers" ->
           wallet = Settings.get_crypto_wallet_by_user_id(id)
 
@@ -292,106 +309,111 @@ defmodule CommerceFrontWeb.ApiController do
           end
 
         "crypto_wallet_balance" ->
-          wallet = Settings.get_crypto_wallet_by_user_id(id)
+          if id > 0 do
+            wallet = Settings.get_crypto_wallet_by_user_id(id)
 
-          if wallet do
-            token_address =
-              params["token_address"] ||
-                Application.get_env(:commerce_front, :token_contract_address) ||
-                System.get_env("TOKEN_CONTRACT_ADDRESS")
+            if wallet do
+              token_address =
+                params["token_address"] ||
+                  Application.get_env(:commerce_front, :token_contract_address) ||
+                  System.get_env("TOKEN_CONTRACT_ADDRESS")
 
-            api_key =
-              Application.get_env(:commerce_front, :etherscan_api_key) ||
-                System.get_env("ETHERSCAN_API_KEY") ||
-                System.get_env("POLYGONSCAN_API_KEY")
+              api_key =
+                Application.get_env(:commerce_front, :etherscan_api_key) ||
+                  System.get_env("ETHERSCAN_API_KEY") ||
+                  System.get_env("POLYGONSCAN_API_KEY")
 
-            case token_address do
-              nil ->
-                %{status: "error", reason: "token contract not configured"}
+              case token_address do
+                nil ->
+                  %{status: "error", reason: "token contract not configured"}
 
-              _ when api_key in [nil, ""] ->
-                %{status: "error", reason: "explorer api key not configured"}
+                _ when api_key in [nil, ""] ->
+                  %{status: "error", reason: "explorer api key not configured"}
 
-              _ ->
-                chain_id =
-                  case Application.get_env(:commerce_front, :chain_id) do
-                    nil ->
-                      137
+                _ ->
+                  chain_id =
+                    case Application.get_env(:commerce_front, :chain_id) do
+                      nil ->
+                        137
 
-                    v when is_integer(v) ->
-                      v
+                      v when is_integer(v) ->
+                        v
 
-                    v when is_binary(v) ->
-                      case Integer.parse(v) do
-                        {n, _} -> n
-                        _ -> 137
-                      end
-
-                    _ ->
-                      137
-                  end
-
-                opts = [
-                  provider: :etherscan_v2,
-                  chainid: chain_id,
-                  contractaddress: token_address,
-                  startblock: 0,
-                  endblock: 99_999_999,
-                  sort: "asc",
-                  offset: 1000
-                ]
-
-                case ZkEvm.Wallet.token_transfers(wallet.address, api_key, opts) do
-                  {:ok, transfers} ->
-                    decimals =
-                      case transfers do
-                        [h | _] ->
-                          (h["tokenDecimal"] || "18")
-                          |> to_string()
-                          |> String.to_integer()
-
-                        _ ->
-                          18
-                      end
-
-                    addr = String.downcase(wallet.address)
-                    token_addr_down = String.downcase(token_address)
-
-                    filtered =
-                      Enum.filter(transfers, fn tx ->
-                        String.downcase(tx["contractAddress"] || "") == token_addr_down
-                      end)
-
-                    raw_balance =
-                      Enum.reduce(filtered, 0, fn tx, acc ->
-                        value = (tx["value"] || "0") |> to_string() |> String.to_integer()
-                        from = String.downcase(tx["from"] || "")
-                        to = String.downcase(tx["to"] || "")
-
-                        cond do
-                          to == addr -> acc + value
-                          from == addr -> acc - value
-                          true -> acc
+                      v when is_binary(v) ->
+                        case Integer.parse(v) do
+                          {n, _} -> n
+                          _ -> 137
                         end
-                      end)
 
-                    formatted = raw_balance / :math.pow(10, decimals)
+                      _ ->
+                        137
+                    end
 
-                    %{
-                      address: wallet.address,
-                      token_address: token_address,
-                      decimals: decimals,
-                      raw: raw_balance,
-                      formatted: formatted,
-                      transfers: transfers
-                    }
+                  opts = [
+                    provider: :etherscan_v2,
+                    chainid: chain_id,
+                    contractaddress: token_address,
+                    startblock: 0,
+                    endblock: 99_999_999,
+                    sort: "asc",
+                    offset: 1000
+                  ]
 
-                  {:error, reason} ->
-                    %{status: "error", reason: inspect(reason)}
-                end
+                  case ZkEvm.Wallet.token_transfers(wallet.address, api_key, opts) do
+                    {:ok, transfers} ->
+                      decimals =
+                        case transfers do
+                          [h | _] ->
+                            (h["tokenDecimal"] || "18")
+                            |> to_string()
+                            |> String.to_integer()
+
+                          _ ->
+                            18
+                        end
+
+                      addr = String.downcase(wallet.address)
+                      token_addr_down = String.downcase(token_address)
+
+                      filtered =
+                        Enum.filter(transfers, fn tx ->
+                          String.downcase(tx["contractAddress"] || "") == token_addr_down
+                        end)
+
+                      raw_balance =
+                        Enum.reduce(filtered, 0, fn tx, acc ->
+                          value = (tx["value"] || "0") |> to_string() |> String.to_integer()
+                          from = String.downcase(tx["from"] || "")
+                          to = String.downcase(tx["to"] || "")
+
+                          cond do
+                            to == addr -> acc + value
+                            from == addr -> acc - value
+                            true -> acc
+                          end
+                        end)
+
+                      formatted = raw_balance / :math.pow(10, decimals)
+
+                      %{
+                        address: wallet.address,
+                        token_address: token_address,
+                        decimals: decimals,
+                        raw: raw_balance,
+                        formatted: formatted,
+                        transfers: transfers
+                      }
+
+                    {:error, reason} ->
+                      %{status: "error", reason: inspect(reason)}
+                  end
+              end
+            else
+              %{status: "error", reason: "no wallet"}
             end
           else
-            %{status: "error", reason: "no wallet"}
+            %{status: "error", reason: "session expired"}
+
           end
 
         "travel_fund_qualifiers" ->
@@ -1241,6 +1263,9 @@ defmodule CommerceFrontWeb.ApiController do
 
     res =
       case params["scope"] do
+        "swap_back_create" ->
+          Settings.swap_back_create(params)
+          %{status: "ok"}
         "pay_single_reward" ->
           Settings.pay_single_reward(params)
           %{status: "ok"}
@@ -1327,7 +1352,7 @@ defmodule CommerceFrontWeb.ApiController do
                wallet when not is_nil(wallet) <- Settings.get_crypto_wallet_by_user_id(user_id),
                to when is_binary(to) and to != "" <- params["to"],
                {amount, _} <- Float.parse(to_string(params["amount"])) do
-            case ZkEvm.Token.transfer_native(wallet.private_key, to, amount) do
+            case ZkEvm.Token.transfer_native(wallet.private_key |> CommerceFront.Encryption.decrypt(), to, amount) do
               {:ok, tx_hash} -> %{status: "ok", tx_hash: tx_hash}
               {:error, reason} -> %{status: "error", reason: inspect(reason)}
             end
