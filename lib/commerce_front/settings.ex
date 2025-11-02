@@ -5120,7 +5120,7 @@ defmodule CommerceFront.Settings do
           CommerceFront.Settings.create_crypto_wallet(%{
             user_id: user.id,
             address: wallet_info.address,
-            private_key: wallet_info.private_key,
+            private_key: wallet_info.private_key ,
             public_key: wallet_info.public_key
           })
           |> IO.inspect(label: "create_crypto_wallet")
@@ -8331,7 +8331,7 @@ defmodule CommerceFront.Settings do
         CommerceFront.Settings.create_crypto_wallet(%{
           user_id: user_id,
           address: wallet_info.address,
-          private_key: wallet_info.private_key,
+          private_key: wallet_info.private_key ,
           public_key: wallet_info.public_key
         })
 
@@ -8352,7 +8352,7 @@ defmodule CommerceFront.Settings do
     with %{} = cw <- get_crypto_wallet_by_user_id(owner_user_id),
          true <- cw.private_key != nil and cw.private_key != "",
          {:ok, tx_hash} <-
-           ZkEvm.Token.approve(token_address, cw.private_key, spender_address, amount, 18) do
+           ZkEvm.Token.approve(token_address, cw.private_key |> CommerceFront.Encryption.decrypt(), spender_address, amount, 18) do
       {:ok, %{tx_hash: tx_hash}}
     else
       _ -> {:error, "approve_failed"}
