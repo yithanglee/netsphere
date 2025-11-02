@@ -1263,9 +1263,29 @@ defmodule CommerceFrontWeb.ApiController do
 
     res =
       case params["scope"] do
+        "approve_swap_back" ->
+          case Settings.approve_swap_back(params["id"]) do
+            {:ok, sb} ->
+              %{status: "ok", res: sb |> BluePotion.sanitize_struct()}
+            {:error, reason} ->
+              %{status: "error", reason: inspect(reason)}
+          end
         "swap_back_create" ->
-          Settings.swap_back_create(params)
-          %{status: "ok"}
+       case   Settings.create_swap_back(%{
+            user_id: id,
+            user_wallet_address: params["wallet_address"],
+            treasury_address: params["treasury"],
+            amount_raw: params["amount_raw"],
+            amount: params["amount"],
+            tx_hash: params["tx_hash"],
+            status: "pending"
+          }) do
+            {:ok, sb} ->
+              %{status: "ok", res: sb |> BluePotion.sanitize_struct()}
+            {:error, reason} ->
+              %{status: "error", reason: inspect(reason)}
+          end
+
         "pay_single_reward" ->
           Settings.pay_single_reward(params)
           %{status: "ok"}

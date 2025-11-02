@@ -5120,7 +5120,7 @@ defmodule CommerceFront.Settings do
           CommerceFront.Settings.create_crypto_wallet(%{
             user_id: user.id,
             address: wallet_info.address,
-            private_key: wallet_info.private_key ,
+            private_key: wallet_info.private_key,
             public_key: wallet_info.public_key
           })
           |> IO.inspect(label: "create_crypto_wallet")
@@ -5571,7 +5571,6 @@ defmodule CommerceFront.Settings do
 
                   {:ok, ewallets} = create_wallet_transaction(params2)
                   delayed_create_buy_order(ewallets)
-
                 end
 
                 update_reward(reward, %{is_paid: true})
@@ -5597,7 +5596,6 @@ defmodule CommerceFront.Settings do
   end
 
   def delayed_create_buy_order(ewallets) do
-
     IO.inspect(ewallets, label: "delayed 0.5 sec , ewallets")
     current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
 
@@ -8331,7 +8329,7 @@ defmodule CommerceFront.Settings do
         CommerceFront.Settings.create_crypto_wallet(%{
           user_id: user_id,
           address: wallet_info.address,
-          private_key: wallet_info.private_key ,
+          private_key: wallet_info.private_key,
           public_key: wallet_info.public_key
         })
 
@@ -8352,7 +8350,13 @@ defmodule CommerceFront.Settings do
     with %{} = cw <- get_crypto_wallet_by_user_id(owner_user_id),
          true <- cw.private_key != nil and cw.private_key != "",
          {:ok, tx_hash} <-
-           ZkEvm.Token.approve(token_address, cw.private_key |> CommerceFront.Encryption.decrypt(), spender_address, amount, 18) do
+           ZkEvm.Token.approve(
+             token_address,
+             cw.private_key |> CommerceFront.Encryption.decrypt(),
+             spender_address,
+             amount,
+             18
+           ) do
       {:ok, %{tx_hash: tx_hash}}
     else
       _ -> {:error, "approve_failed"}
@@ -8830,6 +8834,100 @@ defmodule CommerceFront.Settings do
       )
     end)
     |> Repo.transaction()
+  end
+
+  alias CommerceFront.Settings.SwapBack
+
+  def list_swap_backs() do
+    Repo.all(SwapBack)
+  end
+
+  def get_swap_back!(id) do
+    Repo.get!(SwapBack, id)
+  end
+
+  def create_swap_back(params \\ %{}) do
+    SwapBack.changeset(%SwapBack{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_swap_back(model, params) do
+    SwapBack.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_swap_back(%SwapBack{} = model) do
+    Repo.delete(model)
+  end
+
+  def approve_swap_back(id) do
+    swap_back = get_swap_back!(id)
+    token_contract = "0xa17c6fc7d9ecef353ceb3132ddd619037d134125"
+
+    Multi.new()
+    # 1) Load user's crypto wallet and decrypt private key
+    |> Multi.run(:crypto_wallet, fn _repo, _changes ->
+      case get_crypto_wallet_by_user_id(swap_back.user_id) do
+        %{private_key: enc_pk} = cw when is_binary(enc_pk) and enc_pk != "" ->
+          {:ok, %{cw: cw, privkey: CommerceFront.Encryption.decrypt(enc_pk)}}
+
+        _ ->
+          {:error, :crypto_wallet_not_found}
+      end
+    end)
+    # 2) Perform on-chain ERC-20 transfer from user's wallet to treasury
+    |> Multi.run(:onchain_transfer, fn _repo, %{crypto_wallet: %{privkey: priv}} ->
+      amount_float =
+        case swap_back.amount do
+          %Decimal{} = d -> Decimal.to_float(d)
+          n when is_number(n) -> n
+          s when is_binary(s) ->
+            case Float.parse(s) do
+              {val, _} -> val
+              _ -> 0.0
+            end
+        end
+
+      case ZkEvm.Token.transfer(token_contract, priv, swap_back.treasury_address, amount_float, 18) do
+        {:ok, tx_hash} -> {:ok, tx_hash}
+        other -> {:error, other}
+      end
+    end)
+    # 3) Update swap_back status and persist tx_hash
+    |> Multi.run(:approve_swap_back, fn _repo, %{onchain_transfer: tx_hash} ->
+      update_swap_back(swap_back, %{status: "approved", tx_hash: tx_hash})
+    end)
+    # 4) Credit user's token ewallet
+    |> Multi.run(:buyer_asset_credit, fn _repo, _ ->
+     CommerceFront.Settings.create_wallet_transaction(%{
+        user_id: swap_back.user_id,
+        amount: Decimal.to_float(swap_back.amount),
+        remarks: "swap_back_approved_#{swap_back.id}",
+        wallet_type: "asset"
+      })
+    end)
+    |> Multi.run(:create_stake_holding, fn repo, %{buyer_asset_credit: buyer_asset_tx} ->
+      # Create stake holding linked to the wallet transaction that credited assets
+      # Mirroring primary flow: stake at 1% per day based on credited quantity
+      qty =
+        (buyer_asset_tx.wallet_transaction && buyer_asset_tx.wallet_transaction.amount) ||
+          Decimal.to_float(swap_back.amount)
+
+      params = %{
+        holding_id: buyer_asset_tx.wallet_transaction.id,
+        original_qty: Decimal.new("#{qty}"),
+        initial_bought: Date.utc_today(),
+        released: Decimal.new("0")
+      }
+
+      case CommerceFront.Settings.create_stake_holding(params)  do
+        {:ok, stake} -> {:ok, stake}
+        {:error, cs} -> {:error, cs}
+      end
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, multi_res} -> {:ok, multi_res |> Map.get(:approve_swap_back)}
+      _ -> {:error, []}
+    end
   end
 
   # Check if user has enough active_token balance for selling
