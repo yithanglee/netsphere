@@ -28,11 +28,32 @@ defmodule ZkEvm.Token do
       %{
         "constant" => false,
         "inputs" => [
+          %{"name" => "_from", "type" => "address"},
+          %{"name" => "_to", "type" => "address"},
+          %{"name" => "_value", "type" => "uint256"}
+        ],
+        "name" => "transferFrom",
+        "outputs" => [%{"name" => "success", "type" => "bool"}],
+        "type" => "function"
+      },
+      %{
+        "constant" => false,
+        "inputs" => [
           %{"name" => "_spender", "type" => "address"},
           %{"name" => "_value", "type" => "uint256"}
         ],
         "name" => "approve",
         "outputs" => [%{"name" => "success", "type" => "bool"}],
+        "type" => "function"
+      },
+      %{
+        "constant" => true,
+        "inputs" => [
+          %{"name" => "_owner", "type" => "address"},
+          %{"name" => "_spender", "type" => "address"}
+        ],
+        "name" => "allowance",
+        "outputs" => [%{"name" => "remaining", "type" => "uint256"}],
         "type" => "function"
       },
       %{
@@ -159,6 +180,73 @@ defmodule ZkEvm.Token do
 
       signed = sign_transaction(tx, privkey)
 
+      HttpClient.eth_send_raw_transaction("0x" <> Base.encode16(signed, case: :lower))
+    end
+
+    @doc """
+    Query ERC-20 allowance from owner to spender.
+    Returns integer amount in base units (raw, not adjusted by decimals).
+    """
+    def allowance(token_address, owner_address, spender_address) do
+      data =
+        encode_call(@erc20_abi, "allowance", [
+          address_to_uint(owner_address),
+          address_to_uint(spender_address)
+        ])
+
+      case HttpClient.eth_call(%{to: token_address, data: data}, "latest") do
+        {:ok, result_hex} -> {:ok, hex_to_integer(result_hex)}
+        other -> other
+      end
+    end
+
+    @doc """
+    Perform ERC-20 transferFrom using the signer's private key (spender).
+    Commonly used with a treasury key after user approval.
+
+    Returns {:ok, tx_hash} on success.
+    """
+    def transfer_from(token_address, privkey_hex, from_address, to_address, amount, decimals \\ 18) do
+      privkey = Base.decode16!(String.replace_leading(privkey_hex, "0x", ""), case: :lower)
+
+      {:ok, signer_address} = privkey_to_address(privkey)
+
+      value = trunc(amount * :math.pow(10, decimals))
+      data =
+        encode_call(@erc20_abi, "transferFrom", [
+          address_to_uint(from_address),
+          address_to_uint(to_address),
+          value
+        ])
+
+      {:ok, nonce_hex} = HttpClient.eth_get_transaction_count(signer_address, "latest")
+      nonce = hex_to_integer(nonce_hex)
+      {:ok, chain_id_hex} = HttpClient.eth_chain_id()
+      chain_id = hex_to_integer(chain_id_hex)
+
+      gas_price =
+        case HttpClient.eth_gas_price() do
+          {:ok, gp_hex} -> hex_to_integer(gp_hex)
+          _ -> 30_000_000_000
+        end
+
+      gas_limit =
+        case HttpClient.eth_estimate_gas(%{from: signer_address, to: token_address, data: data}) do
+          {:ok, gas_hex} -> hex_to_integer(gas_hex)
+          _ -> 120_000
+        end
+
+      tx = %{
+        nonce: nonce,
+        gasPrice: gas_price,
+        gas: gas_limit,
+        to: token_address,
+        value: 0,
+        data: data,
+        chainId: chain_id
+      }
+
+      signed = sign_transaction(tx, privkey)
       HttpClient.eth_send_raw_transaction("0x" <> Base.encode16(signed, case: :lower))
     end
 
