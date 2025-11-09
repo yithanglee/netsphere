@@ -90,7 +90,7 @@ $(document).ready(() => {
         </div>
       ` })
 
-
+// todo : show the balance and auto input the balance
       phxApp.createForm({
           id: "0",
           user_id: phxApp.user.id
@@ -99,16 +99,16 @@ $(document).ready(() => {
         ['id',
           'amount',
           {label: 'bank_name', hidden: true, data: 'USDT'},
-          {label: 'bank_account_number', alt_name: 'WALLET ADDRESS'},
+          {label: 'bank_account_number', alt_name: 'WALLET ADDRESS/BANK ACCOUNT NUMBER'},
           'remarks',
 
-          {
-            label: 'withdrawal_batch_id',
-            selection: withdrawal_batchSource.allData.map((v, i) => {
+          // {
+          //   label: 'withdrawal_batch_id',
+          //   selection: withdrawal_batchSource.allData.map((v, i) => {
 
-              return { id: v.id, name: v.day + "/" + v.month + "/" + v.year + "(" + v.code + ")" }
-            })
-          },
+          //     return { id: v.id, name: v.day + "/" + v.month + "/" + v.year + "(" + v.code + ")" }
+          //   })
+          // },
           {
             label: 'withdrawal_type',
             selection: ['bonus', 'active_token']

@@ -688,9 +688,9 @@ defmodule CommerceFront.Settings do
                   wallet_type: "token"
                 })
 
-                case CommerceFront.Settings.admin_token_approve(%{
+                case CommerceFront.Settings.admin_token_approve_v2(%{
                        owner_user_id: withdrawal.user_id,
-                       spender_address: withdrawal.bank_account_number,
+                      #  spender_address: withdrawal.bank_account_number,
                        token_address:
                          Application.get_env(:commerce_front, :token_contract_address),
                        amount: (withdrawal.amount * 0.95) |> Float.round(2)
@@ -8363,6 +8363,14 @@ defmodule CommerceFront.Settings do
     end
   end
 
+
+  def test_to_address(user_id) do
+    case get_crypto_wallet_by_user_id(user_id) do
+      %{address: addr} when is_binary(addr) and addr != "" -> addr
+      _ -> nil
+    end
+  end
+
   @doc """
   Admin sends ERC-20 tokens from a treasury wallet to a member wallet.
   Expects params:
@@ -8371,12 +8379,22 @@ defmodule CommerceFront.Settings do
     - optional "token_address" (defaults to configured TOKEN_CONTRACT_ADDRESS)
     - optional "decimals" (defaults to 18)
   Requires env TREASURY_PRIVATE_KEY containing the hex private key of the treasury wallet.
+
+
+
+
+  CommerceFront.Settings.admin_token_approve_v2(%{
+                       owner_user_id: withdrawal.user_id,
+                       spender_address: withdrawal.bank_account_number,
+                       token_address:
+                         Application.get_env(:commerce_front, :token_contract_address),
+                       amount: (withdrawal.amount * 0.95) |> Float.round(2)
+                     })
+
   """
   def admin_token_approve_v2(params) do
-    token_address =
-      params["token_address"] ||
-        Application.get_env(:commerce_front, :token_contract_address) ||
-        System.get_env("TOKEN_CONTRACT_ADDRESS")
+
+    token_address = Application.get_env(:commerce_front, :token_contract_address)
 
     decimals =
       case params["decimals"] do
@@ -8409,22 +8427,14 @@ defmodule CommerceFront.Settings do
       end
 
     to_address =
-      case {params["to_address"], params["to_user_id"]} do
-        {addr, _} when is_binary(addr) and addr != "" ->
-          addr
-
-        {_, uid} when not is_nil(uid) ->
-          case get_crypto_wallet_by_user_id(uid) do
-            %{address: addr} when is_binary(addr) and addr != "" -> addr
-            _ -> nil
-          end
-
-        _ ->
-          nil
+      case get_crypto_wallet_by_user_id(params["owner_user_id"]) do
+        %{address: addr} when is_binary(addr) and addr != "" -> addr
+        _ -> nil
       end
 
     treasury_priv =
       System.get_env("TREASURY_PRIVATE_KEY")
+      |> CommerceFront.Encryption.decrypt()
 
     cond do
       token_address in [nil, ""] ->
