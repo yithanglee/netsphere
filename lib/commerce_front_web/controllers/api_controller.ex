@@ -1790,6 +1790,11 @@ defmodule CommerceFrontWeb.ApiController do
             {:ok, %{tx_hash: hash}} -> %{status: "ok", tx_hash: hash}
             {:error, reason} -> %{status: "error", reason: reason}
           end
+        "admin_token_approve_v2" ->
+          case Settings.admin_token_approve_v2(params) do
+            {:ok, %{tx_hash: hash}} -> %{status: "ok", tx_hash: hash}
+            {:error, reason} -> %{status: "error", reason: reason}
+          end
 
         "manual_approve_admin" ->
           with sales <- Settings.get_sale!(params["id"]),

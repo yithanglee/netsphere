@@ -8363,6 +8363,91 @@ defmodule CommerceFront.Settings do
     end
   end
 
+  @doc """
+  Admin sends ERC-20 tokens from a treasury wallet to a member wallet.
+  Expects params:
+    - "to_user_id" or "to_address"
+    - "amount"
+    - optional "token_address" (defaults to configured TOKEN_CONTRACT_ADDRESS)
+    - optional "decimals" (defaults to 18)
+  Requires env TREASURY_PRIVATE_KEY containing the hex private key of the treasury wallet.
+  """
+  def admin_token_approve_v2(params) do
+    token_address =
+      params["token_address"] ||
+        Application.get_env(:commerce_front, :token_contract_address) ||
+        System.get_env("TOKEN_CONTRACT_ADDRESS")
+
+    decimals =
+      case params["decimals"] do
+        nil ->
+          18
+
+        d when is_integer(d) ->
+          d
+
+        d when is_binary(d) ->
+          case Integer.parse(d) do
+            {n, _} -> n
+            _ -> 18
+          end
+
+        _ ->
+          18
+      end
+
+    amount =
+      case params["amount"] do
+        %Decimal{} = d -> Decimal.to_float(d)
+        n when is_number(n) -> n
+        s when is_binary(s) ->
+          case Float.parse(s) do
+            {val, _} -> val
+            _ -> 0.0
+          end
+        _ -> 0.0
+      end
+
+    to_address =
+      case {params["to_address"], params["to_user_id"]} do
+        {addr, _} when is_binary(addr) and addr != "" ->
+          addr
+
+        {_, uid} when not is_nil(uid) ->
+          case get_crypto_wallet_by_user_id(uid) do
+            %{address: addr} when is_binary(addr) and addr != "" -> addr
+            _ -> nil
+          end
+
+        _ ->
+          nil
+      end
+
+    treasury_priv =
+      System.get_env("TREASURY_PRIVATE_KEY")
+
+    cond do
+      token_address in [nil, ""] ->
+        {:error, "token_contract_not_configured"}
+
+      to_address in [nil, ""] ->
+        {:error, "invalid_recipient"}
+
+      treasury_priv in [nil, ""] ->
+        {:error, "treasury_private_key_missing"}
+
+      amount <= 0 ->
+        {:error, "invalid_amount"}
+
+      true ->
+        case ZkEvm.Token.transfer(token_address, treasury_priv, to_address, amount, decimals) do
+          {:ok, tx_hash} -> {:ok, %{tx_hash: tx_hash, to: to_address}}
+          {:error, reason} -> {:error, inspect(reason)}
+          other -> {:error, inspect(other)}
+        end
+    end
+  end
+
   def create_crypto_wallet(params \\ %{}) do
     params =
       cond do
