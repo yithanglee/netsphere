@@ -170,9 +170,10 @@ defmodule CommerceFront.Market.Secondary do
   defp close_tranche_if_filled(%AssetTranche{} = tranche) do
     if Decimal.compare(tranche.traded_qty, tranche.quantity) != :lt do
       # Close current tranche
-      from(t in AssetTranche, where: t.id == ^tranche.id)
-      |> Repo.update_all(set: [state: "closed"])
-      |> elem(1)
+      _ =
+        from(t in AssetTranche, where: t.id == ^tranche.id)
+        |> Repo.update_all(set: [state: "closed"])
+        |> elem(1)
 
       # Open next tranche by sequence if exists
       next =
@@ -414,7 +415,7 @@ defmodule CommerceFront.Market.Secondary do
                            |> IO.inspect(label: "market order") do
                       # Try to match with existing sell orders or inject liquidity
 
-                      trade_res =
+                  _trade_res =
                         match_and_execute_tranche_based_trades(
                           order,
                           current_tranche,
@@ -501,7 +502,7 @@ defmodule CommerceFront.Market.Secondary do
     # buy kampiew's 1000 qty first, see the remainder...
 
     # Step 3: If still need to fill, inject from tranche
-    tranche_res =
+    _tranche_res =
       if Decimal.compare(remaining_after_member_trades, Decimal.new("0")) == :gt do
         inject_from_tranche(buy_order, post_current_tranche, remaining_after_member_trades)
         |> IO.inspect(label: "remaining_after_inject_from_tranche")
@@ -518,7 +519,7 @@ defmodule CommerceFront.Market.Secondary do
 
     # Step 5: If tranche filled, close and open next
     tranche = Repo.get!(AssetTranche, current_tranche.id)
-    {tranche_status, next_tranche} = close_tranche_if_filled(tranche)
+    {_tranche_status, next_tranche} = close_tranche_if_filled(tranche)
 
     if remainder_breakdowns != [] do
       remainder = List.first(remainder_breakdowns)
@@ -541,14 +542,14 @@ defmodule CommerceFront.Market.Secondary do
          buy_order,
          sell_orders,
          remaining_quantity,
-         continuous_current_tranche \\ nil
+         continuous_current_tranche
        ) do
     Enum.reduce_while(
       sell_orders,
       {remaining_quantity, continuous_current_tranche},
       fn sell_order, {remaining, post_current_tranche} ->
         if Decimal.compare(remaining, Decimal.new("0")) == :eq do
-          {:halt, remaining}
+          {:halt, {remaining, post_current_tranche}}
         else
           trade_quantity = Decimal.min(remaining, sell_order.remaining_quantity)
           trade_price = sell_order.price_per_unit
@@ -567,7 +568,7 @@ defmodule CommerceFront.Market.Secondary do
             trade_date: DateTime.utc_now()
           }
 
-          case execute_trade(trade_params, buy_order, sell_order, continuous_current_tranche) do
+          case execute_trade(trade_params, buy_order, sell_order, post_current_tranche) do
             {:ok, _, post_current_tranche} ->
               new_remaining = Decimal.sub(remaining, trade_quantity)
 
@@ -591,7 +592,7 @@ defmodule CommerceFront.Market.Secondary do
 
     # Caps: total remaining and company remaining
     available_total = Decimal.sub(tranche.quantity, tranche.traded_qty)
-    available_company = Decimal.sub(tranche.quantity, tranche.qty_sold)
+    _available_company = Decimal.sub(tranche.quantity, tranche.qty_sold)
 
     # damien: difficult to tell, actually need the backfill function and get last traded quantity after amount.
     # as long as the backfill function the
@@ -608,7 +609,7 @@ defmodule CommerceFront.Market.Secondary do
              tranche.unit_price,
              buy_order.user_id
            ) do
-        {:ok, {synthetic_order, trade_params}} ->
+        {:ok, {_synthetic_order, trade_params}} ->
           # Update trade params with buy order ID
           trade_params = Map.put(trade_params, :buy_order_id, buy_order.id)
 
@@ -778,9 +779,19 @@ defmodule CommerceFront.Market.Secondary do
         update_order_status(matching_order, "filled")
       end
 
-      {:ok, post_current_tranche} =
-        update_tranche_traded_quantity(continuous_current_tranche.id, trade_params.quantity)
-        |> IO.inspect(label: "update_tranche_traded_quantity")
+      post_current_tranche =
+        if continuous_current_tranche do
+          case update_tranche_traded_quantity(
+                 continuous_current_tranche.id,
+                 trade_params.quantity
+               )
+               |> IO.inspect(label: "update_tranche_traded_quantity") do
+            {:ok, updated_tranche} -> updated_tranche
+            _ -> continuous_current_tranche
+          end
+        else
+          nil
+        end
 
       {:ok, :success, post_current_tranche}
     else
@@ -790,6 +801,7 @@ defmodule CommerceFront.Market.Secondary do
   end
 
   defp execute_wallet_transfers(trade_params, continuous_current_tranche \\ nil) do
+    _ = continuous_current_tranche
     IO.inspect(trade_params, label: "trade_params")
     finance_user = Settings.finance_user()
     is_synthetic_seller = trade_params.seller_id == finance_user.id

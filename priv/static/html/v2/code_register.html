@@ -65,10 +65,10 @@
 
           </div>
           <div class="d-lg-none d-block ">
-            <button type="button" class="btn btn-primary w-100" id="nextBtn">Next</button>
+            <button type="button" class="btn btn-primary w-100 nextBtn" id="">Next</button>
           </div>
           <div class="d-none d-lg-block text-end">
-            <button type="button" class="btn btn-primary" id="nextBtn">Next</button>
+            <button type="button" class="btn btn-primary nextBtn" id="">Next</button>
           </div>
         </div>
       </div>
@@ -80,7 +80,7 @@
     function getEmail(){ return $("input[name='user[email]']").val(); }
     function getName(){ return $("input[name='user[fullname]']").val() || getEmail(); }
 
-    $("#nextBtn").on("click", function(){
+    $(".nextBtn").on("click", function(){
       // simple front validation for step 1
       var form = $(this).closest("form")[0];
 

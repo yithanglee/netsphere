@@ -885,7 +885,7 @@ defmodule CommerceFrontWeb.ApiController do
             status: :ok
           }
 
-          webhook_details = NowPayments.get_payment_status(params["id"])
+          webhook_details = NowPayments.get_payment_status(params["id"]) |> IO.inspect(label: "webhook_details")
 
           if webhook_details.payment_status == "waiting" do
             %{

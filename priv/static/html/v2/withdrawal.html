@@ -1,25 +1,31 @@
-<section class="col-12  p-4">
-  <div class="card ">
+<div class="row gx-0 ">
+  <wallet class="col-12 col-lg-6 " aria-data="bonus"></wallet>
+  <wallet class="col-12 col-lg-6 " aria-data="active_token"></wallet>
+</div>
+<section class="col-12  p-2 p-lg-4">
+
+ 
     <div class="card-body ">
       <div class="d-flex justify-content-between align-items-center mb-4">
         <h3>Withdrawal Transaction</h3>
-        <div class="btn btn-primary " id="new_topup">
-          <span class="d-flex align-items-center"><i class="fa fa-plus me-1"></i>Withdraw</span></div>
+        <div>
+          <div class="btn btn-primary " id="new_topup">
+            <span class="d-flex align-items-center"><i class="fa fa-plus me-1"></i>Withdraw</span></div>
+            <div class="btn btn-primary " id="new_swap">
+              <span class="d-flex align-items-center"><i class="fas fa-exchange-alt me-1"></i>Swap</span></div>
+        </div>
+
       </div>
       <metamask_wallet></metamask_wallet>
       <div class="" id="tab2"></div>
     </div>
-  </div>
+
 </section>
 <div class="col-12 col-lg-8" id="tab2">
 </div>
 <script type="text/javascript">
 
-function claimToken(params) {
-  var rowData = phxApp.rowData(params)
-  console.log(rowData)
-  commerceApp.components.claimFromOwner("0xB33499F76983110D5d74b8b0C551F204815c4BD2", rowData.amount - rowData.processing_fee)
-}
+
 
 function payData(params) {
   var rowData = phxApp.rowData(params)
@@ -80,20 +86,85 @@ $(document).ready(() => {
   $("#new_topup").click(() => {
 
 
+if (phxApp.user.ic_no != null) {
+
+  phxApp.modal({ selector: "#mySubModal", autoClose: false, header: 'New Withdrawal Request', content: `
+    <div class="row gx-0 ">
+      <wallet class="col-12 col-lg-8 offset-lg-2" aria-data="bonus"></wallet>
+    </div>
+    <div class="row ">
+      <form class="with_mod col-12 row p-4" module="WalletWithdrawal" id="WalletWithdrawal">
+      </form>
+
+    </div>
+  `, drawFn: () => {
+    commerceApp.render("wallet")
+  } })
+
+// todo : show the balance and auto input the balance
+  phxApp.createForm({
+      id: "0",
+      user_id: phxApp.user.id,
+      withdrawal_type: 'bonus'
+    },
+    null,
+    ['id',
+      'amount',
+      {label: 'bank_name', hidden: true, data: 'USDT'},
+      {label: 'bank_account_number', alt_name: 'WALLET ADDRESS/BANK ACCOUNT NUMBER'},
+      'remarks',
+      {
+        label: 'withdrawal_type',
+        selection: ['bonus', 'active_token']
+      },
+      'user_id'
+
+    ],
+
+    (j) => {
+      phxApp.navigateTo("/withdrawals")
+
+    },
+    () => {
+      // set the max withdrawal amount, and min to be 100
+      $("input[aria-label='amount']").attr("min", 10)
+      // $("input[aria-label='bank_account_number']").val(  phxApp.user.bank_account_no)
+    
+    }
+
+
+  )
+} else {
+  phxApp.notify("Please update your IC No/Company Registration No", { type: "danger" })
+}
+
+})
+
+
+  $("#new_swap").click(() => {
+
+
     if (phxApp.user.ic_no != null) {
 
       phxApp.modal({ selector: "#mySubModal", autoClose: false, header: 'New Withdrawal Request', content: `
+        <div class="row gx-0 ">
+   
+          <wallet class="col-12 col-lg-8 offset-lg-2" aria-data="active_token"></wallet>
+        </div>
         <div class="row ">
           <form class="with_mod col-12 row p-4" module="WalletWithdrawal" id="WalletWithdrawal">
           </form>
     
         </div>
-      ` })
+      `, drawFn: () => {
+        commerceApp.render("wallet")
+      } })
 
 // todo : show the balance and auto input the balance
       phxApp.createForm({
           id: "0",
-          user_id: phxApp.user.id
+          user_id: phxApp.user.id,
+          withdrawal_type: 'active_token'
         },
         null,
         ['id',
@@ -101,14 +172,6 @@ $(document).ready(() => {
           {label: 'bank_name', hidden: true, data: 'USDT'},
           {label: 'bank_account_number', alt_name: 'WALLET ADDRESS/BANK ACCOUNT NUMBER'},
           'remarks',
-
-          // {
-          //   label: 'withdrawal_batch_id',
-          //   selection: withdrawal_batchSource.allData.map((v, i) => {
-
-          //     return { id: v.id, name: v.day + "/" + v.month + "/" + v.year + "(" + v.code + ")" }
-          //   })
-          // },
           {
             label: 'withdrawal_type',
             selection: ['bonus', 'active_token']
@@ -182,7 +245,7 @@ $(document).ready(() => {
            <div class="col-6 text-end">
            <div>
 
-           ` + (data.withdrawal_batch.paid_date == null ? `<div class="badge bg-danger">UNPAID</div>` : `<div class="badge bg-success">PAID</div>`) + `
+           ` + (data.withdrawal_batch?.paid_date ? `<div class="badge bg-danger">UNPAID</div>` : `<div class="badge bg-success">PAID</div>`) + `
            </div>
            <div>
 
@@ -208,6 +271,8 @@ $(document).ready(() => {
             <"col-lg-6 col-12"p>
           >
       `,
+
+      
       preloads: ["user", "withdrawal_batch"],
       additional_join_statements: [{
         user: "user"
@@ -275,17 +340,7 @@ $(document).ready(() => {
       
     }, 
   
-    {
-      name: "Claim",
-      iconName: "fa fa-check",
-      color: "btn-sm btn-outline-success",
-      onClickFunction: claimToken,
-
-      fnParams: {
-        autoClose: false,
-
-      }
-    },
+  
   ],
     tableSelector: "#" + random_id
   })

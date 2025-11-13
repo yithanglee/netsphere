@@ -841,3 +841,12 @@ body {
 .badge.bg-secondary {
   padding-top: 8px;width: 4vw;color: black;
 }
+
+.text-secondary {
+	--bs-text-opacity: 1;
+	color: rgb(75, 222, 200) !important;
+}
+
+.mtraded, .ctraded {
+  display: none;
+}

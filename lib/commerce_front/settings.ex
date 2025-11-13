@@ -789,15 +789,18 @@ defmodule CommerceFront.Settings do
           })
           |> IO.inspect()
 
+          IEx.pry
+
         payment_res =
           NowPayments.create_invoice_payment(invoice_res |> Map.get(:invoice_id)) |> IO.inspect()
+        payment_id = payment_res |> Map.get(:payment_id)
 
         create_payment(%{
           payment_method: wallet_topup.payment_method,
           amount: wallet_topup.amount,
           wallet_topup_id: wallet_topup.id,
-          billplz_code: payment_res |> Map.get(:payment_id),
-          payment_url: invoice_res |> Map.get(:url)
+          billplz_code: payment_id,
+          payment_url:  Map.get(invoice_res, :url) <> "&paymentId=#{payment_id}"
         })
       else
         create_payment(%{
@@ -3370,7 +3373,7 @@ defmodule CommerceFront.Settings do
     |> Multi.run(:topup, fn _repo, %{} ->
       create_wallet_topup(params)
     end)
-    |> Multi.run(:payment, fn _repo, %{topup: topup} ->
+    # |> Multi.run(:payment, fn _repo, %{topup: topup} ->
       # change to razer
       # res = Billplz.create_collection("Topup Order: #{topup.id}")
       # collection_id = Map.get(res, "id")
@@ -3382,21 +3385,21 @@ defmodule CommerceFront.Settings do
       #     name: params["user"]["fullname"],
       #     amount: topup.amount * 5
       #   })
-      server_url = Application.get_env(:commerce_front, :url) |> IO.inspect()
+      # server_url = Application.get_env(:commerce_front, :url) |> IO.inspect()
 
-      create_payment(%{
-        amount: topup.amount,
-        wallet_topup_id: topup.id,
-        billplz_code: "HAHOTOPUP#{topup.id}",
-        payment_url:
-          "#{server_url}/test_razer?chan=#{topup.bank}&amt=#{topup.amount * 5}&ref_no=HAHOTOPUP#{topup.id}"
-      })
-      |> IO.inspect()
-    end)
+      # create_payment(%{
+      #   amount: topup.amount,
+      #   wallet_topup_id: topup.id,
+      #   billplz_code: "HAHOTOPUP#{topup.id}",
+      #   payment_url:
+      #     "#{server_url}/test_razer?chan=#{topup.bank}&amt=#{topup.amount * 5}&ref_no=HAHOTOPUP#{topup.id}"
+      # })
+      # |> IO.inspect()
+    # end)
     |> Repo.transaction()
     |> case do
       {:ok, multi_res} ->
-        {:ok, multi_res |> Map.get(:topup) |> Map.put(:payment, multi_res.payment)}
+        {:ok, multi_res |> Map.get(:topup) }
 
       _ ->
         {:error, []}
@@ -5442,7 +5445,7 @@ defmodule CommerceFront.Settings do
 
   def check_accumulated_bonuses(user_id) do
     Repo.all(
-      from(r in CommerceFront.Settings.Reward, where: r.user_id == ^user_id, select: r.amount)
+      from(r in CommerceFront.Settings.Reward, where: r.user_id == ^user_id, select: sum(r.amount), group_by: [r.user_id])
     )
     |> IO.inspect(label: "check_accumulated_bonuses")
     |> List.first()
@@ -6785,6 +6788,35 @@ defmodule CommerceFront.Settings do
         SUM(smt.quantity) AS total_traded
       FROM secondary_market_trades smt
       GROUP BY smt.asset_id, smt.price_per_unit
+    ),
+    orders AS (
+      SELECT
+        so.asset_id,
+        so.price_per_unit,
+        SUM(CASE WHEN so.user_id NOT IN (SELECT id FROM finance) THEN so.quantity ELSE 0 END) AS member_sell_quantity,
+        SUM(CASE WHEN so.user_id IN (SELECT id FROM finance) THEN so.quantity ELSE 0 END) AS company_sell_quantity
+      FROM secondary_market_orders so
+      where so.order_type = 'sell'
+      GROUP BY so.asset_id, so.price_per_unit
+    ),
+    at_filtered AS (
+      -- include open and upcoming tranches
+      SELECT at.*
+      FROM asset_tranches at
+      WHERE at.state IN ('open', 'upcoming')
+      UNION ALL
+      -- plus the latest closed tranche per asset (by highest seq)
+      SELECT at_closed.*
+      FROM asset_tranches at_closed
+      JOIN (
+        SELECT asset_id, MAX(seq) AS max_seq
+        FROM asset_tranches
+        WHERE state = 'closed'
+        GROUP BY asset_id
+      ) last_closed
+        ON last_closed.asset_id = at_closed.asset_id
+       AND last_closed.max_seq = at_closed.seq
+      WHERE at_closed.state = 'closed'
     )
     SELECT
       COALESCE(t.asset_id, at.asset_id) AS asset_id,
@@ -6793,10 +6825,15 @@ defmodule CommerceFront.Settings do
       at.quantity::float AS total_quantity,
       COALESCE(t.company_traded, 0)::float AS company_traded,
       COALESCE(t.members_traded, 0)::float AS member_traded,
-      COALESCE(t.total_traded, 0)::float AS total_traded
+      COALESCE(t.total_traded, 0)::float AS total_traded,
+      COALESCE(o.member_sell_quantity, 0)::float AS member_sell_quantity,
+      COALESCE(o.company_sell_quantity, 0)::float AS company_sell_quantity
     FROM trades t
-    FULL JOIN asset_tranches at
+    FULL JOIN at_filtered at
       ON at.asset_id = t.asset_id AND at.unit_price = t.price_per_unit
+    FULL JOIN orders o
+      ON o.price_per_unit = at.unit_price
+    where at.state in ('open', 'upcoming', 'closed')
     ORDER BY asset_id, unit_price, seq
     """
 
