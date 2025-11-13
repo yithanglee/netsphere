@@ -6796,7 +6796,7 @@ defmodule CommerceFront.Settings do
         SUM(CASE WHEN so.user_id NOT IN (SELECT id FROM finance) THEN so.quantity ELSE 0 END) AS member_sell_quantity,
         SUM(CASE WHEN so.user_id IN (SELECT id FROM finance) THEN so.quantity ELSE 0 END) AS company_sell_quantity
       FROM secondary_market_orders so
-      where so.order_type = 'sell'
+      where so.order_type = 'sell' and so.status != 'cancelled'
       GROUP BY so.asset_id, so.price_per_unit
     ),
     at_filtered AS (
