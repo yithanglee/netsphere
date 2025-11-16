@@ -91,7 +91,11 @@ if (phxApp.user.ic_no != null) {
   phxApp.modal({ selector: "#mySubModal", autoClose: false, header: 'New Withdrawal Request', content: `
     <div class="row gx-0 ">
       <wallet class="col-12 col-lg-8 offset-lg-2" aria-data="bonus"></wallet>
+      <div class="col-12 col-lg-8 offset-lg-2 p-2">
+       <p class="text-secondary text-sm">Note: This will be processed within 24 hours. Has a fee of USDT 1.</p>
+      </div>
     </div>
+   
     <div class="row ">
       <form class="with_mod col-12 row p-4" module="WalletWithdrawal" id="WalletWithdrawal">
       </form>
@@ -150,6 +154,9 @@ if (phxApp.user.ic_no != null) {
         <div class="row gx-0 ">
    
           <wallet class="col-12 col-lg-8 offset-lg-2" aria-data="active_token"></wallet>
+           <div class="col-12 col-lg-8 offset-lg-2 p-2">
+       <p class="text-secondary text-sm">Note: This will be processed within 24 hours. Has a fee of 0.5% .</p>
+      </div>
         </div>
         <div class="row ">
           <form class="with_mod col-12 row p-4" module="WalletWithdrawal" id="WalletWithdrawal">

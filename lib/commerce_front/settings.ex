@@ -8574,6 +8574,15 @@ defmodule CommerceFront.Settings do
     Repo.delete(model)
   end
 
+  def unit_price_valid?(price_per_unit) do
+    check = Repo.all(from(at in AssetTranche, where: at.unit_price == ^price_per_unit)) |> List.first()
+    if check != nil do
+      true
+    else
+      false
+    end
+  end
+
   alias CommerceFront.Settings.Balance
 
   def list_balances() do
