@@ -789,8 +789,6 @@ defmodule CommerceFront.Settings do
           })
           |> IO.inspect()
 
-          IEx.pry
-
         payment_res =
           NowPayments.create_invoice_payment(invoice_res |> Map.get(:invoice_id)) |> IO.inspect()
         payment_id = payment_res |> Map.get(:payment_id)
