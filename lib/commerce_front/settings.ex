@@ -8648,13 +8648,14 @@ defmodule CommerceFront.Settings do
     end)
   end
 
-  def run_daily_staking_release() do
+  def run_daily_staking_release(date \\ Date.utc_today()) do
     # Process stake release for all users
     for user_id <- Repo.all(from(u in User, select: u.id)) do
-      process_stake_release(user_id)
+      process_stake_release(user_id, date)
     end
   end
 
+  @spec process_stake_release(any(), any()) :: any()
   def process_stake_release(user_id, asset_id \\ nil, today \\ Date.utc_today()) do
     query =
       from(sh in StakeHolding,
