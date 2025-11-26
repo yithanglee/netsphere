@@ -73,6 +73,22 @@ defmodule CommerceFrontWeb.ApiController do
 
     res =
       case params["scope"] do
+        "model_get_by" ->
+          map =
+            params
+            |> Enum.map(fn {k, v} -> {String.to_atom(k), v} end)
+            |> Map.new()
+
+          CommerceFront.Utility.get_by(params["model"], map |> Map.drop([
+            :model,
+            :scope
+          ])) |> BluePotion.sanitize_struct()
+
+        "datatable" ->
+          CommerceFront.Utility.build_datatable_query(
+            CommerceFront.Utility.modulize_name(params["model"]),
+            %{}
+          )
 
         "swap_back_config" ->
           %{
@@ -84,6 +100,7 @@ defmodule CommerceFrontWeb.ApiController do
               confirmations: 1
             }
           }
+
         "get_sponsor_info" ->
           res =
             CommerceFront.Settings.get_share_link_by_code(params["code"])
@@ -91,13 +108,13 @@ defmodule CommerceFrontWeb.ApiController do
             |> BluePotion.sanitize_struct()
 
           {position, parent_p} =
-            CommerceFront.Settings.determine_position(res.user.username, true, res.position)
+            CommerceFront.Settings.determine_position(res.user.username, true, res.position) |> IO.inspect(label: "determine_position")
 
           %{
             status: "ok",
             res:
               res
-              |> Map.put(:placement, BluePotion.sanitize_struct(parent_p |> Repo.preload(:user)))
+              |> Map.put(:placement, parent_p )
           }
 
         "check_second_password" ->
@@ -225,6 +242,7 @@ defmodule CommerceFrontWeb.ApiController do
                   decimals = 18
                   formatted = raw / :math.pow(10, decimals)
                   %{address: wallet.address, raw: raw, decimals: decimals, formatted: formatted}
+
                 {:error, reason} ->
                   %{status: "error", reason: inspect(reason)}
               end
@@ -234,6 +252,7 @@ defmodule CommerceFrontWeb.ApiController do
           else
             %{status: "error", reason: "session expired"}
           end
+
         "crypto_native_transfers" ->
           wallet = Settings.get_crypto_wallet_by_user_id(id)
 
@@ -413,7 +432,6 @@ defmodule CommerceFrontWeb.ApiController do
             end
           else
             %{status: "error", reason: "session expired"}
-
           end
 
         "travel_fund_qualifiers" ->
@@ -789,6 +807,11 @@ defmodule CommerceFrontWeb.ApiController do
         "unpaid_reward_summary" ->
           Settings.group_unpay_rewards()
 
+        "get_cookie_merchant" ->
+          Settings.get_cookie_merchant_by_cookie(params["cookie"])
+          |> BluePotion.sanitize_struct()
+          |> IO.inspect(label: "get_cookie_merchant")
+
         "get_cookie_user" ->
           Settings.get_cookie_user_by_cookie(params["cookie"]) |> BluePotion.sanitize_struct()
 
@@ -885,7 +908,8 @@ defmodule CommerceFrontWeb.ApiController do
             status: :ok
           }
 
-          webhook_details = NowPayments.get_payment_status(params["id"]) |> IO.inspect(label: "webhook_details")
+          webhook_details =
+            NowPayments.get_payment_status(params["id"]) |> IO.inspect(label: "webhook_details")
 
           if webhook_details.payment_status == "waiting" do
             %{
@@ -1267,21 +1291,24 @@ defmodule CommerceFrontWeb.ApiController do
           case Settings.approve_swap_back(params["id"]) do
             {:ok, sb} ->
               %{status: "ok", res: sb |> BluePotion.sanitize_struct()}
+
             {:error, reason} ->
               %{status: "error", reason: inspect(reason)}
           end
+
         "swap_back_create" ->
-       case   Settings.create_swap_back(%{
-            user_id: id,
-            user_wallet_address: params["wallet_address"],
-            treasury_address: params["treasury"],
-            amount_raw: params["amount_raw"],
-            amount: params["amount"],
-            tx_hash: params["tx_hash"],
-            status: "pending"
-          }) do
+          case Settings.create_swap_back(%{
+                 user_id: id,
+                 user_wallet_address: params["wallet_address"],
+                 treasury_address: params["treasury"],
+                 amount_raw: params["amount_raw"],
+                 amount: params["amount"],
+                 tx_hash: params["tx_hash"],
+                 status: "pending"
+               }) do
             {:ok, sb} ->
               %{status: "ok", res: sb |> BluePotion.sanitize_struct()}
+
             {:error, reason} ->
               %{status: "error", reason: inspect(reason)}
           end
@@ -1289,6 +1316,7 @@ defmodule CommerceFrontWeb.ApiController do
         "pay_single_reward" ->
           Settings.pay_single_reward(params)
           %{status: "ok"}
+
         "user_fcm_token" ->
           check_staff = params["user_token"] |> CommerceFront.Settings.get_cookie_user_by_cookie()
 
@@ -1375,7 +1403,11 @@ defmodule CommerceFrontWeb.ApiController do
                wallet when not is_nil(wallet) <- Settings.get_crypto_wallet_by_user_id(user_id),
                to when is_binary(to) and to != "" <- params["to"],
                {amount, _} <- Float.parse(to_string(params["amount"])) do
-            case ZkEvm.Token.transfer_native(wallet.private_key |> CommerceFront.Encryption.decrypt(), to, amount) do
+            case ZkEvm.Token.transfer_native(
+                   wallet.private_key |> CommerceFront.Encryption.decrypt(),
+                   to,
+                   amount
+                 ) do
               {:ok, tx_hash} -> %{status: "ok", tx_hash: tx_hash}
               {:error, reason} -> %{status: "error", reason: inspect(reason)}
             end
@@ -1790,6 +1822,7 @@ defmodule CommerceFrontWeb.ApiController do
             {:ok, %{tx_hash: hash}} -> %{status: "ok", tx_hash: hash}
             {:error, reason} -> %{status: "error", reason: reason}
           end
+
         "admin_token_approve_v2" ->
           case Settings.admin_token_approve_v2(params) do
             {:ok, %{tx_hash: hash}} -> %{status: "ok", tx_hash: hash}
@@ -1832,6 +1865,35 @@ defmodule CommerceFrontWeb.ApiController do
           else
             _ ->
               %{status: "ok"}
+          end
+
+        "merchant_sign_in" ->
+          res = Settings.check_merchant_password(params)
+
+          case res do
+            {true, user} ->
+              token =
+                Phoenix.Token.sign(
+                  CommerceFrontWeb.Endpoint,
+                  "admin_signature",
+                  params["username"]
+                )
+
+              Settings.create_session_user(%{"cookie" => token, "user_id" => user.id})
+
+              merchant_id = if user.merchant != nil, do: user.merchant.id, else: nil
+
+              %{
+                id: user.id,
+                status: "ok",
+                res: token,
+                country_id: user.country_id || 1,
+                role_app_routes: [],
+                merchant_id: merchant_id
+              }
+
+            {false, _res} ->
+              %{status: "error", reason: "Invalid credentials"}
           end
 
         "sign_in" ->

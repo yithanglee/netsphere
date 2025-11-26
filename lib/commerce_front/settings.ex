@@ -20,6 +20,7 @@ defmodule CommerceFront.Settings do
       stockist_register_bonus: 4
     ]
 
+
   alias CommerceFront.Settings.Slide
 
   def list_slides(is_show) do
@@ -34,7 +35,8 @@ defmodule CommerceFront.Settings do
     if bool_key in Map.keys(params) do
       params |> Map.put(bool_key, Map.get(params, bool_key) == "on")
     else
-      params |> Map.put(bool_key, false)
+      # params |> Map.put(bool_key, false)
+      params
     end
   end
 
@@ -204,13 +206,26 @@ defmodule CommerceFront.Settings do
     |> List.first()
   end
 
+  def get_cookie_merchant_by_cookie(cookie) do
+    res =
+    Repo.all(
+      from(s in SessionUser, where: s.cookie == ^cookie)
+    )
+    |> List.first()
+    user =
+    Repo.all(from u in CommerceFront.Settings.User, where: u.id == ^res.user_id, preload: [:country, :merchant]) |> List.first()
+
+    merchant_id = if user.merchant != nil, do: user.merchant.id, else: nil
+
+    res |> Map.put(:user, user) |> Map.put(:merchant_id, merchant_id) |> Map.put(:user_id, user.id)
+  end
+
   def get_cookie_user_by_cookie(cookie) do
     Repo.all(
       from(s in SessionUser, where: s.cookie == ^cookie, preload: [user: [role: :app_routes]])
     )
     |> List.first()
   end
-
   def list_session_users() do
     Repo.all(SessionUser)
   end
@@ -6146,6 +6161,25 @@ defmodule CommerceFront.Settings do
     end
   end
 
+  def check_merchant_password(params) do
+    users =
+      Repo.all(
+        from(u in User , where: u.username == ^params["username"], preload: [:merchant, :country])
+      )
+
+    if users != [] do
+      user = List.first(users) |> IO.inspect(label: "merchant user")
+
+
+      crypted_password =
+        :crypto.hash(:sha512, params["password"])
+        |> Base.encode16()
+        |> String.downcase()
+
+      {crypted_password == user.crypted_password, user}
+    end
+  end
+
   def check_staff_password(params) do
     users =
       Repo.all(
@@ -8075,9 +8109,6 @@ defmodule CommerceFront.Settings do
   end
 
   def update_merchant(model, params) do
-    bool_key = "is_open"
-    params = append_bool_key(params, bool_key)
-
     Merchant.changeset(model, params) |> Repo.update() |> IO.inspect()
   end
 

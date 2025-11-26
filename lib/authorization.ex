@@ -61,6 +61,7 @@ defmodule CommerceFront.ApiAuthorization do
           "login",
           "override",
           "sign_in",
+          "merchant_sign_in",
           "update_customer",
           "food_payment",
           "admin_menus",
