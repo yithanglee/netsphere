@@ -795,7 +795,7 @@ defmodule CommerceFront.Market.Secondary do
         {:error, "Trade execution failed: #{inspect(error)}", continuous_current_tranche}
     end
   end
-
+require IEx
   defp execute_wallet_transfers(trade_params, continuous_current_tranche \\ nil) do
     _ = continuous_current_tranche
     IO.inspect(trade_params, label: "trade_params")
@@ -805,7 +805,7 @@ defmodule CommerceFront.Market.Secondary do
     # Precompute wallet transaction param maps
     buyer_token_debit = %{
       user_id: trade_params.buyer_id,
-      amount: -Decimal.to_float(trade_params.total_amount) |> Float.round(2),
+      amount: -Decimal.to_float(trade_params.total_amount) |> Float.round(3),
       remarks:
         "secondary_market_buy_#{trade_params.asset_id}_#{trade_params.trade_date} | qty: #{trade_params.quantity}",
       wallet_type: "token"
@@ -821,7 +821,7 @@ defmodule CommerceFront.Market.Secondary do
 
     seller_token_credit = %{
       user_id: trade_params.seller_id,
-      amount: (Decimal.to_float(trade_params.total_amount) * 0.3) |> Float.round(2),
+      amount: (Decimal.to_float(trade_params.total_amount) * 0.3) |> Float.round(3),
       remarks:
         "secondary_market_receive_tokens_#{trade_params.asset_id}_#{trade_params.trade_date}| qty: #{trade_params.quantity}| total_amount: #{trade_params.total_amount}",
       wallet_type: "token"
@@ -829,7 +829,7 @@ defmodule CommerceFront.Market.Secondary do
 
     seller_bonus_credit = %{
       user_id: trade_params.seller_id,
-      amount: (Decimal.to_float(trade_params.total_amount) * 0.7) |> Float.round(2),
+      amount: (Decimal.to_float(trade_params.total_amount) * 0.7) |> Float.round(3),
       remarks:
         "secondary_market_receive_tokens_#{trade_params.asset_id}_#{trade_params.trade_date}| qty: #{trade_params.quantity}| total_amount: #{trade_params.total_amount}",
       wallet_type: "bonus"
@@ -861,13 +861,12 @@ defmodule CommerceFront.Market.Secondary do
           )
           |> repo.one()
           |> IO.inspect(label: "bal")
-
         cond do
           is_nil(bal) ->
             {:error, :buyer_wallet_not_found}
 
           Decimal.compare(
-            Decimal.from_float(bal.total),
+              Decimal.from_float(bal.total),
             trade_params.total_amount |> Decimal.round(2)
           ) == :lt ->
             {:error, :insufficient_funds}

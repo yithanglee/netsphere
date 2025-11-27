@@ -79,15 +79,24 @@ defmodule CommerceFrontWeb.ApiController do
             |> Enum.map(fn {k, v} -> {String.to_atom(k), v} end)
             |> Map.new()
 
-          CommerceFront.Utility.get_by(params["model"], map |> Map.drop([
-            :model,
-            :scope
-          ])) |> BluePotion.sanitize_struct()
+          CommerceFront.Utility.get_by(
+            params["model"],
+            map
+            |> Map.drop([
+              :model,
+              :scope
+            ])
+          )
+          |> BluePotion.sanitize_struct()
 
         "datatable" ->
           CommerceFront.Utility.build_datatable_query(
             CommerceFront.Utility.modulize_name(params["model"]),
-            %{}
+            params,
+            params |> Map.drop([
+              :model,
+              :scope
+            ])
           )
 
         "swap_back_config" ->
@@ -108,13 +117,14 @@ defmodule CommerceFrontWeb.ApiController do
             |> BluePotion.sanitize_struct()
 
           {position, parent_p} =
-            CommerceFront.Settings.determine_position(res.user.username, true, res.position) |> IO.inspect(label: "determine_position")
+            CommerceFront.Settings.determine_position(res.user.username, true, res.position)
+            |> IO.inspect(label: "determine_position")
 
           %{
             status: "ok",
             res:
               res
-              |> Map.put(:placement, parent_p )
+              |> Map.put(:placement, parent_p)
           }
 
         "check_second_password" ->
@@ -1287,6 +1297,31 @@ defmodule CommerceFrontWeb.ApiController do
 
     res =
       case params["scope"] do
+        "ecommerce_checkout" ->
+          sample = %{
+            "items" => [
+              %{
+                "img_url" => "/images/uploads/images.jpeg",
+                "name" =>
+                  "JiGuangMao Toy Steel Kiddy Party JGM-SKP02 Mini-Asura Dinoking Set of 5",
+                "price" => 500,
+                "product_id" => 1,
+                "qty" => 1
+              }
+            ],
+            "paymentMethod" => "member_points",
+            "scope" => "ecommerce_checkout",
+            "shippingInfo" => %{
+              "address" => "line 1",
+              "city" => "city 2",
+              "state" => "state 3",
+              "zipCode" => "40000"
+            },
+            "shippingOption" => "standard"
+          }
+          Settings.ecommerce_checkout(params)
+          %{status: "ok"}
+
         "approve_swap_back" ->
           case Settings.approve_swap_back(params["id"]) do
             {:ok, sb} ->

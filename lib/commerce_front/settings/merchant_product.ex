@@ -7,6 +7,9 @@ defmodule CommerceFront.Settings.MerchantProduct do
     field(:category_name, :string)
     field(:description, :binary)
     field(:img_url, :string)
+    field(:img_url2, :string)
+    field(:img_url3, :string)
+    field(:img_url4, :string)
     belongs_to(:merchant, CommerceFront.Settings.Merchant)
     # field :merchant_id, :integer
     field(:name, :string)
@@ -24,6 +27,9 @@ defmodule CommerceFront.Settings.MerchantProduct do
     merchant_product
     |> cast(attrs, [
       # :commission_perc,
+      :img_url2,
+      :img_url3,
+      :img_url4,
       :name,
       :retail_price,
       :point_value,

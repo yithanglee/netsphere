@@ -1,12 +1,12 @@
 <!--
   <div id="old_content" class="position-absolute w-100" style="min-height: 100vh;">
-    
+
   </div>
 -->
 <div id="content" style="">
 
 </div>
-<div class="py-4 text-white d-flex flex-column justify-content-center align-items-center bg-dark" style="">
+<div class="py-4 dark:text-white d-flex flex-column justify-content-center align-items-center bg-dark" style="">
   <div class="w-75 row gx-0">
     <div class="col-12 col-lg-4">
       <div class="d-flex flex-column">
@@ -26,14 +26,14 @@
     </div>
     <div class="col-12 col-lg-4 ">
       <div class="d-flex flex-column ms-2" style="margin-top: 32px;">
-        <a href="/refund_policy" class="text-white navi">Refund Policy</a>
-        <a href="/terms_condition" class="text-white navi">Terms and Condition</a>
+        <a href="/refund_policy" class="dark:text-white navi">Refund Policy</a>
+        <a href="/terms_condition" class="dark:text-white navi">Terms and Condition</a>
       </div>
     </div>
     <div class="col-12 col-lg-4 ">
     </div>
   </div>
-  <span style="margin-top: 8vh;" class=" text-sm text-white text-center">
+  <span style="margin-top: 8vh;" class=" text-sm dark:text-white text-center">
     <%= Date.utc_today.year %> | HAHO LIFE SDN BHD <small>1498125-D</small></span>
 </div>
 <div class="dropup position-fixed bottom-0 end-0 m-3 ">
@@ -114,7 +114,7 @@
 
     showInstallPromotion() {
       // Logic to show your "Add to Home Screen" UI
-   
+
     },
     hideInstallPromotion() {
       console.log("hiding...!");

@@ -4516,6 +4516,205 @@ defmodule CommerceFront.Settings do
     end
   end
 
+  def checkout_ecommerce(params) do
+    sample_params = %{
+      "items" => [
+        %{
+          "img_url" => "/images/uploads/images.jpeg",
+          "name" =>
+            "JiGuangMao Toy Steel Kiddy Party JGM-SKP02 Mini-Asura Dinoking Set of 5",
+          "price" => 500,
+          "product_id" => 1,
+          "qty" => 1
+        }
+      ],
+      "paymentMethod" => "member_points",
+      "scope" => "ecommerce_checkout",
+      "shippingInfo" => %{
+        "address" => "line 1",
+        "city" => "city 2",
+        "state" => "state 3",
+        "zipCode" => "40000"
+      },
+      "shippingOption" => "standard"
+    }
+
+    buyer_id = params["user_id"] || params["buyer_id"]
+    items = params["items"] || []
+
+    cond do
+      buyer_id == nil ->
+        {:error, "user_id is required"}
+
+      items == [] ->
+        {:error, "items cannot be empty"}
+
+      true ->
+        # Get products and calculate totals
+        products =
+          Enum.map(items, fn item ->
+            product = get_merchant_product!(item["product_id"])
+            qty =
+              case item["qty"] do
+                qty when is_integer(qty) -> qty
+                qty when is_binary(qty) -> String.to_integer(qty)
+                _ -> 1
+              end
+
+            product |> Map.put(:qty, qty)
+          end)
+
+        # Get merchant from first product
+        merchant_product = List.first(products)
+        merchant = get_merchant!(merchant_product.merchant_id) |> Repo.preload(:user)
+
+        # Calculate totals
+        calc_subtotal = fn product, acc ->
+          acc + product.retail_price * product.qty
+        end
+
+        # For ecommerce, shipping fee can be calculated from shippingOption or use default
+        # For now, use a simple calculation or get from params
+        shipping_fee =
+          case params["shippingOption"] do
+            "standard" -> 10.0
+            "express" -> 20.0
+            _ -> 10.0
+          end
+
+        subtotal = Enum.reduce(products, 0, &calc_subtotal.(&1, &2))
+        grand_total = subtotal + shipping_fee
+        total_point_value = subtotal
+
+        # Check wallet balance
+        wallets = list_ewallets_by_user_id(buyer_id)
+        member_points_wallet = wallets |> Enum.filter(&(&1.wallet_type == :register)) |> List.first()
+
+        check_sufficient = fn ->
+          if member_points_wallet == nil || member_points_wallet.total < grand_total do
+            {:error, "Insufficient member points"}
+          else
+            {:ok, :sufficient}
+          end
+        end
+
+        case check_sufficient.() do
+          {:ok, :sufficient} ->
+            Multi.new()
+            |> Multi.run(:sale, fn _repo, %{} ->
+              create_sale(%{
+                sale_date: Date.utc_today(),
+                month: Date.utc_today().month,
+                year: Date.utc_today().year,
+                subtotal: subtotal,
+                shipping_fee: shipping_fee,
+                grand_total: grand_total,
+                total_point_value: total_point_value,
+                status: :processing,
+                sales_person_id: buyer_id,
+                merchant_id: merchant.id,
+                registration_details: Jason.encode!(params)
+              })
+            end)
+            |> Multi.run(:sales_items, fn _repo, %{sale: sale} ->
+              sales_items =
+                Enum.map(products, fn product ->
+                  item = Enum.find(items, &(&1["product_id"] == product.id))
+
+                  qty =
+                    case item["qty"] do
+                      qty when is_integer(qty) -> qty
+                      qty when is_binary(qty) -> String.to_integer(qty)
+                      _ -> product.qty
+                    end
+
+                  {:ok, sales_item} =
+                    create_sales_item(%{
+                      sales_id: sale.id,
+                      item_name: product.name,
+                      item_price: product.retail_price,
+                      qty: qty,
+                      item_pv: (product.point_value || 0) |> :erlang.trunc(),
+                      img_url: item["img_url"] || product.img_url
+                    })
+
+                  sales_item
+                end)
+
+              {:ok, sales_items}
+            end)
+            |> Multi.run(:buyer_wallet_transaction, fn _repo, %{sale: sale} ->
+              case create_wallet_transaction(%{
+                     user_id: buyer_id,
+                     amount: grand_total * -1,
+                     remarks: "Ecommerce Checkout: Sale ##{sale.id}",
+                     wallet_type: "register"
+                   }) do
+                {:ok, multi_res} -> {:ok, multi_res}
+                error -> error
+              end
+            end)
+            |> Multi.run(:merchant_wallet_transaction, fn _repo, %{sale: sale} ->
+              # Add to merchant wallet (before commission)
+              case create_wallet_transaction(%{
+                     user_id: merchant.user_id,
+                     amount: subtotal + shipping_fee,
+                     remarks: "Ecommerce Checkout: Sale ##{sale.id} - Received payment",
+                     wallet_type: "merchant_bonus"
+                   }) do
+                {:ok, multi_res} -> {:ok, multi_res}
+                error -> error
+              end
+            end)
+            |> Multi.run(:platform_fee, fn _repo, %{sale: sale} ->
+              # Deduct platform fee (10%)
+              case create_wallet_transaction(%{
+                     user_id: merchant.user_id,
+                     amount: (subtotal * 0.10 * -1) |> Float.round(2),
+                     remarks: "Ecommerce Checkout: Sale ##{sale.id} - Platform Fee (10%)",
+                     wallet_type: "merchant_bonus"
+                   }) do
+                {:ok, multi_res} -> {:ok, multi_res}
+                error -> error
+              end
+            end)
+            |> Multi.run(:commission_fee, fn _repo, %{sale: sale} ->
+              # Deduct commission fee
+              commission_amount = (subtotal * merchant.commission_perc * -1) |> Float.round(2)
+              case create_wallet_transaction(%{
+                     user_id: merchant.user_id,
+                     amount: commission_amount,
+                     remarks:
+                       "Ecommerce Checkout: Sale ##{sale.id} - Commission (#{(merchant.commission_perc * 100) |> :erlang.trunc()}%)",
+                     wallet_type: "merchant_bonus"
+                   }) do
+                {:ok, multi_res} -> {:ok, multi_res}
+                error -> error
+              end
+            end)
+            |> Multi.run(:payment, fn _repo, %{sale: sale} ->
+              create_payment(%{
+                payment_method: params["paymentMethod"] || "member_points",
+                amount: grand_total,
+                sales_id: sale.id,
+                webhook_details: "Ecommerce checkout paid with member points"
+              })
+            end)
+            |> Repo.transaction()
+            |> case do
+              {:ok, multi_res} ->
+                {:ok, %{sale: multi_res.sale, payment: multi_res.payment}}
+
+              error ->
+                error
+            end
+
+          error ->
+            error
+        end
+    end
+  end
+
   @doc """
   the registration is paid with RP
   which can be bought from company,

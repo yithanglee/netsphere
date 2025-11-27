@@ -62,7 +62,11 @@ defmodule CommerceFront.Utility do
   def build_datatable_query(module, params, opts \\ %{}) do
     repo = get_repo()
     additional_joins = Map.get(opts, "additional_joins", "")
-    additional_search = Map.get(opts, "additional_search", "")
+    additional_search =
+      case Map.get(opts, "additional_search", "") do
+        "" -> []
+        _ -> Map.get(opts, "additional_search", "") |> Jason.decode!()
+      end
     additional_order = Map.get(opts, "additional_order", "")
     preloads = Map.get(opts, "preloads", [])
 
@@ -170,6 +174,7 @@ defmodule CommerceFront.Utility do
 
   defp apply_dynamic_search(query, search_statements) do
     process_search = fn search_statement, acc ->
+
       %{"column" => column, "prefix" => prefix, "operator" => operator, "value" => value} =
         search_statement
 
