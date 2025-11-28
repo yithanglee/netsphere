@@ -795,7 +795,7 @@ defmodule CommerceFront.Market.Secondary do
         {:error, "Trade execution failed: #{inspect(error)}", continuous_current_tranche}
     end
   end
-require IEx
+
   defp execute_wallet_transfers(trade_params, continuous_current_tranche \\ nil) do
     _ = continuous_current_tranche
     IO.inspect(trade_params, label: "trade_params")

@@ -124,7 +124,7 @@ defmodule CommerceFrontWeb.ApiController do
             status: "ok",
             res:
               res
-              |> Map.put(:placement, parent_p)
+              |> Map.put(:placement, parent_p |> BluePotion.sanitize_struct())
           }
 
         "check_second_password" ->
