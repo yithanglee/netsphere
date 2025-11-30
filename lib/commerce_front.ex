@@ -166,11 +166,11 @@ defmodule CommerceFront do
     if end_of_month == date do
       # CommerceFront.Calculation.matching_bonus(m, y)
       # changed to weekly
-      CommerceFront.Calculation.elite_leader(m, y)
+      # CommerceFront.Calculation.elite_leader(m, y)
 
-      CommerceFront.Settings.pay_unpaid_bonus(date, [
-        "elite leader"
-      ])
+      # CommerceFront.Settings.pay_unpaid_bonus(date, [
+      #   "elite leader"
+      # ])
     end
   end
 
