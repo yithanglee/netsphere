@@ -20,7 +20,6 @@ defmodule CommerceFront.Settings do
       stockist_register_bonus: 4
     ]
 
-
   alias CommerceFront.Settings.Slide
 
   def list_slides(is_show) do
@@ -99,15 +98,27 @@ defmodule CommerceFront.Settings do
   end
 
   def create_user_sales_address(params \\ %{}) do
+    # Normalize line2 for comparison (handle nil and empty string)
+    line2_param = params["line2"] || ""
+
+    # Check if an existing address matches all key fields
     check =
       Repo.all(
         from(usa in UserSalesAddress,
           where:
             usa.user_id == ^params["user_id"] and
-              usa.line1 == ^params["line1"] and usa.line2 == ^params["line2"] and
-              usa.city == ^params["city"]
+              usa.line1 == ^params["line1"] and
+              usa.city == ^params["city"] and
+              usa.state == ^params["state"] and
+              usa.postcode == ^params["postcode"] and
+              usa.country_id == ^params["country_id"]
         )
       )
+      |> Enum.filter(fn usa ->
+        # Handle line2 comparison (can be nil or empty string)
+        usa_line2 = usa.line2 || ""
+        usa_line2 == line2_param
+      end)
 
     if check == [] do
       UserSalesAddress.changeset(%UserSalesAddress{}, params) |> Repo.insert() |> IO.inspect()
@@ -208,16 +219,24 @@ defmodule CommerceFront.Settings do
 
   def get_cookie_merchant_by_cookie(cookie) do
     res =
-    Repo.all(
-      from(s in SessionUser, where: s.cookie == ^cookie)
-    )
-    |> List.first()
+      Repo.all(from(s in SessionUser, where: s.cookie == ^cookie))
+      |> List.first()
+
     user =
-    Repo.all(from u in CommerceFront.Settings.User, where: u.id == ^res.user_id, preload: [:country, :merchant]) |> List.first()
+      Repo.all(
+        from(u in CommerceFront.Settings.User,
+          where: u.id == ^res.user_id,
+          preload: [:country, :merchant]
+        )
+      )
+      |> List.first()
 
     merchant_id = if user.merchant != nil, do: user.merchant.id, else: nil
 
-    res |> Map.put(:user, user) |> Map.put(:merchant_id, merchant_id) |> Map.put(:user_id, user.id)
+    res
+    |> Map.put(:user, user)
+    |> Map.put(:merchant_id, merchant_id)
+    |> Map.put(:user_id, user.id)
   end
 
   def get_cookie_user_by_cookie(cookie) do
@@ -226,6 +245,7 @@ defmodule CommerceFront.Settings do
     )
     |> List.first()
   end
+
   def list_session_users() do
     Repo.all(SessionUser)
   end
@@ -705,7 +725,7 @@ defmodule CommerceFront.Settings do
 
                 case CommerceFront.Settings.admin_token_approve_v2(%{
                        owner_user_id: withdrawal.user_id,
-                      #  spender_address: withdrawal.bank_account_number,
+                       #  spender_address: withdrawal.bank_account_number,
                        token_address:
                          Application.get_env(:commerce_front, :token_contract_address),
                        amount: (withdrawal.amount * 0.95) |> Float.round(2)
@@ -806,6 +826,7 @@ defmodule CommerceFront.Settings do
 
         payment_res =
           NowPayments.create_invoice_payment(invoice_res |> Map.get(:invoice_id)) |> IO.inspect()
+
         payment_id = payment_res |> Map.get(:payment_id)
 
         create_payment(%{
@@ -813,7 +834,7 @@ defmodule CommerceFront.Settings do
           amount: wallet_topup.amount,
           wallet_topup_id: wallet_topup.id,
           billplz_code: payment_id,
-          payment_url:  Map.get(invoice_res, :url) <> "&paymentId=#{payment_id}"
+          payment_url: Map.get(invoice_res, :url) <> "&paymentId=#{payment_id}"
         })
       else
         create_payment(%{
@@ -3387,32 +3408,32 @@ defmodule CommerceFront.Settings do
       create_wallet_topup(params)
     end)
     # |> Multi.run(:payment, fn _repo, %{topup: topup} ->
-      # change to razer
-      # res = Billplz.create_collection("Topup Order: #{topup.id}")
-      # collection_id = Map.get(res, "id")
+    # change to razer
+    # res = Billplz.create_collection("Topup Order: #{topup.id}")
+    # collection_id = Map.get(res, "id")
 
-      # bill_res =
-      #   Billplz.create_bill(collection_id, %{
-      #     description: "Topup Order: #{topup.id}",
-      #     email: params["user"]["email"],
-      #     name: params["user"]["fullname"],
-      #     amount: topup.amount * 5
-      #   })
-      # server_url = Application.get_env(:commerce_front, :url) |> IO.inspect()
+    # bill_res =
+    #   Billplz.create_bill(collection_id, %{
+    #     description: "Topup Order: #{topup.id}",
+    #     email: params["user"]["email"],
+    #     name: params["user"]["fullname"],
+    #     amount: topup.amount * 5
+    #   })
+    # server_url = Application.get_env(:commerce_front, :url) |> IO.inspect()
 
-      # create_payment(%{
-      #   amount: topup.amount,
-      #   wallet_topup_id: topup.id,
-      #   billplz_code: "HAHOTOPUP#{topup.id}",
-      #   payment_url:
-      #     "#{server_url}/test_razer?chan=#{topup.bank}&amt=#{topup.amount * 5}&ref_no=HAHOTOPUP#{topup.id}"
-      # })
-      # |> IO.inspect()
+    # create_payment(%{
+    #   amount: topup.amount,
+    #   wallet_topup_id: topup.id,
+    #   billplz_code: "HAHOTOPUP#{topup.id}",
+    #   payment_url:
+    #     "#{server_url}/test_razer?chan=#{topup.bank}&amt=#{topup.amount * 5}&ref_no=HAHOTOPUP#{topup.id}"
+    # })
+    # |> IO.inspect()
     # end)
     |> Repo.transaction()
     |> case do
       {:ok, multi_res} ->
-        {:ok, multi_res |> Map.get(:topup) }
+        {:ok, multi_res |> Map.get(:topup)}
 
       _ ->
         {:error, []}
@@ -4516,27 +4537,23 @@ defmodule CommerceFront.Settings do
     end
   end
 
-  def checkout_ecommerce(params) do
+  def ecommerce_checkout(params) do
     sample_params = %{
       "items" => [
         %{
-          "img_url" => "/images/uploads/images.jpeg",
-          "name" =>
-            "JiGuangMao Toy Steel Kiddy Party JGM-SKP02 Mini-Asura Dinoking Set of 5",
-          "price" => 500,
+          "img_url" => "/images/uploads/Screenshot from 2025-12-02 20-24-26.png",
+          "merchant_id" => 1,
+          "name" => "JiGuangMao Toy Steel Kiddy Party JGM-SKP01 Mini-Ferocy Predaking Set of 5",
+          "price" => 199,
           "product_id" => 1,
           "qty" => 1
         }
       ],
       "paymentMethod" => "member_points",
       "scope" => "ecommerce_checkout",
-      "shippingInfo" => %{
-        "address" => "line 1",
-        "city" => "city 2",
-        "state" => "state 3",
-        "zipCode" => "40000"
-      },
-      "shippingOption" => "standard"
+      "shippingInfo" => %{"address" => "1", "city" => "1", "state" => "1", "zipCode" => "1"},
+      "shippingOption" => "standard",
+      "user_id" => 44
     }
 
     buyer_id = params["user_id"] || params["buyer_id"]
@@ -4554,6 +4571,7 @@ defmodule CommerceFront.Settings do
         products =
           Enum.map(items, fn item ->
             product = get_merchant_product!(item["product_id"])
+
             qty =
               case item["qty"] do
                 qty when is_integer(qty) -> qty
@@ -4564,34 +4582,66 @@ defmodule CommerceFront.Settings do
             product |> Map.put(:qty, qty)
           end)
 
-        # Get merchant from first product
-        merchant_product = List.first(products)
-        merchant = get_merchant!(merchant_product.merchant_id) |> Repo.preload(:user)
+        # Group products by merchant_id
+        products_by_merchant =
+          products
+          |> Enum.group_by(& &1.merchant_id)
 
-        # Calculate totals
+        # Calculate totals helper function
         calc_subtotal = fn product, acc ->
           acc + product.retail_price * product.qty
         end
 
         # For ecommerce, shipping fee can be calculated from shippingOption or use default
         # For now, use a simple calculation or get from params
-        shipping_fee =
+        shipping_fee_per_order =
           case params["shippingOption"] do
-            "standard" -> 10.0
-            "express" -> 20.0
-            _ -> 10.0
+            "standard" -> 0.0
+            "express" -> 0.0
+            _ -> 0.0
           end
 
-        subtotal = Enum.reduce(products, 0, &calc_subtotal.(&1, &2))
-        grand_total = subtotal + shipping_fee
-        total_point_value = subtotal
+        # Calculate totals per merchant group
+        merchant_totals =
+          products_by_merchant
+          |> Enum.map(fn {merchant_id, merchant_products} ->
+            subtotal = Enum.reduce(merchant_products, 0, &calc_subtotal.(&1, &2))
+            # Split shipping fee proportionally across merchants based on subtotal
+            total_subtotal = Enum.reduce(products, 0, &calc_subtotal.(&1, &2))
+
+            shipping_fee =
+              if total_subtotal > 0 do
+                (shipping_fee_per_order * subtotal / total_subtotal) |> Float.round(2)
+              else
+                0.0
+              end
+
+            grand_total = subtotal + shipping_fee
+            total_point_value = subtotal
+
+            {merchant_id,
+             %{
+               products: merchant_products,
+               subtotal: subtotal,
+               shipping_fee: shipping_fee,
+               grand_total: grand_total,
+               total_point_value: total_point_value
+             }}
+          end)
+          |> Enum.into(%{})
+
+        # Calculate overall totals for wallet check
+        overall_subtotal = Enum.reduce(products, 0, &calc_subtotal.(&1, &2))
+        overall_grand_total = overall_subtotal + shipping_fee_per_order
 
         # Check wallet balance
         wallets = list_ewallets_by_user_id(buyer_id)
-        member_points_wallet = wallets |> Enum.filter(&(&1.wallet_type == :register)) |> List.first()
+
+        member_points_wallet =
+          wallets |> Enum.filter(&(&1.wallet_type == :active_token)) |> List.first()
 
         check_sufficient = fn ->
-          if member_points_wallet == nil || member_points_wallet.total < grand_total do
+          if member_points_wallet == nil || member_points_wallet.total < overall_grand_total do
             {:error, "Insufficient member points"}
           else
             {:ok, :sufficient}
@@ -4600,110 +4650,167 @@ defmodule CommerceFront.Settings do
 
         case check_sufficient.() do
           {:ok, :sufficient} ->
-            Multi.new()
-            |> Multi.run(:sale, fn _repo, %{} ->
-              create_sale(%{
-                sale_date: Date.utc_today(),
-                month: Date.utc_today().month,
-                year: Date.utc_today().year,
-                subtotal: subtotal,
-                shipping_fee: shipping_fee,
-                grand_total: grand_total,
-                total_point_value: total_point_value,
-                status: :processing,
-                sales_person_id: buyer_id,
-                merchant_id: merchant.id,
-                registration_details: Jason.encode!(params)
-              })
-            end)
-            |> Multi.run(:sales_items, fn _repo, %{sale: sale} ->
-              sales_items =
-                Enum.map(products, fn product ->
-                  item = Enum.find(items, &(&1["product_id"] == product.id))
+            # Get user to retrieve country_id
+            user = get_user!(buyer_id) |> Repo.preload(:country)
 
-                  qty =
-                    case item["qty"] do
-                      qty when is_integer(qty) -> qty
-                      qty when is_binary(qty) -> String.to_integer(qty)
-                      _ -> product.qty
-                    end
+            # Process each merchant group separately
+            merchant_ids = Map.keys(products_by_merchant)
 
-                  {:ok, sales_item} =
-                    create_sales_item(%{
-                      sales_id: sale.id,
-                      item_name: product.name,
-                      item_price: product.retail_price,
-                      qty: qty,
-                      item_pv: (product.point_value || 0) |> :erlang.trunc(),
-                      img_url: item["img_url"] || product.img_url
-                    })
+            # Build Multi operations for each merchant
+            multi =
+              Multi.new()
+              |> Multi.run(:user_sales_address, fn _repo, %{} ->
+                # Create user sales address from shippingInfo if provided
+                shipping_info = params["shippingInfo"] || %{}
 
-                  sales_item
+                if shipping_info != %{} do
+                  address_params = %{
+                    "user_id" => buyer_id,
+                    "line1" => shipping_info["address"] || "",
+                    "line2" => "",
+                    "city" => shipping_info["city"] || "",
+                    "state" => shipping_info["state"] || "",
+                    "postcode" => shipping_info["zipCode"] || "",
+                    "country_id" => user.country_id,
+                    "phone" => user.phone || "",
+                    "fullname" => user.fullname || ""
+                  }
+
+                  case create_user_sales_address(address_params) do
+                    {:ok, usa} -> {:ok, usa}
+                    {:error, changeset} -> {:error, changeset}
+                    result -> result
+                  end
+                else
+                  {:ok, nil}
+                end
+              end)
+
+            # Add merchant-specific operations
+            multi =
+              Enum.reduce(merchant_ids, multi, fn merchant_id, acc_multi ->
+                merchant = get_merchant!(merchant_id) |> Repo.preload(:user)
+                totals = merchant_totals[merchant_id]
+                merchant_products = totals.products
+
+                acc_multi
+                |> Multi.run({:sale, merchant_id}, fn _repo, %{} ->
+                  create_sale(%{
+                    sale_date: Date.utc_today(),
+                    month: Date.utc_today().month,
+                    year: Date.utc_today().year,
+                    subtotal: totals.subtotal,
+                    shipping_fee: totals.shipping_fee,
+                    grand_total: totals.grand_total,
+                    total_point_value: totals.total_point_value,
+                    status: :processing,
+                    user_id: buyer_id,
+                    sales_person_id: merchant.id,
+                    merchant_id: merchant.id,
+                    registration_details: Jason.encode!(params)
+                  })
                 end)
+                |> Multi.run({:sales_items, merchant_id}, fn _repo, changes ->
+                  sale = Map.get(changes, {:sale, merchant_id})
 
-              {:ok, sales_items}
-            end)
-            |> Multi.run(:buyer_wallet_transaction, fn _repo, %{sale: sale} ->
+                  sales_items =
+                    Enum.map(merchant_products, fn product ->
+                      item = Enum.find(items, &(&1["product_id"] == product.id))
+
+                      qty =
+                        case item["qty"] do
+                          qty when is_integer(qty) -> qty
+                          qty when is_binary(qty) -> String.to_integer(qty)
+                          _ -> product.qty
+                        end
+
+                      {:ok, sales_item} =
+                        create_sales_item(%{
+                          sales_id: sale.id,
+                          item_name: product.name,
+                          item_price: product.retail_price,
+                          qty: qty,
+                          item_pv: (product.point_value || 0) |> :erlang.trunc(),
+                          img_url: item["img_url"] || product.img_url
+                        })
+
+                      sales_item
+                    end)
+
+                  {:ok, sales_items}
+                end)
+                |> Multi.run({:merchant_wallet_transaction, merchant_id}, fn _repo, changes ->
+                  sale = Map.get(changes, {:sale, merchant_id})
+                  # Add to merchant wallet (before commission)
+                  case create_wallet_transaction(%{
+                         user_id: merchant.user_id,
+                         amount: totals.subtotal + totals.shipping_fee,
+                         remarks: "Ecommerce Checkout: Sale ##{sale.id} - Received payment",
+                         wallet_type: "active_token"
+                       }) do
+                    {:ok, multi_res} -> {:ok, multi_res}
+                    error -> error
+                  end
+                end)
+                |> Multi.run({:platform_fee, merchant_id}, fn _repo, changes ->
+                  sale = Map.get(changes, {:sale, merchant_id})
+                  # Deduct platform fee (10%)
+                  case create_wallet_transaction(%{
+                         user_id: merchant.user_id,
+                         amount: (totals.subtotal * 0.01 * -1) |> Float.round(2),
+                         remarks: "Ecommerce Checkout: Sale ##{sale.id} - Platform Fee (1%)",
+                         wallet_type: "active_token"
+                       }) do
+                    {:ok, multi_res} -> {:ok, multi_res}
+                    error -> error
+                  end
+                end)
+                |> Multi.run({:payment, merchant_id}, fn _repo, changes ->
+                  sale = Map.get(changes, {:sale, merchant_id})
+
+                  create_payment(%{
+                    payment_method: params["paymentMethod"] || "active_token",
+                    amount: totals.grand_total,
+                    sales_id: sale.id,
+                    webhook_details: "Ecommerce checkout paid with active tokens"
+                  })
+                end)
+              end)
+
+            multi
+            |> Multi.run(:buyer_wallet_transaction, fn _repo, %{} ->
+              # Single wallet transaction for buyer covering all merchants
               case create_wallet_transaction(%{
                      user_id: buyer_id,
-                     amount: grand_total * -1,
-                     remarks: "Ecommerce Checkout: Sale ##{sale.id}",
-                     wallet_type: "register"
+                     amount: overall_grand_total * -1,
+                     remarks: "Ecommerce Checkout: Multiple merchants order",
+                     wallet_type: "active_token"
                    }) do
                 {:ok, multi_res} -> {:ok, multi_res}
                 error -> error
               end
-            end)
-            |> Multi.run(:merchant_wallet_transaction, fn _repo, %{sale: sale} ->
-              # Add to merchant wallet (before commission)
-              case create_wallet_transaction(%{
-                     user_id: merchant.user_id,
-                     amount: subtotal + shipping_fee,
-                     remarks: "Ecommerce Checkout: Sale ##{sale.id} - Received payment",
-                     wallet_type: "merchant_bonus"
-                   }) do
-                {:ok, multi_res} -> {:ok, multi_res}
-                error -> error
-              end
-            end)
-            |> Multi.run(:platform_fee, fn _repo, %{sale: sale} ->
-              # Deduct platform fee (10%)
-              case create_wallet_transaction(%{
-                     user_id: merchant.user_id,
-                     amount: (subtotal * 0.10 * -1) |> Float.round(2),
-                     remarks: "Ecommerce Checkout: Sale ##{sale.id} - Platform Fee (10%)",
-                     wallet_type: "merchant_bonus"
-                   }) do
-                {:ok, multi_res} -> {:ok, multi_res}
-                error -> error
-              end
-            end)
-            |> Multi.run(:commission_fee, fn _repo, %{sale: sale} ->
-              # Deduct commission fee
-              commission_amount = (subtotal * merchant.commission_perc * -1) |> Float.round(2)
-              case create_wallet_transaction(%{
-                     user_id: merchant.user_id,
-                     amount: commission_amount,
-                     remarks:
-                       "Ecommerce Checkout: Sale ##{sale.id} - Commission (#{(merchant.commission_perc * 100) |> :erlang.trunc()}%)",
-                     wallet_type: "merchant_bonus"
-                   }) do
-                {:ok, multi_res} -> {:ok, multi_res}
-                error -> error
-              end
-            end)
-            |> Multi.run(:payment, fn _repo, %{sale: sale} ->
-              create_payment(%{
-                payment_method: params["paymentMethod"] || "member_points",
-                amount: grand_total,
-                sales_id: sale.id,
-                webhook_details: "Ecommerce checkout paid with member points"
-              })
             end)
             |> Repo.transaction()
             |> case do
               {:ok, multi_res} ->
-                {:ok, %{sale: multi_res.sale, payment: multi_res.payment}}
+                # Extract all sales and payments
+                sales =
+                  merchant_ids
+                  |> Enum.map(fn merchant_id ->
+                    Map.get(multi_res, {:sale, merchant_id})
+                  end)
+
+                payments =
+                  merchant_ids
+                  |> Enum.map(fn merchant_id ->
+                    Map.get(multi_res, {:payment, merchant_id})
+                  end)
+
+                {:ok,
+                 %{
+                   sales: sales |> Enum.map(&(&1 |> BluePotion.sanitize_struct())),
+                   payments: payments |> Enum.map(&(&1 |> BluePotion.sanitize_struct()))
+                 }}
 
               error ->
                 error
@@ -5657,7 +5764,11 @@ defmodule CommerceFront.Settings do
 
   def check_accumulated_bonuses(user_id) do
     Repo.all(
-      from(r in CommerceFront.Settings.Reward, where: r.user_id == ^user_id, select: sum(r.amount), group_by: [r.user_id])
+      from(r in CommerceFront.Settings.Reward,
+        where: r.user_id == ^user_id,
+        select: sum(r.amount),
+        group_by: [r.user_id]
+      )
     )
     |> IO.inspect(label: "check_accumulated_bonuses")
     |> List.first()
@@ -6363,12 +6474,11 @@ defmodule CommerceFront.Settings do
   def check_merchant_password(params) do
     users =
       Repo.all(
-        from(u in User , where: u.username == ^params["username"], preload: [:merchant, :country])
+        from(u in User, where: u.username == ^params["username"], preload: [:merchant, :country])
       )
 
     if users != [] do
       user = List.first(users) |> IO.inspect(label: "merchant user")
-
 
       crypted_password =
         :crypto.hash(:sha512, params["password"])
@@ -8628,7 +8738,6 @@ defmodule CommerceFront.Settings do
     end
   end
 
-
   def test_to_address(user_id) do
     case get_crypto_wallet_by_user_id(user_id) do
       %{address: addr} when is_binary(addr) and addr != "" -> addr
@@ -8658,7 +8767,6 @@ defmodule CommerceFront.Settings do
 
   """
   def admin_token_approve_v2(params) do
-
     token_address = Application.get_env(:commerce_front, :token_contract_address)
 
     decimals =
@@ -8681,14 +8789,20 @@ defmodule CommerceFront.Settings do
 
     amount =
       case params["amount"] do
-        %Decimal{} = d -> Decimal.to_float(d)
-        n when is_number(n) -> n
+        %Decimal{} = d ->
+          Decimal.to_float(d)
+
+        n when is_number(n) ->
+          n
+
         s when is_binary(s) ->
           case Float.parse(s) do
             {val, _} -> val
             _ -> 0.0
           end
-        _ -> 0.0
+
+        _ ->
+          0.0
       end
 
     to_address =
@@ -8803,7 +8917,9 @@ defmodule CommerceFront.Settings do
   end
 
   def unit_price_valid?(price_per_unit) do
-    check = Repo.all(from(at in AssetTranche, where: at.unit_price == ^price_per_unit)) |> List.first()
+    check =
+      Repo.all(from(at in AssetTranche, where: at.unit_price == ^price_per_unit)) |> List.first()
+
     if check != nil do
       true
     else
@@ -9247,8 +9363,12 @@ defmodule CommerceFront.Settings do
     |> Multi.run(:onchain_transfer, fn _repo, %{crypto_wallet: %{privkey: priv}} ->
       amount_float =
         case swap_back.amount do
-          %Decimal{} = d -> Decimal.to_float(d)
-          n when is_number(n) -> n
+          %Decimal{} = d ->
+            Decimal.to_float(d)
+
+          n when is_number(n) ->
+            n
+
           s when is_binary(s) ->
             case Float.parse(s) do
               {val, _} -> val
@@ -9256,7 +9376,13 @@ defmodule CommerceFront.Settings do
             end
         end
 
-      case ZkEvm.Token.transfer(token_contract, priv, swap_back.treasury_address, amount_float, 18) do
+      case ZkEvm.Token.transfer(
+             token_contract,
+             priv,
+             swap_back.treasury_address,
+             amount_float,
+             18
+           ) do
         {:ok, tx_hash} -> {:ok, tx_hash}
         other -> {:error, other}
       end
@@ -9267,7 +9393,7 @@ defmodule CommerceFront.Settings do
     end)
     # 4) Credit user's token ewallet
     |> Multi.run(:buyer_asset_credit, fn _repo, _ ->
-     CommerceFront.Settings.create_wallet_transaction(%{
+      CommerceFront.Settings.create_wallet_transaction(%{
         user_id: swap_back.user_id,
         amount: Decimal.to_float(swap_back.amount),
         remarks: "swap_back_approved_#{swap_back.id}",
@@ -9288,7 +9414,7 @@ defmodule CommerceFront.Settings do
         released: Decimal.new("0")
       }
 
-      case CommerceFront.Settings.create_stake_holding(params)  do
+      case CommerceFront.Settings.create_stake_holding(params) do
         {:ok, stake} -> {:ok, stake}
         {:error, cs} -> {:error, cs}
       end

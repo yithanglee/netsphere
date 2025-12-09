@@ -68,7 +68,14 @@ defmodule CommerceFront.Utility do
         _ -> Map.get(opts, "additional_search", "") |> Jason.decode!()
       end
     additional_order = Map.get(opts, "additional_order", "")
-    preloads = Map.get(opts, "preloads", [])
+    preloads =
+      case Map.get(opts, "preloads", []) do
+        [] -> []
+        _ -> Map.get(opts, "preloads", []) |> Jason.decode!()
+          |> Enum.map(&(&1 |> BluePotion.convert_to_atom()))
+      end
+      |> List.flatten()
+      |> IO.inspect(label: "preloads")
 
     parseInteger = fn value ->
       case value do
@@ -119,6 +126,30 @@ defmodule CommerceFront.Utility do
 
     # Execute query
     data = repo.all(final_query)
+
+
+    sanitize_pw = fn childData ->
+      if module == Module.concat([Application.get_env(:blue_potion, :otp_app), "Settings", "Sale"]) do
+        childData
+        |> Map.delete(
+            :registration_details)
+        # |> Map.put(
+        #     :registration_details,
+        #     childData.registration_details
+        #     |> Jason.decode!()
+        #     |> Kernel.get_and_update_in(["user", "password"], &{&1, ""})
+        #     |> elem(1)
+        #     |> Jason.encode!()
+        #   )
+      else
+        childData
+      end
+    end
+
+
+    data = data |> Enum.map(&sanitize_pw.(&1))
+
+
 
     %{
       data: data |> BluePotion.sanitize_struct(),

@@ -1319,8 +1319,14 @@ defmodule CommerceFrontWeb.ApiController do
             },
             "shippingOption" => "standard"
           }
-          Settings.ecommerce_checkout(params)
-          %{status: "ok"}
+        case Settings.ecommerce_checkout(params) |> IO.inspect(label: "ecommerce_checkout") do
+          {:ok, r} ->
+            %{status: "ok", res: r |> BluePotion.sanitize_struct()}
+
+          {:error, reason} ->
+            %{status: "error", reason: inspect(reason)}
+        end
+          # %{status: "ok"}
 
         "approve_swap_back" ->
           case Settings.approve_swap_back(params["id"]) do
