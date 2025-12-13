@@ -18,6 +18,10 @@ defmodule CommerceFront.Settings.MerchantProduct do
     field(:short_desc, :string)
     field(:override_pv, :boolean, virtual: true)
 
+    has_many(:merchant_product_stock, CommerceFront.Settings.MerchantProductStock)
+
+    has_many(:merchant_stocks, through: [:merchant_product_stock, :merchant_stock])
+
     # field(:commission_perc, :float, default: 0.1)
     timestamps()
   end

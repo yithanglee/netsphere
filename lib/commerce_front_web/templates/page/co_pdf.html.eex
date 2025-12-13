@@ -53,7 +53,7 @@ table td, table th {
   <title>NETSPHEREMALL ·
     <%= @title %>
   </title>
-  <%  
+  <%
   currency = "MYR"
   conversion_rate =
   case currency do
@@ -61,24 +61,56 @@ table td, table th {
       5
       _ ->
       1
-  end 
-  currency = @sale.country.currency  
-  conversion_rate = @sale.country.conversion |> Float.round(2)
-
-  
-  user_deet =  @sale.registration_details |> Jason.decode! |> Map.get("user") |> IO.inspect
-
-  payment = user_deet  |> Map.get("payment")
-
-  drp_amount = case Map.get(payment, "drp", "0") |> Float.parse do
-    {amount, _suffix} ->
-    amount 
-    _ ->
-    0.00 
   end
-  rp_amount = @sale.grand_total - drp_amount 
 
-  has_merchant = @merchant != nil 
+
+  has_merchant = @merchant != nil
+
+  {currency, rp_amount, payment , conversion_rate, drp_amount, user_deet } =
+ if has_merchant do
+      currency = @sale.country.currency
+      conversion_rate = @sale.country.conversion |> Float.round(2)
+
+      user_deet = @sale.registration_details |> Jason.decode!() |> Map.get("user") |> IO.inspect()
+
+      payment = user_deet |> Map.get("payment")
+
+      drp_amount =
+        case Map.get(payment, "drp", "0") |> Float.parse() do
+          {amount, _suffix} ->
+            amount
+
+          _ ->
+            0.00
+        end
+
+      rp_amount = @sale.grand_total - drp_amount
+      {currency, rp_amount, payment , conversion_rate, drp_amount, user_deet }
+    else
+      currency = "ATP"
+      conversion_rate = 1
+
+      user_deet = @sale.registration_details |> Jason.decode!() |> IO.inspect(label: "user_deet")
+
+
+
+      payment = %{"drp" => "0"}
+
+      drp_amount =
+        case Map.get(payment, "drp", "0") |> Float.parse() do
+          {amount, _suffix} ->
+            amount
+
+          _ ->
+            0.00
+        end
+
+      rp_amount = @sale.grand_total - drp_amount
+      {currency, rp_amount, payment , conversion_rate, drp_amount , user_deet }
+    end
+
+
+
   shipping_fee = @sale.shipping_fee
     chunk_no = 10
     chunked_orders = @order_lines |> Enum.chunk_every(chunk_no) |> Enum.with_index() %>
@@ -91,8 +123,8 @@ table td, table th {
       <%
         email = if @sale.user != nil, do: @sale.user.email, else: @sale.sales_person.email
         username = if @sale.user != nil, do: @sale.user.username, else: @sale.sales_person.email
-        payment = Map.get(user_deet, "payment")
-        shipping = Map.get(user_deet, "shipping")
+        payment = Map.get(user_deet, "payment", %{"method" => "active_token_point"})
+        shipping = Map.get(user_deet, "shipping", user_deet["shippingInfo"])
       %>
      <%= render("header.html",
   email: email,
@@ -109,9 +141,9 @@ table td, table th {
             <tr>
               <th class="text-start">No</th>
               <th class="text-start">Name</th>
-              <th class="text-end">Price (RP)</th>
+              <th class="text-end">Price (<%= currency %>)</th>
               <th class="text-end">Qty</th>
-              <th class="text-end">Subtotal (RP)</th>
+              <th class="text-end">Subtotal (<%= currency %>)</th>
             </tr>
           </thead>
           <tbody>
@@ -123,12 +155,12 @@ table td, table th {
                 </div>
               </td>
               <td class="text-start ">
-               
-             
+
+
                       <table>
                         <tr>
                            <%= if item.remarks != nil do %>
-                          <td rowspan="2"> 
+                          <td rowspan="2">
                             <% else %>
                             <td>
                             <% end %>
@@ -140,13 +172,13 @@ table td, table th {
                         <%= if item.remarks != nil do %>
                             <tr>
                               <td>
-                                <div><%= item.remarks %></div>        
+                                <div><%= item.remarks %></div>
                               </td>
                             </tr>
                         <% end %>
                       </table>
 
-                
+
               </td>
               <td class="text-end">
                 <%= item.item_price |> :erlang.float_to_binary(decimals: 2) %>
@@ -192,9 +224,9 @@ table td, table th {
             <tr class="fw-bold">
               <td colspan="4" class="text-end">
                 <%= if has_merchant do %>
-                RP ( including shipping fee)
+                <%= currency %> ( including shipping fee)
               <% else %>
-                RP
+                <%= currency %>
               <% end %>
               </td>
               <td class="text-end">
@@ -227,7 +259,7 @@ table td, table th {
     </div>
     <% end %>
       <div class="" style="height: 300px; border-top: 1px solid grey; padding-top: 20px; margin-top: 80px;">
-        
+
 
   <center style="position: relative; bottom: 0px;">
     *** This is computer generated, no signature required. ***

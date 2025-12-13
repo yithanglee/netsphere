@@ -53,7 +53,8 @@ defmodule CommerceFront.Utility do
         Module.concat([otp_app, mod, module_name])
       end
       |> IO.inspect()
-      |> Enum.filter(&Code.ensure_compiled?(&1)) |> IO.inspect()
+      |> Enum.filter(&Code.ensure_compiled?(&1))
+      |> IO.inspect()
       |> List.first()
 
     mod
@@ -62,16 +63,23 @@ defmodule CommerceFront.Utility do
   def build_datatable_query(module, params, opts \\ %{}) do
     repo = get_repo()
     additional_joins = Map.get(opts, "additional_joins", "")
+
     additional_search =
       case Map.get(opts, "additional_search", "") do
         "" -> []
         _ -> Map.get(opts, "additional_search", "") |> Jason.decode!()
       end
+
     additional_order = Map.get(opts, "additional_order", "")
+
     preloads =
       case Map.get(opts, "preloads", []) do
-        [] -> []
-        _ -> Map.get(opts, "preloads", []) |> Jason.decode!()
+        [] ->
+          []
+
+        _ ->
+          Map.get(opts, "preloads", [])
+          |> Jason.decode!()
           |> Enum.map(&(&1 |> BluePotion.convert_to_atom()))
       end
       |> List.flatten()
@@ -127,12 +135,12 @@ defmodule CommerceFront.Utility do
     # Execute query
     data = repo.all(final_query)
 
-
     sanitize_pw = fn childData ->
-      if module == Module.concat([Application.get_env(:blue_potion, :otp_app), "Settings", "Sale"]) do
+      if module ==
+           Module.concat([Application.get_env(:blue_potion, :otp_app), "Settings", "Sale"]) do
         childData
-        |> Map.delete(
-            :registration_details)
+        |> Map.delete(:registration_details)
+
         # |> Map.put(
         #     :registration_details,
         #     childData.registration_details
@@ -146,10 +154,7 @@ defmodule CommerceFront.Utility do
       end
     end
 
-
     data = data |> Enum.map(&sanitize_pw.(&1))
-
-
 
     %{
       data: data |> BluePotion.sanitize_struct(),
@@ -205,12 +210,15 @@ defmodule CommerceFront.Utility do
 
   defp apply_dynamic_search(query, search_statements) do
     process_search = fn search_statement, acc ->
-
       %{"column" => column, "prefix" => prefix, "operator" => operator, "value" => value} =
         search_statement
 
       search_value =
         case operator do
+          "!=" ->
+            """
+            #{prefix}.#{column} != ^#{value}
+            """
           "ilike" ->
             """
             ilike(#{prefix}.#{column}, ^"%#{value}%")
@@ -234,7 +242,6 @@ defmodule CommerceFront.Utility do
     Enum.reduce(search_statements, query, &process_search.(&1, &2))
     |> IO.inspect(label: "search_statements")
   end
-
 
   @doc """
   Lists all records for a given schema.
@@ -260,16 +267,13 @@ defmodule CommerceFront.Utility do
     repo.get(schema, id) |> repo.preload(preloads)
   end
 
-
   def get_by(schema, params \\ %{}, preloads \\ []) do
-
     schema = schema |> modulize_name()
     repo = get_repo()
 
     repo.get_by(schema, params)
     |> repo.preload(preloads)
   end
-
 
   @doc """
   Creates a record.
@@ -369,5 +373,9 @@ defmodule CommerceFront.Utility do
     else
       params
     end
+  end
+
+  def test() do
+
   end
 end

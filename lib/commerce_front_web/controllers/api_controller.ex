@@ -1747,7 +1747,25 @@ defmodule CommerceFrontWeb.ApiController do
               %{status: "error", reason: final_reason}
           end
 
-        "mark_do" ->
+          "mark_do" ->
+            sale = Settings.get_sale!(params["id"]) |> IO.inspect()
+
+            cond do
+              sale.status == :processing && params["status"] == "pending_delivery" ->
+                Settings.update_sale(sale, %{status: params["status"]})
+                %{status: "ok"}
+
+              sale.status == :pending_delivery && params["status"] == "sent" ->
+                Settings.mark_sent(params, sale)
+
+                %{status: "ok"}
+
+              true ->
+                nil
+                %{status: "error", reason: "already updated to #{params["status"]}"}
+            end
+
+          "mark_merchant_do" ->
           sale = Settings.get_sale!(params["id"]) |> IO.inspect()
 
           cond do
@@ -1756,7 +1774,7 @@ defmodule CommerceFrontWeb.ApiController do
               %{status: "ok"}
 
             sale.status == :pending_delivery && params["status"] == "sent" ->
-              Settings.mark_sent(params, sale)
+              Settings.merchant_mark_sent(params, sale)
 
               %{status: "ok"}
 

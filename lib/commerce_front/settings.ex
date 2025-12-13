@@ -8256,6 +8256,53 @@ defmodule CommerceFront.Settings do
     |> Repo.transaction()
   end
 
+  def merchant_mark_sent(params, merchant_sale) do
+    sample = %{
+      "id" => 749,
+      "location_id" => 3,
+      "scope" => "merchant_mark_do",
+      "shipping_ref" => "111",
+      "status" => "sent"
+    }
+
+    Multi.new()
+    |> Multi.run(:merchant_sale, fn _repo, %{} ->
+      {:ok, merchant_sale} =
+        update_sale(merchant_sale, %{
+          status: params["status"]
+        })
+
+      merchant_sales_items = merchant_sale |> Repo.preload(:sales_items) |> Map.get(:sales_items)
+
+      for item <- merchant_sales_items do
+        merchant_product = get_merchant_product_by_name(item.item_name) |> IO.inspect()
+
+        if merchant_product != nil do
+          merchant_product = merchant_product |> Repo.preload(:merchant_stocks) |> IO.inspect()
+
+          merchant_product_stocks = merchant_product.merchant_product_stock
+
+          for merchant_product_stock <- merchant_product_stocks do
+            merchant_stock = merchant_product_stock.merchant_stock
+            # todo; self pickup, directly append the location from merchant pick up point
+            # todo; delivery , check from params for the location id...
+
+            CommerceFront.Settings.create_merchant_stock_movement(%{
+              "location_id" => params["location_id"],
+              "merchant_stock_id" => merchant_stock.id,
+              "amount" => merchant_product_stock.qty * item.qty * -1,
+              "remarks" => "delivery outbound|merchant_sales_item_id:#{item.id}|#{params["shipping_ref"]}"
+            })
+            |> IO.inspect()
+          end
+        end
+      end
+
+      {:ok, nil}
+    end)
+    |> Repo.transaction()
+  end
+
   alias CommerceFront.Settings.StockAdjustment
 
   def list_stock_adjustments() do
@@ -8451,6 +8498,40 @@ defmodule CommerceFront.Settings do
     Repo.delete(model)
   end
 
+  alias CommerceFront.Settings.MerchantProductStock
+
+  def list_merchant_product_stocks() do
+    Repo.all(MerchantProductStock)
+  end
+
+  def get_merchant_product_stock!(id) do
+    Repo.get!(MerchantProductStock, id)
+  end
+
+  def create_merchant_product_stock(params \\ %{}) do
+    MerchantProductStock.changeset(%MerchantProductStock{}, params) |> Repo.insert() |> IO.inspect()
+
+    merchant_product_id = Map.keys(params["MerchantStock"]) |> List.first()
+
+    items = params["MerchantStock"][merchant_product_id] |> Map.keys()
+    Repo.delete_all(from(rap in MerchantProductStock, where: rap.merchant_product_id == ^merchant_product_id))
+
+    for item <- items do
+      params = %{"merchant_product_id" => merchant_product_id, "merchant_stock_id" => item}
+      MerchantProductStock.changeset(%MerchantProductStock{}, params) |> Repo.insert() |> IO.inspect()
+    end
+
+    {:ok, %MerchantProductStock{id: 0}}
+  end
+
+  def update_merchant_product_stock(model, params) do
+    MerchantProductStock.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_merchant_product_stock(%MerchantProductStock{} = model) do
+    Repo.delete(model)
+  end
+
   alias CommerceFront.Settings.MerchantSale
 
   def list_merchant_sales() do
@@ -8492,6 +8573,166 @@ defmodule CommerceFront.Settings do
   end
 
   def delete_merchant_sale_item(%MerchantSaleItem{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.MerchantPickUpPoint
+
+  def list_merchant_pick_up_points() do
+    Repo.all(MerchantPickUpPoint)
+  end
+
+  def list_merchant_pick_up_point_by_country(country_id) do
+    Repo.all(from(pup in MerchantPickUpPoint, where: pup.country_id == ^country_id))
+  end
+
+  def get_merchant_pick_up_point!(id) do
+    Repo.get!(MerchantPickUpPoint, id)
+  end
+
+  def create_merchant_pick_up_point(params \\ %{}) do
+    MerchantPickUpPoint.changeset(%MerchantPickUpPoint{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_merchant_pick_up_point(model, params) do
+    MerchantPickUpPoint.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_merchant_pick_up_point(%MerchantPickUpPoint{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.MerchantStockMovementSummary
+
+  def list_merchant_stock_summaries() do
+    Repo.all(MerchantStockMovementSummary)
+  end
+
+  def get_merchant_stock_summary!(id) do
+    Repo.get!(MerchantStockMovementSummary, id)
+  end
+
+  def create_merchant_stock_summary(params \\ %{}) do
+    MerchantStockMovementSummary.changeset(%MerchantStockMovementSummary{}, params)
+    |> Repo.insert()
+    |> IO.inspect()
+  end
+
+  def update_merchant_stock_summary(model, params) do
+    MerchantStockMovementSummary.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_merchant_stock_summary(%MerchantStockMovementSummary{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.MerchantStock
+
+  def list_merchant_stocks() do
+    Repo.all(MerchantStock)
+  end
+
+  def get_merchant_stock!(id) do
+    Repo.get!(MerchantStock, id)
+  end
+
+  def create_merchant_stock(params \\ %{}) do
+    MerchantStock.changeset(%MerchantStock{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_merchant_stock(model, params) do
+    MerchantStock.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_merchant_stock(%MerchantStock{} = model) do
+    Repo.delete(model)
+  end
+
+  alias CommerceFront.Settings.MerchantStockMovement
+
+  def list_merchant_stock_movements() do
+    Repo.all(MerchantStockMovement)
+  end
+
+  def get_latest_merchant_stock_movement(id, location_id) do
+    Repo.all(
+      from(sm in MerchantStockMovement,
+        where: sm.merchant_stock_id == ^id and sm.location_id == ^location_id,
+        order_by: [desc: sm.id]
+      )
+    )
+    |> List.first()
+  end
+
+  def get_merchant_stock_movement!(id) do
+    Repo.get!(MerchantStockMovement, id)
+  end
+
+  @doc """
+  cg =
+
+  CommerceFront.Settings.create_merchant_stock_movement(%{"merchant_stock_id" => 1, "location_id" => 1,  "amount" => 1, "remarks" => "receiving from supplier DO"})
+  """
+
+  def create_merchant_stock_movement(params \\ %{}) do
+    Multi.new()
+    |> Multi.run(:movement, fn _repo, %{} ->
+      prev_sm = get_latest_merchant_stock_movement(params["merchant_stock_id"], params["location_id"])
+
+      params =
+        if prev_sm == nil do
+          params |> Map.merge(%{"before" => 0, "after" => params["amount"]})
+        else
+          params
+          |> Map.merge(%{"before" => prev_sm.after, "after" => params["amount"] + prev_sm.after})
+        end
+
+      MerchantStockMovement.changeset(%MerchantStockMovement{}, params) |> Repo.insert() |> IO.inspect()
+    end)
+    |> Multi.run(:summary, fn _repo, %{movement: movement} ->
+      {{y, m, d}, _time} = movement.inserted_at |> NaiveDateTime.to_erl()
+
+      check =
+        Repo.all(
+          from(sms in MerchantStockMovementSummary,
+            where:
+              sms.location_id == ^params["location_id"] and sms.merchant_stock_id == ^movement.merchant_stock_id and
+                sms.year == ^y and sms.month == ^m and
+                sms.day == ^d
+          )
+        )
+        |> List.first()
+
+      if check == nil do
+        create_merchant_stock_summary(%{
+          merchant_stock_id: movement.merchant_stock_id,
+          year: y,
+          month: m,
+          day: d,
+          location_id: params["location_id"],
+          amount: movement.after
+        })
+      else
+        update_merchant_stock_summary(check, %{amount: movement.after})
+      end
+
+      # MerchantStockMovement.changeset(%MerchantStockMovement{}, params) |> Repo.insert() |> IO.inspect()
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, multi_res} ->
+        {:ok, multi_res |> Map.get(:movement)}
+
+      _ ->
+        {:error, []}
+    end
+  end
+
+  def update_merchant_stock_movement(model, params) do
+    MerchantStockMovement.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_merchant_stock_movement(%MerchantStockMovement{} = model) do
     Repo.delete(model)
   end
 
