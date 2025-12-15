@@ -300,7 +300,7 @@ defmodule CommerceFront.Market.Secondary do
           {:error, "Insufficient active_token balance"}
         else
           current_sell_limit = (total_sales_by_members * 0.5) |> Decimal.from_float()
-          upcoming_sell_amount = Decimal.add(existing_sell_amount, total_amount)
+          upcoming_sell_amount = Decimal.add(Decimal.new("0"), total_amount)
           remaining_sell_limit = Decimal.sub(current_sell_limit, existing_sell_amount)
 
           if Decimal.to_float(upcoming_sell_amount) > Decimal.to_float(current_sell_limit) do

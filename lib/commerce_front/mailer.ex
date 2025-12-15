@@ -60,6 +60,13 @@ defmodule CommerceFront.Email do
     |> put_header("Reply-To", from_email)
     |> render("welcome.html", brand: brand_map, user: user_map)
   end
+  def forgot_password_email(user_email, from_email, brand_map, user_map \\ %{name: "there"}) do
+    base_email(from_email)
+    |> to(user_email)
+    |> subject("Reset your password")
+    |> put_header("Reply-To", from_email)
+    |> render("forgot_password.html", brand: brand_map, user: user_map)
+  end
 
   defp base_email(from_email) do
     new_email()
@@ -75,6 +82,9 @@ defmodule CommerceFront.Email do
   end
   def send_welcome_email(user_email, from_email, brand_map, user_map) do
     welcome_email(user_email, from_email, brand_map, user_map) |> CommerceFront.Mailer.send_email_for_org()
+  end
+  def send_forgot_password_email(user_email, from_email, brand_map, user_map) do
+    forgot_password_email(user_email, from_email, brand_map, user_map) |> CommerceFront.Mailer.send_email_for_org()
   end
 end
 
