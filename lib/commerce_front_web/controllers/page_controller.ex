@@ -96,7 +96,6 @@ defmodule CommerceFrontWeb.PageController do
 
         translate = fn keyword, html ->
           if keyword == "Sales History" && html |> String.contains?("Sales History") do
-
           end
 
           String.replace(html, keyword, translation_map[keyword])
@@ -108,6 +107,7 @@ defmodule CommerceFrontWeb.PageController do
         append_cache_request = fn conn ->
           conn
           |> put_resp_header("cache-control", "max-age=900, must-revalidate")
+
           # conn
         end
 
@@ -428,7 +428,6 @@ defmodule CommerceFrontWeb.PageController do
     sale =
       CommerceFront.Settings.get_sale!(id)
       |> CommerceFront.Repo.preload([:country, :merchant])
-
 
     conn
     |> render("co_pdf.html",

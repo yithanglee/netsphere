@@ -4,7 +4,7 @@
 defmodule CommerceFront.Mailer do
   use Bamboo.Mailer, otp_app: :commerce_front
 
-  def send_email_for_org( email) do
+  def send_email_for_org(email) do
     adapter_config = get_smtp_config_for_org() |> IO.inspect()
 
     deliver_now(email, config: adapter_config) |> IO.inspect()
@@ -13,8 +13,8 @@ defmodule CommerceFront.Mailer do
   defp get_smtp_config_for_org() do
     %{
       adapter: Bamboo.SMTPAdapter,
-      server:  "localhost",
-      hostname:  "mail.damienslab.com",
+      server: "localhost",
+      hostname: "mail.damienslab.com",
       port: 25,
       username: "ubuntu",
       password: "unwanted2",
@@ -44,6 +44,7 @@ defmodule CommerceFront.Email do
     |> put_header("Reply-To", from_email)
     |> render("custom_email.html", html: html)
   end
+
   def verification_email(user_email, from_email, brand_map, user_map \\ %{name: "John Doe"}) do
     # Build your default email then customize for welcome
     base_email(from_email)
@@ -52,6 +53,7 @@ defmodule CommerceFront.Email do
     |> put_header("Reply-To", from_email)
     |> render("verification_email.html", brand: brand_map, user: user_map)
   end
+
   def welcome_email(user_email, from_email, brand_map, user_map \\ %{name: "John Doe"}) do
     # Build your default email then customize for welcome
     base_email(from_email)
@@ -78,10 +80,13 @@ defmodule CommerceFront.Email do
   end
 
   def send_verification_email(user_email, from_email, brand_map, user_map) do
-    verification_email(user_email, from_email, brand_map, user_map) |> CommerceFront.Mailer.send_email_for_org()
+    verification_email(user_email, from_email, brand_map, user_map)
+    |> CommerceFront.Mailer.send_email_for_org()
   end
+
   def send_welcome_email(user_email, from_email, brand_map, user_map) do
-    welcome_email(user_email, from_email, brand_map, user_map) |> CommerceFront.Mailer.send_email_for_org()
+    welcome_email(user_email, from_email, brand_map, user_map)
+    |> CommerceFront.Mailer.send_email_for_org()
   end
   def send_forgot_password_email(user_email, from_email, brand_map, user_map) do
     forgot_password_email(user_email, from_email, brand_map, user_map) |> CommerceFront.Mailer.send_email_for_org()

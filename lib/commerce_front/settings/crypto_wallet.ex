@@ -3,11 +3,11 @@ defmodule CommerceFront.Settings.CryptoWallet do
   import Ecto.Changeset
 
   schema "crypto_wallets" do
-    field :address, :string
-    field :private_key, :string
-    field :public_key, :string
-    field :user_id, :integer
-    field :second_password, :string
+    field(:address, :string)
+    field(:private_key, :string)
+    field(:public_key, :string)
+    field(:user_id, :integer)
+    field(:second_password, :string)
 
     timestamps()
   end

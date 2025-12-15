@@ -48,9 +48,6 @@ config :commerce_front, :billplz,
   endpoint: System.get_env("BILLPLZ_API_ENDPOINT_PROD"),
   callback: System.get_env("BILLPLZ_API_CALLBACK_URL_PROD")
 
-
-
-
 config :commerce_front, :razer,
   vkey: System.get_env("RAZER_VKEY_PROD"),
   mid: System.get_env("RAZER_MID_PROD"),
@@ -72,15 +69,14 @@ config :commerce_front, CommerceFront.Mailer,
   no_mx_lookups: false,
   auth: :if_available
 
-
-  config :rustler_precompiled, :force_build, ex_secp256k1: true
-  config :rustler_precompiled, :force_build, ex_keccak: true
+config :rustler_precompiled, :force_build, ex_secp256k1: true
+config :rustler_precompiled, :force_build, ex_keccak: true
 
 config :commerce_front, :nowpayments,
   endpoint: "https://api.nowpayments.io",
   api_key: System.get_env("NOWPAYMENTS_API_KEY"),
-  price_currency: "USD", # how you price internally
+  # how you price internally
+  price_currency: "USD",
   callback: System.get_env("NOWPAYMENTS_CALLBACK_URL_PROD"),
   success_url: System.get_env("NOWPAYMENTS_SUCCESS_URL_PROD"),
   cancel_url: System.get_env("NOWPAYMENTS_CANCEL_URL_PROD")
-

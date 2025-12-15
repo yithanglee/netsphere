@@ -73,9 +73,9 @@ config :commerce_front, CommerceFront.Scheduler,
   ]
 
 config :commerce_front,
-chain_id: System.get_env("CHAIN_ID"),
-etherscan_api_key: System.get_env("ETHERSCAN_API_KEY"),
-token_contract_address: System.get_env("TOKEN_CONTRACT_ADDRESS")
+  chain_id: System.get_env("CHAIN_ID"),
+  etherscan_api_key: System.get_env("ETHERSCAN_API_KEY"),
+  token_contract_address: System.get_env("TOKEN_CONTRACT_ADDRESS")
 
 config :commerce_front, CommerceFront.Mailer,
   adapter: Bamboo.SMTPAdapter,
@@ -93,11 +93,10 @@ config :commerce_front, CommerceFront.Mailer,
   no_mx_lookups: false,
   auth: :if_available
 
-config :commerce_front, :encryption,
-  key: System.get_env("ENCRYPTION_KEY")
+config :commerce_front, :encryption, key: System.get_env("ENCRYPTION_KEY")
 
 config :ethereumex,
-  url:  System.get_env("RPC")
+  url: System.get_env("RPC")
 
 config :rustler_precompiled, :force_build, ex_secp256k1: true
 config :rustler_precompiled, :force_build, ex_keccak: true

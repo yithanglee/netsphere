@@ -3,19 +3,22 @@ defmodule CommerceFront.Settings.SecondaryMarketOrder do
   import Ecto.Changeset
 
   schema "secondary_market_orders" do
-    field :order_type, :string
-    field :quantity, :decimal
-    field :price_per_unit, :decimal
-    field :total_amount, :decimal
-    field :status, :string
-    field :filled_quantity, :decimal
-    field :remaining_quantity, :decimal
+    field(:order_type, :string)
+    field(:quantity, :decimal)
+    field(:price_per_unit, :decimal)
+    field(:total_amount, :decimal)
+    field(:status, :string)
+    field(:filled_quantity, :decimal)
+    field(:remaining_quantity, :decimal)
 
     belongs_to(:user, CommerceFront.Settings.User)
     belongs_to(:asset, CommerceFront.Settings.Asset)
 
     has_many(:buy_trades, CommerceFront.Settings.SecondaryMarketTrade, foreign_key: :buy_order_id)
-    has_many(:sell_trades, CommerceFront.Settings.SecondaryMarketTrade, foreign_key: :sell_order_id)
+
+    has_many(:sell_trades, CommerceFront.Settings.SecondaryMarketTrade,
+      foreign_key: :sell_order_id
+    )
 
     timestamps()
   end
@@ -23,8 +26,27 @@ defmodule CommerceFront.Settings.SecondaryMarketOrder do
   @doc false
   def changeset(secondary_market_order, attrs) do
     secondary_market_order
-    |> cast(attrs, [:user_id, :order_type, :asset_id, :quantity, :price_per_unit, :total_amount, :status, :filled_quantity, :remaining_quantity])
-    |> validate_required([:user_id, :order_type, :asset_id, :quantity, :price_per_unit, :total_amount, :status, :remaining_quantity])
+    |> cast(attrs, [
+      :user_id,
+      :order_type,
+      :asset_id,
+      :quantity,
+      :price_per_unit,
+      :total_amount,
+      :status,
+      :filled_quantity,
+      :remaining_quantity
+    ])
+    |> validate_required([
+      :user_id,
+      :order_type,
+      :asset_id,
+      :quantity,
+      :price_per_unit,
+      :total_amount,
+      :status,
+      :remaining_quantity
+    ])
     |> validate_inclusion(:order_type, ["buy", "sell"])
     |> validate_inclusion(:status, ["pending", "filled", "cancelled"])
     |> validate_number(:quantity, greater_than: 0)

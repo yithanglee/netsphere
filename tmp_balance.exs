@@ -16,4 +16,10 @@ Application.ensure_all_started(:ex_sha3)
 Application.ensure_all_started(:ex_abi)
 Application.ensure_all_started(:ethereumex)
 Code.compile_file("lib/commerce_front/zkevm/token.ex")
-IO.inspect ZkEvm.Token.balance_of("0xa17C6FC7D9EcEf353CeB3132DdD619037D134125", "0x9ae4a34345d433034e6e89fc77918ab2039684a9")
+
+IO.inspect(
+  ZkEvm.Token.balance_of(
+    "0xa17C6FC7D9EcEf353CeB3132DdD619037D134125",
+    "0x9ae4a34345d433034e6e89fc77918ab2039684a9"
+  )
+)

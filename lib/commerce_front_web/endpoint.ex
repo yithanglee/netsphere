@@ -24,9 +24,6 @@ defmodule CommerceFrontWeb.Endpoint do
     gzip: false,
     only: ~w(sw.js  js  css fonts images vendor  favicon.ico webfonts robots.txt manifest.json)
 
-
-
-
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
   if code_reloading? do

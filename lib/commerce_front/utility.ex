@@ -219,6 +219,7 @@ defmodule CommerceFront.Utility do
             """
             #{prefix}.#{column} != ^#{value}
             """
+
           "ilike" ->
             """
             ilike(#{prefix}.#{column}, ^"%#{value}%")
@@ -376,6 +377,5 @@ defmodule CommerceFront.Utility do
   end
 
   def test() do
-
   end
 end

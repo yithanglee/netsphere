@@ -3,12 +3,12 @@ defmodule CommerceFront.Settings.SecondaryMarketTrade do
   import Ecto.Changeset
 
   schema "secondary_market_trades" do
-    field :quantity, :decimal
-    field :price_per_unit, :decimal
-    field :total_amount, :decimal
-    field :trade_date, :utc_datetime
-    field :before, :decimal
-    field :after, :decimal
+    field(:quantity, :decimal)
+    field(:price_per_unit, :decimal)
+    field(:total_amount, :decimal)
+    field(:trade_date, :utc_datetime)
+    field(:before, :decimal)
+    field(:after, :decimal)
 
     belongs_to(:buy_order, CommerceFront.Settings.SecondaryMarketOrder)
     belongs_to(:sell_order, CommerceFront.Settings.SecondaryMarketOrder)

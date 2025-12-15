@@ -3,9 +3,9 @@ defmodule CommerceFront.Settings.StakeHolding do
   import Ecto.Changeset
 
   schema "stake_holdings" do
-    field :original_qty, :decimal
-    field :initial_bought, :date
-    field :released, :decimal
+    field(:original_qty, :decimal)
+    field(:initial_bought, :date)
+    field(:released, :decimal)
 
     belongs_to(:holding, CommerceFront.Settings.WalletTransaction, foreign_key: :holding_id)
 

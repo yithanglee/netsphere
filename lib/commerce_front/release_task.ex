@@ -6,10 +6,10 @@ defmodule CommerceFront.ReleaseTasks do
     :ecto,
     :ecto_sql
   ]
-  def repos, do: Application.get_env(:commerce_front , :ecto_repos, [])
+  def repos, do: Application.get_env(:commerce_front, :ecto_repos, [])
 
   def seed do
-    me = :commerce_front 
+    me = :commerce_front
 
     IO.puts("Loading #{me}..")
     # Load the code for myapp, but don't start it

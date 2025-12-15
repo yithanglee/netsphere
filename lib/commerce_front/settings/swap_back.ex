@@ -43,7 +43,7 @@ defmodule CommerceFront.Settings.SwapBack do
       :user_wallet_address,
       :treasury_address,
       # :amount_raw,
-      :amount,
+      :amount
       # :tx_hash,
       # :status,
       # :reason,

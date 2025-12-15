@@ -1,10 +1,10 @@
 defmodule Billplz do
   require Logger
   @key Application.get_env(:commerce_front, :billplz)[:key]
-  @endpoint (Application.get_env(:commerce_front, :billplz)[:endpoint] || "")
+  @endpoint Application.get_env(:commerce_front, :billplz)[:endpoint] || ""
   @auth [hackney: [basic_auth: {@key, ""}]]
   @callback_url Application.get_env(:commerce_front, :billplz)[:callback]
-  @redirect_url (Application.get_env(:commerce_front, :url) || "")
+  @redirect_url Application.get_env(:commerce_front, :url) || ""
 
   def get_bill(bill_id) do
     url = @endpoint <> "v3/bills/#{bill_id}"

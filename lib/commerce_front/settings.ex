@@ -8291,7 +8291,8 @@ defmodule CommerceFront.Settings do
               "location_id" => params["location_id"],
               "merchant_stock_id" => merchant_stock.id,
               "amount" => merchant_product_stock.qty * item.qty * -1,
-              "remarks" => "delivery outbound|merchant_sales_item_id:#{item.id}|#{params["shipping_ref"]}"
+              "remarks" =>
+                "delivery outbound|merchant_sales_item_id:#{item.id}|#{params["shipping_ref"]}"
             })
             |> IO.inspect()
           end
@@ -8509,16 +8510,24 @@ defmodule CommerceFront.Settings do
   end
 
   def create_merchant_product_stock(params \\ %{}) do
-    MerchantProductStock.changeset(%MerchantProductStock{}, params) |> Repo.insert() |> IO.inspect()
+    MerchantProductStock.changeset(%MerchantProductStock{}, params)
+    |> Repo.insert()
+    |> IO.inspect()
 
     merchant_product_id = Map.keys(params["MerchantStock"]) |> List.first()
 
     items = params["MerchantStock"][merchant_product_id] |> Map.keys()
-    Repo.delete_all(from(rap in MerchantProductStock, where: rap.merchant_product_id == ^merchant_product_id))
+
+    Repo.delete_all(
+      from(rap in MerchantProductStock, where: rap.merchant_product_id == ^merchant_product_id)
+    )
 
     for item <- items do
       params = %{"merchant_product_id" => merchant_product_id, "merchant_stock_id" => item}
-      MerchantProductStock.changeset(%MerchantProductStock{}, params) |> Repo.insert() |> IO.inspect()
+
+      MerchantProductStock.changeset(%MerchantProductStock{}, params)
+      |> Repo.insert()
+      |> IO.inspect()
     end
 
     {:ok, %MerchantProductStock{id: 0}}
@@ -8677,7 +8686,8 @@ defmodule CommerceFront.Settings do
   def create_merchant_stock_movement(params \\ %{}) do
     Multi.new()
     |> Multi.run(:movement, fn _repo, %{} ->
-      prev_sm = get_latest_merchant_stock_movement(params["merchant_stock_id"], params["location_id"])
+      prev_sm =
+        get_latest_merchant_stock_movement(params["merchant_stock_id"], params["location_id"])
 
       params =
         if prev_sm == nil do
@@ -8687,7 +8697,9 @@ defmodule CommerceFront.Settings do
           |> Map.merge(%{"before" => prev_sm.after, "after" => params["amount"] + prev_sm.after})
         end
 
-      MerchantStockMovement.changeset(%MerchantStockMovement{}, params) |> Repo.insert() |> IO.inspect()
+      MerchantStockMovement.changeset(%MerchantStockMovement{}, params)
+      |> Repo.insert()
+      |> IO.inspect()
     end)
     |> Multi.run(:summary, fn _repo, %{movement: movement} ->
       {{y, m, d}, _time} = movement.inserted_at |> NaiveDateTime.to_erl()
@@ -8696,7 +8708,8 @@ defmodule CommerceFront.Settings do
         Repo.all(
           from(sms in MerchantStockMovementSummary,
             where:
-              sms.location_id == ^params["location_id"] and sms.merchant_stock_id == ^movement.merchant_stock_id and
+              sms.location_id == ^params["location_id"] and
+                sms.merchant_stock_id == ^movement.merchant_stock_id and
                 sms.year == ^y and sms.month == ^m and
                 sms.day == ^d
           )
@@ -9361,98 +9374,38 @@ defmodule CommerceFront.Settings do
 
   @doc """
   Backfill before and after balances for all secondary market trades.
-  This processes trades chronologically for each user+asset+price combination.
-  The first transaction at a specific asset_id and unit_price has before value of 0.
+  This processes trades chronologically and tracks the running **traded quantity** for each
+  `{asset_id, price_per_unit}` combination (i.e. tranche price level).
+
+  The first transaction for a given asset+unit_price has a `before` value of 0.
   """
   def backfill_secondary_market_trade_balances do
-    # Get all trades ordered by trade_date
     trades =
       from(t in SecondaryMarketTrade,
         order_by: [asc: t.trade_date, asc: t.id],
-        preload: [:buyer, :seller, :asset]
+        select: t
       )
       |> Repo.all()
 
-    # Process trades chronologically
-    trades
-    |> Enum.each(fn trade ->
-      backfill_trade_balance(trade)
+    Repo.transaction(fn ->
+      Enum.reduce(trades, %{}, fn trade, balances ->
+        # Use price_per_unit string as part of the key to avoid Decimal scale edge cases.
+        key = {trade.asset_id, Decimal.to_string(trade.price_per_unit)}
+
+        traded_before = Map.get(balances, key, Decimal.new("0"))
+        traded_after = Decimal.add(traded_before, trade.quantity)
+
+        case update_secondary_market_trade(trade, %{before: traded_before, after: traded_after}) do
+          {:ok, _updated_trade} ->
+            Map.put(balances, key, traded_after)
+
+          {:error, changeset} ->
+            Repo.rollback(changeset)
+        end
+      end)
     end)
 
     {:ok, "Backfill completed"}
-  end
-
-  defp backfill_trade_balance(trade) do
-    # Get buyer's balance before this trade at this specific asset_id and price
-    buyer_before =
-      get_asset_price_balance_before_trade(
-        trade.buyer_id,
-        trade.asset_id,
-        trade.price_per_unit,
-        trade.trade_date,
-        trade.id
-      )
-
-    buyer_after = Decimal.add(buyer_before, trade.quantity)
-
-    # Update the trade with the buyer's balance (buyer's perspective)
-    update_secondary_market_trade(trade, %{
-      before: buyer_before,
-      after: buyer_after
-    })
-  end
-
-  defp get_asset_price_balance_before_trade(
-         user_id,
-         asset_id,
-         unit_price,
-         _trade_date,
-         current_trade_id
-       ) do
-    # Get the most recent trade before this one for this user+asset+price combination
-    previous_trade =
-      from(t in SecondaryMarketTrade,
-        where:
-          t.asset_id == ^asset_id and
-            t.price_per_unit == ^unit_price and
-            t.id < ^current_trade_id,
-        order_by: [desc: t.id],
-        limit: 1
-      )
-      |> Repo.one()
-
-    case previous_trade do
-      nil ->
-        # First transaction at this asset_id and unit_price
-        Decimal.new("0")
-
-      prev ->
-        # Use the after value from the previous trade if available
-        # Otherwise calculate it
-        cond do
-          prev.after != nil ->
-            prev.after
-
-          prev.buyer_id == user_id ->
-            # Calculate: previous before + previous quantity
-            if prev.before != nil do
-              Decimal.add(prev.before, prev.quantity)
-            else
-              prev.quantity
-            end
-
-          prev.seller_id == user_id ->
-            # Calculate: previous before - previous quantity
-            if prev.before != nil do
-              Decimal.sub(prev.before, prev.quantity)
-            else
-              Decimal.new("0")
-            end
-
-          true ->
-            Decimal.new("0")
-        end
-    end
   end
 
   # Get active sell orders for an asset (sorted by price, lowest first)
