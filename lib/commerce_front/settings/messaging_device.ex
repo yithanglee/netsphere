@@ -3,8 +3,8 @@ defmodule CommerceFront.Settings.MessagingDevice do
   import Ecto.Changeset
 
   schema "messaging_devices" do
-    field :staff_id, :integer
-    field :uuid, :string
+    field(:staff_id, :integer)
+    field(:uuid, :string)
     timestamps()
   end
 

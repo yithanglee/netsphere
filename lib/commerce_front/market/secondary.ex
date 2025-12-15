@@ -471,6 +471,7 @@ defmodule CommerceFront.Market.Secondary do
   # 2. If insufficient, inject synthetic sell orders from tranche
   # 3. Update tranche sold quantity
   # 4. Move to next tranche if current is exhausted
+
   defp match_buy_order_with_tranche_rules(buy_order, current_tranche, remainder_breakdowns) do
     IO.inspect(buy_order, label: "buy_order")
     tranche_price = current_tranche.unit_price
@@ -500,6 +501,7 @@ defmodule CommerceFront.Market.Secondary do
     # Step 3: If still need to fill, inject from tranche
     _tranche_res =
       if Decimal.compare(remaining_after_member_trades, Decimal.new("0")) == :gt do
+
         inject_from_tranche(buy_order, post_current_tranche, remaining_after_member_trades)
         |> IO.inspect(label: "remaining_after_inject_from_tranche")
       end
@@ -861,12 +863,13 @@ defmodule CommerceFront.Market.Secondary do
           )
           |> repo.one()
           |> IO.inspect(label: "bal")
+
         cond do
           is_nil(bal) ->
             {:error, :buyer_wallet_not_found}
 
           Decimal.compare(
-              Decimal.from_float(bal.total),
+            Decimal.from_float(bal.total),
             trade_params.total_amount |> Decimal.round(2)
           ) == :lt ->
             {:error, :insufficient_funds}

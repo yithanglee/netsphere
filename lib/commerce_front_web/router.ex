@@ -89,7 +89,7 @@ defmodule CommerceFrontWeb.Router do
       origin: [
         "https://nph_api.damienslab.com",
         "http://nph_api.damienslab.com",
-            "https://nph_admin.damienslab.com",
+        "https://nph_admin.damienslab.com",
         "http://nph_admin.damienslab.com",
         "https://netspheremall.com",
         "https://www.netspheremall.com",
@@ -114,7 +114,6 @@ defmodule CommerceFrontWeb.Router do
   scope "/svt_api", CommerceFrontWeb do
     pipe_through(:svt_api)
     get("/stream", ApiController, :stream_get)
-
 
     get("/webhook", ApiController, :get)
     post("/webhook", ApiController, :post)
@@ -153,7 +152,6 @@ defmodule CommerceFrontWeb.Router do
     pipe_through(:api)
     get("/stream", ApiController, :stream_get)
 
-
     get("/webhook", ApiController, :get)
     post("/webhook", ApiController, :post)
     options("/:model", ApiController, :datatable)
@@ -174,7 +172,6 @@ defmodule CommerceFrontWeb.Router do
       pipe_through([:browser])
       get("/*path", PageController, :html)
     end
-
   end
 
   scope "/", CommerceFrontWeb do

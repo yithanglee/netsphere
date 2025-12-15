@@ -21,7 +21,18 @@ defmodule CommerceFront.Settings.Reward do
   @doc false
   def changeset(reward, attrs) do
     reward
-    |> cast(attrs, [:is_paid, :is_withheld, :remarks, :user_id, :amount, :day, :month, :year, :sales_id, :name])
+    |> cast(attrs, [
+      :is_paid,
+      :is_withheld,
+      :remarks,
+      :user_id,
+      :amount,
+      :day,
+      :month,
+      :year,
+      :sales_id,
+      :name
+    ])
     |> validate_required([
       :is_paid,
       :is_withheld,

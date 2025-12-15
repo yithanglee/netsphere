@@ -93,7 +93,8 @@ defmodule CommerceFrontWeb.ApiController do
           CommerceFront.Utility.build_datatable_query(
             CommerceFront.Utility.modulize_name(params["model"]),
             params,
-            params |> Map.drop([
+            params
+            |> Map.drop([
               :model,
               :scope
             ])
@@ -1319,14 +1320,16 @@ defmodule CommerceFrontWeb.ApiController do
             },
             "shippingOption" => "standard"
           }
-        case Settings.ecommerce_checkout(params) |> IO.inspect(label: "ecommerce_checkout") do
-          {:ok, r} ->
-            %{status: "ok", res: r |> BluePotion.sanitize_struct()}
 
-          {:error, reason} ->
-            %{status: "error", reason: inspect(reason)}
-        end
-          # %{status: "ok"}
+          case Settings.ecommerce_checkout(params) |> IO.inspect(label: "ecommerce_checkout") do
+            {:ok, r} ->
+              %{status: "ok", res: r |> BluePotion.sanitize_struct()}
+
+            {:error, reason} ->
+              %{status: "error", reason: inspect(reason)}
+          end
+
+        # %{status: "ok"}
 
         "approve_swap_back" ->
           case Settings.approve_swap_back(params["id"]) do
@@ -1747,25 +1750,25 @@ defmodule CommerceFrontWeb.ApiController do
               %{status: "error", reason: final_reason}
           end
 
-          "mark_do" ->
-            sale = Settings.get_sale!(params["id"]) |> IO.inspect()
+        "mark_do" ->
+          sale = Settings.get_sale!(params["id"]) |> IO.inspect()
 
-            cond do
-              sale.status == :processing && params["status"] == "pending_delivery" ->
-                Settings.update_sale(sale, %{status: params["status"]})
-                %{status: "ok"}
+          cond do
+            sale.status == :processing && params["status"] == "pending_delivery" ->
+              Settings.update_sale(sale, %{status: params["status"]})
+              %{status: "ok"}
 
-              sale.status == :pending_delivery && params["status"] == "sent" ->
-                Settings.mark_sent(params, sale)
+            sale.status == :pending_delivery && params["status"] == "sent" ->
+              Settings.mark_sent(params, sale)
 
-                %{status: "ok"}
+              %{status: "ok"}
 
-              true ->
-                nil
-                %{status: "error", reason: "already updated to #{params["status"]}"}
-            end
+            true ->
+              nil
+              %{status: "error", reason: "already updated to #{params["status"]}"}
+          end
 
-          "mark_merchant_do" ->
+        "mark_merchant_do" ->
           sale = Settings.get_sale!(params["id"]) |> IO.inspect()
 
           cond do

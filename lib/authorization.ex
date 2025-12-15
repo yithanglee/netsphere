@@ -78,7 +78,8 @@ defmodule CommerceFront.ApiAuthorization do
           with auth_token <- Plug.Conn.get_req_header(conn, "authorization") |> List.first(),
                true <- auth_token != nil,
                token <- auth_token |> String.split("Basic ") |> List.last(),
-               t <- CommerceFront.Settings.decode_token(token) |> IO.inspect(label: "member token"),
+               t <-
+                 CommerceFront.Settings.decode_token(token) |> IO.inspect(label: "member token"),
                admin_t <-
                  CommerceFront.Settings.decode_admin_token(token)
                  |> IO.inspect() do

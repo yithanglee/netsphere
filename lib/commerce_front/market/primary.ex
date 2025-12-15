@@ -140,7 +140,7 @@ defmodule CommerceFront.Market.Primary do
           {count, _} =
             repo.update_all(
               from(x in AssetTranche, where: x.id == ^tid),
-              set: [qty_sold: Decimal.to_float(t.qty_sold) +  Decimal.to_float(qty) ]
+              set: [qty_sold: Decimal.to_float(t.qty_sold) + Decimal.to_float(qty)]
             )
 
           if count != 1, do: {:halt, {:error, :tranche_update_failed}}, else: :ok
@@ -156,6 +156,7 @@ defmodule CommerceFront.Market.Primary do
               qty: qty,
               inserted_at: DateTime.utc_now()
             })
+
           IO.inspect(acc_cost, label: "acc_cost")
           IO.inspect(qty, label: "qty")
           IO.inspect(t.unit_price, label: "t.unit_price")
@@ -216,7 +217,8 @@ defmodule CommerceFront.Market.Primary do
           user_id: user_id,
           amount: Decimal.to_float(q.filled_qty),
           remarks: "primary buy asset(id:#{asset_id})",
-          wallet_type: "asset"  # Using asset wallet for asset holdings
+          # Using asset wallet for asset holdings
+          wallet_type: "asset"
         }
 
         case Settings.create_wallet_transaction(wallet_params) do
@@ -224,12 +226,17 @@ defmodule CommerceFront.Market.Primary do
           {:error, changeset} -> {:error, changeset}
         end
       end)
-      |> Multi.run(:create_stake_holding, fn repo, %{quote: q, create_asset_wallet_transaction: wallet_result} ->
+      |> Multi.run(:create_stake_holding, fn repo,
+                                             %{
+                                               quote: q,
+                                               create_asset_wallet_transaction: wallet_result
+                                             } ->
         # Create a stake holding entry for the newly purchased quantity
         # This will be staked at 1% per day
         # We'll use the wallet_transaction ID as a reference
         stake_params = %{
-          holding_id: wallet_result.wallet_transaction.id,  # Reference to wallet transaction
+          # Reference to wallet transaction
+          holding_id: wallet_result.wallet_transaction.id,
           original_qty: q.filled_qty,
           initial_bought: Date.utc_today(),
           released: Decimal.new("0")

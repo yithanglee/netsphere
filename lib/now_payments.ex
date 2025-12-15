@@ -5,14 +5,7 @@ defmodule NowPayments do
               "https://api.nowpayments.io"
   @api_key (Application.get_env(:commerce_front, :nowpayments) || %{})[:api_key]
   @price_currency (Application.get_env(:commerce_front, :nowpayments) || %{})[:price_currency] ||
-                     "USD"
-
-
-
-
-
-
-
+                    "USD"
 
   @doc """
   Create an invoice on NOWPayments for a given reference and amount.
@@ -25,19 +18,18 @@ defmodule NowPayments do
     server_url = Application.get_env(:commerce_front, :url) || ""
 
     callback =
-      ((Application.get_env(:commerce_front, :nowpayments) || %{})[:callback]) ||
+      (Application.get_env(:commerce_front, :nowpayments) || %{})[:callback] ||
         "#{server_url}api/payment/nowpayments"
 
     success_url =
-      ((Application.get_env(:commerce_front, :nowpayments) || %{})[:success_url]) ||
+      (Application.get_env(:commerce_front, :nowpayments) || %{})[:success_url] ||
         "#{server_url}thank_you"
 
     cancel_url =
-      ((Application.get_env(:commerce_front, :nowpayments) || %{})[:cancel_url]) ||
+      (Application.get_env(:commerce_front, :nowpayments) || %{})[:cancel_url] ||
         server_url
 
-    pay_currency =
-      opts |> Map.get(:pay_currency, "USDTMATIC") 
+    pay_currency = opts |> Map.get(:pay_currency, "USDTMATIC")
 
     # pay_chain = opts |> Map.get(:pay_chain, "polygon") |> to_string()
 
@@ -51,7 +43,6 @@ defmodule NowPayments do
       "price_amount" => to_decimal_string(price_amount),
       "price_currency" => @price_currency,
       "pay_currency" => pay_currency,
-
       "order_id" => reference_no,
       "order_description" => "Order #{reference_no}",
       "ipn_callback_url" => callback,
@@ -100,19 +91,18 @@ defmodule NowPayments do
     server_url = Application.get_env(:commerce_front, :url) || ""
 
     callback =
-      ((Application.get_env(:commerce_front, :nowpayments) || %{})[:callback]) ||
+      (Application.get_env(:commerce_front, :nowpayments) || %{})[:callback] ||
         "#{server_url}api/payment/nowpayments"
 
     success_url =
-      ((Application.get_env(:commerce_front, :nowpayments) || %{})[:success_url]) ||
+      (Application.get_env(:commerce_front, :nowpayments) || %{})[:success_url] ||
         "#{server_url}thank_you"
 
     cancel_url =
-      ((Application.get_env(:commerce_front, :nowpayments) || %{})[:cancel_url]) ||
+      (Application.get_env(:commerce_front, :nowpayments) || %{})[:cancel_url] ||
         server_url
 
-    pay_currency =
-      opts |> Map.get(:pay_currency, "USDTMATIC")
+    pay_currency = opts |> Map.get(:pay_currency, "USDTMATIC")
 
     price_amount =
       case Application.get_env(:commerce_front, :release) do
@@ -131,18 +121,20 @@ defmodule NowPayments do
       "cancel_url" => cancel_url
     }
 
-    headers = [
-      {"x-api-key", @api_key || ""},
-      {"Content-Type", "application/json"}
-    ] ++ case Map.get(opts, :origin_ip) do
-      nil -> []
-      "" -> []
-      ip -> [{"origin-ip", ip}]
-    end
+    headers =
+      [
+        {"x-api-key", @api_key || ""},
+        {"Content-Type", "application/json"}
+      ] ++
+        case Map.get(opts, :origin_ip) do
+          nil -> []
+          "" -> []
+          ip -> [{"origin-ip", ip}]
+        end
 
     url = "#{@endpoint}/v1/payment"
 
-    case HTTPoison.post(url, Jason.encode!(payload), headers) |> IO.inspect do
+    case HTTPoison.post(url, Jason.encode!(payload), headers) |> IO.inspect() do
       {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
         with {:ok, res} <- Jason.decode(body) do
           %{
@@ -185,14 +177,16 @@ defmodule NowPayments do
   - :origin_ip (customer IP, for fiat2crypto)
   """
   def create_invoice_payment(invoice_id, opts \\ %{}) do
-    headers = [
-      {"x-api-key", @api_key || ""},
-      {"Content-Type", "application/json"}
-    ] ++ case Map.get(opts, :origin_ip) do
-      nil -> []
-      "" -> []
-      ip -> [{"origin-ip", ip}]
-    end
+    headers =
+      [
+        {"x-api-key", @api_key || ""},
+        {"Content-Type", "application/json"}
+      ] ++
+        case Map.get(opts, :origin_ip) do
+          nil -> []
+          "" -> []
+          ip -> [{"origin-ip", ip}]
+        end
 
     base_payload = %{
       "iid" => invoice_id,
@@ -212,7 +206,7 @@ defmodule NowPayments do
 
     url = "#{@endpoint}/v1/invoice-payment"
 
-    case HTTPoison.post(url, Jason.encode!(payload), headers) |> IO.inspect do
+    case HTTPoison.post(url, Jason.encode!(payload), headers) |> IO.inspect() do
       {:ok, %HTTPoison.Response{status_code: 201, body: body}} ->
         with {:ok, res} <- Jason.decode(body) do
           %{
@@ -271,6 +265,7 @@ defmodule NowPayments do
   end
 
   defp to_decimal_string(val) when is_binary(val), do: val
+
   defp to_decimal_string(val) when is_integer(val),
     do: :erlang.float_to_binary(val * 1.0, decimals: 2)
 
@@ -279,5 +274,3 @@ defmodule NowPayments do
 
   defp to_decimal_string(val), do: "#{val}"
 end
-
-

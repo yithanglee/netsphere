@@ -92,8 +92,7 @@ defmodule CommerceFront.Calculation do
         if index < 8 do
           IO.inspect("current index at #{index}")
 
-          max =
-            matrix |> Enum.filter(&(&1.rank == upline.rank)) |> List.first() |> Map.get(:max)
+          max = matrix |> Enum.filter(&(&1.rank == upline.rank)) |> List.first() |> Map.get(:max)
 
           perc = (merchant.commission_perc / 8) |> Float.round(4)
 
@@ -452,7 +451,7 @@ defmodule CommerceFront.Calculation do
   CommerceFront.Calculation.sharing_bonus(sale.user.username , sale.total_point_value, sale, nil)
 
   """
-   def sharing_bonus(username, total_point_value, sale, referral) do
+  def sharing_bonus(username, total_point_value, sale, referral) do
     unpaid_node = unpaid_node()
 
     uplines =
@@ -465,14 +464,13 @@ defmodule CommerceFront.Calculation do
       |> Enum.with_index(1)
       |> IO.inspect(label: "uplines")
 
-
     run_calc = fn {upline, index}, {calc_index, eval_matrix, remainder_point_value} ->
       user = CommerceFront.Settings.get_user_by_username(upline.parent)
       rank = user.rank_id |> CommerceFront.Settings.get_rank!()
       IO.inspect([user, rank], label: "user and rank")
       perc = 0.08
 
-      with true <- calc_index < 2  do
+      with true <- calc_index < 2 do
         bonus = remainder_point_value * perc
 
         {:ok, r} =
@@ -492,7 +490,7 @@ defmodule CommerceFront.Calculation do
         CommerceFront.Settings.pay_to_bonus_wallet(r, Multi.new(), true)
 
         # remainder_point_value - bonus
-        {calc_index + 1, [],total_point_value}
+        {calc_index + 1, [], total_point_value}
       else
         _ ->
           {calc_index, eval_matrix, total_point_value}
@@ -1526,12 +1524,13 @@ defmodule CommerceFront.Calculation do
       for row <- rows do
         Enum.zip(columns |> Enum.map(&(&1 |> String.to_atom())), row) |> Enum.into(%{})
       end
-      # |> List.insert_at(0, %{
-      #   left: 50001,
-      #   right: 50000,
-      #   user_id: unpaid_node.parent_id,
-      #   username: unpaid_node.parent
-      # })
+
+    # |> List.insert_at(0, %{
+    #   left: 50001,
+    #   right: 50000,
+    #   user_id: unpaid_node.parent_id,
+    #   username: unpaid_node.parent
+    # })
 
     Repo.delete_all(
       from(r in Reward,
@@ -1547,7 +1546,7 @@ defmodule CommerceFront.Calculation do
       # 1star pool = 8k * 0.01  ?
 
       matrix = [
-        %{name: "all", qualify: 0},
+        %{name: "all", qualify: 0}
         # %{name: "1star", qualify: 1500},
         # %{name: "2star", qualify: 3000},
         # %{name: "3star", qualify: 10000},
@@ -1558,7 +1557,6 @@ defmodule CommerceFront.Calculation do
       for %{name: star_name, qualify: amount} = star <- matrix do
         one_star_qualifier =
           for weak_leg <- users_weak_leg do
-
             # if  weak_leg.pv > 600 do
             #   weak_leg
             # else
@@ -1574,7 +1572,6 @@ defmodule CommerceFront.Calculation do
           one_star_amount = total_sales_pv * 0.03 / count
 
           for weak_leg <- one_star_qualifier do
-
             CommerceFront.Settings.create_reward(%{
               sales_id: 0,
               is_paid: false,

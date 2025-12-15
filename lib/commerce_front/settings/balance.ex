@@ -3,9 +3,9 @@ defmodule CommerceFront.Settings.Balance do
   import Ecto.Changeset
 
   schema "balances" do
-    field :available, :decimal
-    field :currency, :string
-    field :locked, :decimal
+    field(:available, :decimal)
+    field(:currency, :string)
+    field(:locked, :decimal)
     # field :user_id, :integer
     belongs_to(:user, CommerceFront.Settings.User)
 
