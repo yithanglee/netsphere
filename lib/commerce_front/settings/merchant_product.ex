@@ -1,9 +1,21 @@
 defmodule CommerceFront.Settings.MerchantProduct do
   use Ecto.Schema
   import Ecto.Changeset
+  import EctoEnum
+
+  defenum(
+    ProductConditionEnum,
+    ~w(
+      new
+      like_new
+      used
+    )
+  )
 
   schema "merchant_products" do
     field(:brand_name, :string)
+    belongs_to(:merchant_product_category, CommerceFront.Settings.MerchantProductCategory)
+    # Backwards-compat: legacy free-text category name (kept for older clients)
     field(:category_name, :string)
     field(:description, :binary)
     field(:img_url, :string)
@@ -22,15 +34,12 @@ defmodule CommerceFront.Settings.MerchantProduct do
 
     has_many(:merchant_stocks, through: [:merchant_product_stock, :merchant_stock])
 
-    # field(:commission_perc, :float, default: 0.1)
+    field(:product_condition, ProductConditionEnum, default: :new)
     timestamps()
   end
-
   @doc false
   def changeset(merchant_product, attrs) do
-    merchant_product
-    |> cast(attrs, [
-      # :commission_perc,
+    merchant_product |> cast(attrs, [
       :img_url2,
       :img_url3,
       :img_url4,
@@ -42,7 +51,9 @@ defmodule CommerceFront.Settings.MerchantProduct do
       :short_desc,
       :merchant_id,
       :brand_name,
-      :category_name
+      :category_name,
+      :merchant_product_category_id,
+      :product_condition
     ])
     |> validate_required([
       :name,
@@ -50,10 +61,8 @@ defmodule CommerceFront.Settings.MerchantProduct do
       # :point_value,
       # :img_url,
       :description,
-      :short_desc,
       :merchant_id,
-      :brand_name,
-      :category_name
+      :merchant_product_category_id
     ])
   end
 end

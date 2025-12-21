@@ -223,13 +223,17 @@ defmodule CommerceFront.Settings do
       |> List.first()
 
     user =
+      if res != nil do
       Repo.all(
         from(u in CommerceFront.Settings.User,
           where: u.id == ^res.user_id,
-          preload: [:country, :merchant]
+          preload: [:country, :merchant, :rank]
         )
       )
       |> List.first()
+      else
+        nil
+      end
 
     merchant_id = if user.merchant != nil, do: user.merchant.id, else: nil
 
@@ -8538,6 +8542,22 @@ defmodule CommerceFront.Settings do
   end
 
   def delete_merchant_product_stock(%MerchantProductStock{} = model) do
+    Repo.delete(model)
+  end
+  alias CommerceFront.Settings.MerchantProductCategory
+  def list_merchant_product_categories() do
+    Repo.all(MerchantProductCategory)
+  end
+  def get_merchant_product_category!(id) do
+    Repo.get!(MerchantProductCategory, id)
+  end
+  def create_merchant_product_category(params \\ %{}) do
+    MerchantProductCategory.changeset(%MerchantProductCategory{}, params) |> Repo.insert() |> IO.inspect()
+  end
+  def update_merchant_product_category(model, params) do
+    MerchantProductCategory.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+  def delete_merchant_product_category(%MerchantProductCategory{} = model) do
     Repo.delete(model)
   end
 
