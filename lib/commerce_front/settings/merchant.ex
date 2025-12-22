@@ -23,13 +23,35 @@ defmodule CommerceFront.Settings.Merchant do
     field(:company_reg_no, :string)
     field(:company_ssm_image_url, :string)
     field(:commission_perc, :float, default: 0.1)
+    field(:line_id, :string)
+    field(:facebook_url, :string)
+    field(:instagram_id, :string)
+    field(:twitter_url, :string)
+    field(:youtube_url, :string)
+    field(:tiktok_url, :string)
+    field(:pinterest_url, :string)
+    field(:linkedin_url, :string)
+    field(:github_url, :string)
+    field(:whatsapp_number, :string)
+    field(:wechat_number, :string)
     timestamps()
   end
 
   @doc false
   def changeset(merchant, attrs) do
-    merchant
-    |> cast(attrs, [
+      merchant
+      |> cast(attrs, [
+      :whatsapp_number,
+      :wechat_number,
+      :line_id,
+      :facebook_url,
+      :instagram_id,
+      :twitter_url,
+      :youtube_url,
+      :tiktok_url,
+      :pinterest_url,
+      :linkedin_url,
+      :github_url,
       :country_id,
       :merchant_category_id,
       :company_address,
