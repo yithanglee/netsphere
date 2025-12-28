@@ -711,21 +711,7 @@ defmodule CommerceFront.Settings do
                 })
 
               :active_token ->
-                CommerceFront.Settings.create_wallet_transaction(%{
-                  user_id: withdrawal.user_id,
-                  amount: ((withdrawal.amount * 0.95) |> Float.round(2)) * -1,
-                  remarks:
-                    "withdrawal #{wb.code} to #{withdrawal.bank_name} #{withdrawal.bank_account_number}",
-                  wallet_type: "token"
-                })
 
-                CommerceFront.Settings.create_wallet_transaction(%{
-                  user_id: withdrawal.user_id,
-                  amount: ((withdrawal.amount * 0.05) |> Float.round(2)) * -1,
-                  remarks:
-                    "#{wb.code} processing fee - #{(withdrawal.amount * 0.005) |> Float.round(2)} ",
-                  wallet_type: "token"
-                })
 
                 case CommerceFront.Settings.admin_token_approve_v2(%{
                        owner_user_id: withdrawal.user_id,
@@ -733,8 +719,26 @@ defmodule CommerceFront.Settings do
                        token_address:
                          Application.get_env(:commerce_front, :token_contract_address),
                        amount: (withdrawal.amount * 0.95) |> Float.round(2)
-                     }) do
+                     }) |> IO.inspect(label: "admin_token_approve_v2") do
                   {:ok, %{tx_hash: hash}} ->
+
+
+                    CommerceFront.Settings.create_wallet_transaction(%{
+                      user_id: withdrawal.user_id,
+                      amount: ((withdrawal.amount * 0.95) |> Float.round(2)) * -1,
+                      remarks:
+                        "withdrawal #{wb.code} to #{withdrawal.bank_name} #{withdrawal.bank_account_number}",
+                      wallet_type: "token"
+                    })
+
+                    CommerceFront.Settings.create_wallet_transaction(%{
+                      user_id: withdrawal.user_id,
+                      amount: ((withdrawal.amount * 0.05) |> Float.round(2)) * -1,
+                      remarks:
+                        "#{wb.code} processing fee - #{(withdrawal.amount * 0.005) |> Float.round(2)} ",
+                      wallet_type: "token"
+                    })
+
                     update_wallet_withdrawal(withdrawal, %{"tx_hash" => hash})
                     %{status: "ok", tx_hash: hash}
 
@@ -9044,7 +9048,7 @@ defmodule CommerceFront.Settings do
     token_address = Application.get_env(:commerce_front, :token_contract_address)
 
     decimals =
-      case params["decimals"] do
+      case params |> Map.get(:decimals) do
         nil ->
           18
 
@@ -9062,7 +9066,7 @@ defmodule CommerceFront.Settings do
       end
 
     amount =
-      case params["amount"] do
+      case params |> Map.get(:amount) do
         %Decimal{} = d ->
           Decimal.to_float(d)
 
@@ -9080,7 +9084,7 @@ defmodule CommerceFront.Settings do
       end
 
     to_address =
-      case get_crypto_wallet_by_user_id(params["owner_user_id"]) do
+      case get_crypto_wallet_by_user_id(params |> Map.get(:owner_user_id)) do
         %{address: addr} when is_binary(addr) and addr != "" -> addr
         _ -> nil
       end

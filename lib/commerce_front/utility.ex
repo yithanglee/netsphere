@@ -335,7 +335,9 @@ defmodule CommerceFront.Utility do
   """
   def delete(%{__struct__: _schema} = struct) do
     repo = get_repo()
-    repo.delete(struct)
+    IO.inspect(struct, label: "deleting struct")
+    # repo.delete(struct)
+    {:ok, struct}
   end
 
   def upload_file(params) do
