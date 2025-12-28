@@ -728,7 +728,7 @@ defmodule CommerceFront.Settings do
                       amount: ((withdrawal.amount * 0.995) |> Float.round(2)) * -1,
                       remarks:
                         "withdrawal #{wb.code} to #{withdrawal.bank_name} #{withdrawal.bank_account_number}",
-                      wallet_type: "token"
+                      wallet_type: "active_token"
                     })
 
                     CommerceFront.Settings.create_wallet_transaction(%{
@@ -736,7 +736,7 @@ defmodule CommerceFront.Settings do
                       amount: ((withdrawal.amount * 0.005) |> Float.round(2)) * -1,
                       remarks:
                         "#{wb.code} processing fee - #{(withdrawal.amount * 0.005) |> Float.round(2)} ",
-                      wallet_type: "token"
+                      wallet_type: "active_token"
                     })
 
                     update_wallet_withdrawal(withdrawal, %{"tx_hash" => hash, "remarks" => "#{withdrawal.remarks} - #{hash}"})
