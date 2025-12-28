@@ -718,14 +718,14 @@ defmodule CommerceFront.Settings do
                        #  spender_address: withdrawal.bank_account_number,
                        token_address:
                          Application.get_env(:commerce_front, :token_contract_address),
-                       amount: (withdrawal.amount * 0.95) |> Float.round(2)
+                       amount: (withdrawal.amount * 0.995) |> Float.round(2)
                      }) |> IO.inspect(label: "admin_token_approve_v2") do
                   {:ok, %{tx_hash: hash}} ->
 
 
                     CommerceFront.Settings.create_wallet_transaction(%{
                       user_id: withdrawal.user_id,
-                      amount: ((withdrawal.amount * 0.95) |> Float.round(2)) * -1,
+                      amount: ((withdrawal.amount * 0.995) |> Float.round(2)) * -1,
                       remarks:
                         "withdrawal #{wb.code} to #{withdrawal.bank_name} #{withdrawal.bank_account_number}",
                       wallet_type: "token"
@@ -733,13 +733,13 @@ defmodule CommerceFront.Settings do
 
                     CommerceFront.Settings.create_wallet_transaction(%{
                       user_id: withdrawal.user_id,
-                      amount: ((withdrawal.amount * 0.05) |> Float.round(2)) * -1,
+                      amount: ((withdrawal.amount * 0.005) |> Float.round(2)) * -1,
                       remarks:
                         "#{wb.code} processing fee - #{(withdrawal.amount * 0.005) |> Float.round(2)} ",
                       wallet_type: "token"
                     })
 
-                    update_wallet_withdrawal(withdrawal, %{"tx_hash" => hash})
+                    update_wallet_withdrawal(withdrawal, %{"tx_hash" => hash, "remarks" => "#{withdrawal.remarks} - #{hash}"})
                     %{status: "ok", tx_hash: hash}
 
                   {:error, reason} ->
