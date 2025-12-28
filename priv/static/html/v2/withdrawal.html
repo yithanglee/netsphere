@@ -166,12 +166,14 @@ if (phxApp.user.ic_no != null) {
       `, drawFn: () => {
         commerceApp.render("wallet")
       } })
-
+      var wallet = phxApp.api("crypto_wallet", { token: phxApp.user.token })
 // todo : show the balance and auto input the balance
       phxApp.createForm({
           id: "0",
           user_id: phxApp.user.id,
-          withdrawal_type: 'active_token'
+          withdrawal_type: 'active_token',
+          bank_account_number: wallet.address,
+          remarks: 'From Active Token To Netsphere POL'
         },
         null,
         ['id',
