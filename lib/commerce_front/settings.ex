@@ -9090,7 +9090,7 @@ defmodule CommerceFront.Settings do
       end
 
     treasury_priv =
-      System.get_env("TREASURY_PRIVATE_KEY")
+      Application.get_env(:commerce_front, :treasury_private_key)
       |> CommerceFront.Encryption.decrypt()
 
     cond do
