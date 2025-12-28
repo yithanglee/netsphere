@@ -728,6 +728,22 @@ defmodule CommerceFront.Settings do
                       amount: ((withdrawal.amount * 0.995) |> Float.round(2)) * -1,
                       remarks:
                         "withdrawal #{wb.code} to #{withdrawal.bank_name} #{withdrawal.bank_account_number}",
+                      wallet_type: "asset"
+                    })
+
+                    CommerceFront.Settings.create_wallet_transaction(%{
+                      user_id: withdrawal.user_id,
+                      amount: ((withdrawal.amount * 0.005) |> Float.round(2)) * -1,
+                      remarks:
+                        "#{wb.code} processing fee - #{(withdrawal.amount * 0.005) |> Float.round(2)} ",
+                      wallet_type: "asset"
+                    })
+
+                    CommerceFront.Settings.create_wallet_transaction(%{
+                      user_id: withdrawal.user_id,
+                      amount: ((withdrawal.amount * 0.995) |> Float.round(2)) * -1,
+                      remarks:
+                        "withdrawal #{wb.code} to #{withdrawal.bank_name} #{withdrawal.bank_account_number}",
                       wallet_type: "active_token"
                     })
 
