@@ -62,7 +62,12 @@ defmodule CommerceFront.Utility do
 
   def build_datatable_query(module, params, opts \\ %{}) do
     repo = get_repo()
-    additional_joins = Map.get(opts, "additional_joins", "")
+    additional_joins =
+      case Map.get(opts, "additional_joins", "") do
+        "" -> []
+        _ -> Map.get(opts, "additional_joins", "") |> Jason.decode!()
+      end
+      |> IO.inspect(label: "additional_joins")
 
     additional_search =
       case Map.get(opts, "additional_search", "") do
@@ -121,7 +126,7 @@ defmodule CommerceFront.Utility do
       end
 
     # Get total count before pagination
-    total_query = base_query
+    total_query = base_query |> IO.inspect(label: "total_query")
     total_count = repo.aggregate(total_query, :count, :id)
 
     # Apply pagination and ordering
@@ -189,14 +194,17 @@ defmodule CommerceFront.Utility do
   defp apply_dynamic_order(query, _), do: query
 
   defp apply_dynamic_joins(query, join_statements) do
+
     process_join = fn join_statement, acc ->
+
       %{"assoc" => assoc, "prefix" => prefix, "join_suffix" => join_suffix} = join_statement
 
+      # splitted_join_suffix = join_suffix    |> IO.inspect(label: "splitted_join_suffix")
       inner_join_statements = """
       import Ecto.Query
 
       acc
-      |> join(:full, [#{join_suffix}], #{prefix} in assoc(#{join_suffix}, :#{assoc}))
+      |> join(:full, [a,b,c,d,e], #{prefix} in assoc(#{join_suffix}, :#{assoc}))
       """
 
       {result, _} = Code.eval_string(inner_join_statements, acc: acc)
