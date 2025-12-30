@@ -75,7 +75,11 @@ defmodule CommerceFront.Utility do
         _ -> Map.get(opts, "additional_search", "") |> Jason.decode!()
       end
 
-    additional_order = Map.get(opts, "additional_order", "")
+    additional_order =
+      case Map.get(opts, "additional_order", "") do
+        "" -> []
+        _ -> Map.get(opts, "additional_order", "") |> Jason.decode!()
+      end
 
     preloads =
       case Map.get(opts, "preloads", []) do
@@ -223,6 +227,11 @@ defmodule CommerceFront.Utility do
 
       search_value =
         case operator do
+          "not_null" ->
+            """
+            not is_nil(#{prefix}.#{column})
+            """
+
           "!=" ->
             """
             #{prefix}.#{column} != ^#{value}
@@ -234,7 +243,9 @@ defmodule CommerceFront.Utility do
             """
 
           _ ->
-            "#{prefix}.#{column} == ^#{value}"
+            """
+            #{prefix}.#{column} == ^#{value}
+            """
         end
 
       inner_join_statements = """
