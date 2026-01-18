@@ -9267,6 +9267,101 @@ defmodule CommerceFront.Settings do
     Repo.delete(model)
   end
 
+  @doc """
+  Manual maintenance helper (iex-friendly).
+
+  If `stake_holdings.released` is greater than `original_qty`, this function can clamp
+  `released` back down to `original_qty`.
+
+  Optionally, it can also create a compensating **negative** `"active_token"` wallet
+  transaction to reverse the over-credited amount (since `process_stake_release/3`
+  mints `"active_token"` transactions when increasing `released`).
+
+  ## Examples (iex)
+
+      # Inspect what would happen (default: dry_run)
+      CommerceFront.Settings.reverse_excess_stake_holding_release(14)
+
+      # Apply clamp only (no wallet reversal)
+      CommerceFront.Settings.reverse_excess_stake_holding_release(14, dry_run: false)
+
+      # Apply clamp + create compensating active_token transaction
+      CommerceFront.Settings.reverse_excess_stake_holding_release(14, dry_run: false, reverse_wallet: true)
+  """
+  def reverse_excess_stake_holding_release(stake_holding_id, opts \\ []) do
+    dry_run = Keyword.get(opts, :dry_run, true)
+    reverse_wallet = Keyword.get(opts, :reverse_wallet, false)
+
+    stake_holding =
+      Repo.get!(StakeHolding, stake_holding_id)
+      |> Repo.preload(holding: [:ewallet])
+
+    original_qty = stake_holding.original_qty
+    released = stake_holding.released || Decimal.new("0")
+
+    extra =
+      case Decimal.compare(released, original_qty) do
+        :gt -> Decimal.sub(released, original_qty)
+        _ -> Decimal.new("0")
+      end
+
+    summary = %{
+      stake_holding_id: stake_holding.id,
+      holding_id: stake_holding.holding_id,
+      user_id: get_in(stake_holding, [Access.key(:holding), Access.key(:ewallet), Access.key(:user_id)]),
+      original_qty: original_qty,
+      released_before: released,
+      released_after: original_qty,
+      extra_released: extra,
+      dry_run: dry_run,
+      reverse_wallet: reverse_wallet
+    }
+
+    if Decimal.compare(extra, 0) != :gt do
+      {:ok, Map.put(summary, :status, :no_excess)}
+    else
+      if dry_run do
+        {:ok, Map.put(summary, :status, :dry_run)}
+      else
+        Repo.transaction(fn ->
+          {:ok, updated_stake_holding} =
+            StakeHolding.changeset(stake_holding, %{released: original_qty})
+            |> Repo.update()
+
+          wallet_result =
+            if reverse_wallet do
+              user_id =
+                get_in(stake_holding, [Access.key(:holding), Access.key(:ewallet), Access.key(:user_id)]) ||
+                  Repo.rollback({:missing_user_id_for_wallet_reversal, stake_holding_id})
+
+              create_wallet_transaction(%{
+                user_id: user_id,
+                amount: -Decimal.to_float(extra),
+                remarks:
+                  "stake release reversal (stake_holding_id:#{stake_holding_id}) - clamp released to original_qty",
+                wallet_type: "active_token"
+              })
+            else
+              {:ok, :skipped}
+            end
+
+          case wallet_result do
+            {:ok, _} ->
+              %{
+                status: :applied,
+                stake_holding: updated_stake_holding,
+                extra_reversed: extra,
+                wallet_reversal: wallet_result
+              }
+
+            {:error, reason} ->
+              Repo.rollback({:wallet_reversal_failed, reason})
+          end
+        end)
+      end
+    end
+  end
+
   def get_user_active_wallet_transactions(user_id, wallet_type \\ "asset") do
     from(wt in WalletTransaction,
       join: e in Ewallet,
