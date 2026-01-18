@@ -9315,7 +9315,10 @@ defmodule CommerceFront.Settings do
 
     Enum.reduce(stake_holdings, {[], Decimal.new("0")}, fn stake_holding,
                                                            {updates, total_released} ->
-      days_elapsed = Date.diff(today, stake_holding.initial_bought)
+      # Cap staking release to max 100 days (1% per day => max 100% total release)
+      days_elapsed =
+        Date.diff(today, stake_holding.initial_bought)
+        |> min(100)
 
       # Calculate 1% per day (0.01)
       daily_release_rate = Decimal.new("0.01")

@@ -8,6 +8,7 @@ defmodule CommerceFront.Settings.StakeHolding do
     field(:released, :decimal)
 
     belongs_to(:holding, CommerceFront.Settings.WalletTransaction, foreign_key: :holding_id)
+    has_one(:user, through: [:holding, :ewallet, :user])
 
     timestamps()
   end
