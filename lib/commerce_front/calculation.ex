@@ -1070,12 +1070,26 @@ defmodule CommerceFront.Calculation do
             end
 
           if final_pay > 0 do
+            left_username =
+              if left_d != nil do
+                left_d |> Map.get(:username)
+              else
+                "no downline"
+              end
+
+            right_username =
+              if right_d != nil do
+                right_d |> Map.get(:username)
+              else
+                "no downline"
+              end
+
             CommerceFront.Settings.create_reward(%{
               sales_id: 0,
               is_paid: false,
               remarks:
-                "#{date}|user_cap:#{user_cap}||left(#{left_d |> Map.get(:username)}):
-            before: #{left_d_latest_gs.new_left + left_d_latest_gs.new_right} |+ c/f(#{map.user.username}) #{prev_summary.balance_left} = #{summary.total_left}, |matched: #{paired}, after: #{changeset.balance_left} ||right(#{right_d |> Map.get(:username)}):
+                "#{date}|user_cap:#{user_cap}||left(#{left_username}):
+            before: #{left_d_latest_gs.new_left + left_d_latest_gs.new_right} |+ c/f(#{map.user.username}) #{prev_summary.balance_left} = #{summary.total_left}, |matched: #{paired}, after: #{changeset.balance_left} ||right(#{right_username}):
             before: #{right_d_latest_gs.new_left + right_d_latest_gs.new_right} |+ c/f(#{map.user.username}) #{prev_summary.balance_right} = #{summary.total_right}, |matched: #{paired}, after: #{changeset.balance_right}||#{paired} * #{calc_perc.perc} = #{bonus}|",
               name: "team bonus",
               amount: final_pay,
