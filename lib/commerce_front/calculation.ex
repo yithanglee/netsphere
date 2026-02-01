@@ -984,23 +984,45 @@ defmodule CommerceFront.Calculation do
               )
             )
 
-          left_d =
+          left_position_checks =
             downlines
             |> Enum.filter(&(&1.position == "left"))
-            |> List.first()
-            |> Map.get(:user)
+            |> Enum.count()
 
-          right_d =
+          right_position_checks =
             downlines
             |> Enum.filter(&(&1.position == "right"))
-            |> List.first()
-            |> Map.get(:user)
+            |> Enum.count()
+
+          left_d =
+            if left_position_checks > 0 do
+              downlines
+              |> Enum.filter(&(&1.position == "left"))
+              |> List.first()
+              |> Map.get(:user)
+            else
+              nil
+            end
+
+          right_d =
+            if right_position_checks > 0 do
+              downlines
+              |> Enum.filter(&(&1.position == "right"))
+              |> List.first()
+              |> Map.get(:user)
+            else
+              nil
+            end
 
           left_d_latest_gs =
-            CommerceFront.Settings.get_latest_gs_summary_by_user_id(
-              left_d.id,
-              Date.from_erl!({y, m, d})
-            )
+            if left_d != nil do
+              CommerceFront.Settings.get_latest_gs_summary_by_user_id(
+                left_d.id,
+                Date.from_erl!({y, m, d})
+              )
+            else
+              nil
+            end
 
           left_d_latest_gs =
             if left_d_latest_gs == nil do
@@ -1017,10 +1039,14 @@ defmodule CommerceFront.Calculation do
             end
 
           right_d_latest_gs =
-            CommerceFront.Settings.get_latest_gs_summary_by_user_id(
-              right_d.id,
-              Date.from_erl!({y, m, d})
-            )
+            if right_d != nil do
+              CommerceFront.Settings.get_latest_gs_summary_by_user_id(
+                right_d.id,
+                Date.from_erl!({y, m, d})
+              )
+            else
+              nil
+            end
 
           right_d_latest_gs =
             if right_d_latest_gs == nil do
