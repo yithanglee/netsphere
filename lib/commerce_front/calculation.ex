@@ -1069,20 +1069,22 @@ defmodule CommerceFront.Calculation do
               prev_summary
             end
 
-          CommerceFront.Settings.create_reward(%{
-            sales_id: 0,
-            is_paid: false,
-            remarks:
-              "#{date}|user_cap:#{user_cap}||left(#{left_d |> Map.get(:username)}):
+          if final_pay > 0 do
+            CommerceFront.Settings.create_reward(%{
+              sales_id: 0,
+              is_paid: false,
+              remarks:
+                "#{date}|user_cap:#{user_cap}||left(#{left_d |> Map.get(:username)}):
             before: #{left_d_latest_gs.new_left + left_d_latest_gs.new_right} |+ c/f(#{map.user.username}) #{prev_summary.balance_left} = #{summary.total_left}, |matched: #{paired}, after: #{changeset.balance_left} ||right(#{right_d |> Map.get(:username)}):
             before: #{right_d_latest_gs.new_left + right_d_latest_gs.new_right} |+ c/f(#{map.user.username}) #{prev_summary.balance_right} = #{summary.total_right}, |matched: #{paired}, after: #{changeset.balance_right}||#{paired} * #{calc_perc.perc} = #{bonus}|",
-            name: "team bonus",
-            amount: final_pay,
-            user_id: last_pgsd.to_user_id,
-            day: d,
-            month: m,
-            year: y
-          })
+              name: "team bonus",
+              amount: final_pay,
+              user_id: last_pgsd.to_user_id,
+              day: d,
+              month: m,
+              year: y
+            })
+          end
         end)
       else
         _ ->
