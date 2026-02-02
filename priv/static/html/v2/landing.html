@@ -19,130 +19,132 @@
       <defs>
         <!-- Outer glow -->
         <filter id="outerGlow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
-          <feMerge> 
-            <feMergeNode in="coloredBlur"/>
-            <feMergeNode in="SourceGraphic"/>
+          <feGaussianBlur stdDeviation="8" result="coloredBlur" />
+          <feMerge>
+            <feMergeNode in="coloredBlur" />
+            <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
-        
+
         <!-- Inner glow -->
         <filter id="innerGlow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
-          <feMerge> 
-            <feMergeNode in="coloredBlur"/>
-            <feMergeNode in="SourceGraphic"/>
+          <feGaussianBlur stdDeviation="4" result="coloredBlur" />
+          <feMerge>
+            <feMergeNode in="coloredBlur" />
+            <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
-        
+
         <!-- Node glow -->
         <filter id="nodeGlow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-          <feMerge> 
-            <feMergeNode in="coloredBlur"/>
-            <feMergeNode in="SourceGraphic"/>
+          <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+          <feMerge>
+            <feMergeNode in="coloredBlur" />
+            <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
-        
+
         <!-- Pulse animation -->
-        <animate id="pulse" attributeName="r" values="260;270;260" dur="3s" repeatCount="indefinite"/>
-        
+        <animate id="pulse" attributeName="r" values="260;270;260" dur="3s" repeatCount="indefinite" />
+
         <!-- Main globe gradient -->
         <radialGradient id="globeGradient" cx="45%" cy="35%" r="60%">
-          <stop offset="0%" stop-color="#4ce0c6" stop-opacity="0.9"/>
-          <stop offset="30%" stop-color="#19a2ff" stop-opacity="0.7"/>
-          <stop offset="60%" stop-color="#93a7c3" stop-opacity="0.5"/>
-          <stop offset="85%" stop-color="#d7e6ff" stop-opacity="0.3"/>
-          <stop offset="100%" stop-color="#1a1a2e" stop-opacity="0.1"/>
+          <stop offset="0%" stop-color="#4ce0c6" stop-opacity="0.9" />
+          <stop offset="30%" stop-color="#19a2ff" stop-opacity="0.7" />
+          <stop offset="60%" stop-color="#93a7c3" stop-opacity="0.5" />
+          <stop offset="85%" stop-color="#d7e6ff" stop-opacity="0.3" />
+          <stop offset="100%" stop-color="#1a1a2e" stop-opacity="0.1" />
         </radialGradient>
-        
+
         <!-- Outer rim gradient -->
         <radialGradient id="rimGradient" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="#4ce0c6" stop-opacity="0.4"/>
-          <stop offset="50%" stop-color="#19a2ff" stop-opacity="0.2"/>
-          <stop offset="100%" stop-color="#93a7c3" stop-opacity="0.1"/>
+          <stop offset="0%" stop-color="#4ce0c6" stop-opacity="0.4" />
+          <stop offset="50%" stop-color="#19a2ff" stop-opacity="0.2" />
+          <stop offset="100%" stop-color="#93a7c3" stop-opacity="0.1" />
         </radialGradient>
-        
+
         <!-- Network line gradient -->
         <linearGradient id="networkGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#4ce0c6" stop-opacity="0.8"/>
-          <stop offset="50%" stop-color="#19a2ff" stop-opacity="0.6"/>
-          <stop offset="100%" stop-color="#93a7c3" stop-opacity="0.4"/>
+          <stop offset="0%" stop-color="#4ce0c6" stop-opacity="0.8" />
+          <stop offset="50%" stop-color="#19a2ff" stop-opacity="0.6" />
+          <stop offset="100%" stop-color="#93a7c3" stop-opacity="0.4" />
         </linearGradient>
       </defs>
-      
-      <!-- Outer glow layers -->
-      <circle cx="300" cy="300" r="280" fill="none" stroke="#4ce0c6" stroke-width="2" opacity="0.3" filter="url(#outerGlow)"/>
-      <circle cx="300" cy="300" r="270" fill="none" stroke="#19a2ff" stroke-width="1.5" opacity="0.4" filter="url(#outerGlow)"/>
-      
 
-      
+      <!-- Outer glow layers -->
+      <circle cx="300" cy="300" r="280" fill="none" stroke="#4ce0c6" stroke-width="2" opacity="0.3"
+        filter="url(#outerGlow)" />
+      <circle cx="300" cy="300" r="270" fill="none" stroke="#19a2ff" stroke-width="1.5" opacity="0.4"
+        filter="url(#outerGlow)" />
+
+
+
       <!-- Network lines with enhanced styling -->
       <g stroke="url(#networkGradient)" stroke-width="2" fill="none" opacity="0.7">
         <path d="M80,260 C180,120 420,120 520,260" stroke-dasharray="5,5">
-          <animate attributeName="stroke-dashoffset" values="0;10" dur="2s" repeatCount="indefinite"/>
+          <animate attributeName="stroke-dashoffset" values="0;10" dur="2s" repeatCount="indefinite" />
         </path>
         <path d="M60,340 C200,220 400,220 540,340" stroke-dasharray="3,7">
-          <animate attributeName="stroke-dashoffset" values="0;-10" dur="2.5s" repeatCount="indefinite"/>
+          <animate attributeName="stroke-dashoffset" values="0;-10" dur="2.5s" repeatCount="indefinite" />
         </path>
         <path d="M120,420 C240,340 360,340 480,420" stroke-dasharray="4,6">
-          <animate attributeName="stroke-dashoffset" values="0;8" dur="3s" repeatCount="indefinite"/>
+          <animate attributeName="stroke-dashoffset" values="0;8" dur="3s" repeatCount="indefinite" />
         </path>
         <path d="M140,180 C280,280 320,280 460,180" stroke-dasharray="6,4">
-          <animate attributeName="stroke-dashoffset" values="0;-8" dur="2.2s" repeatCount="indefinite"/>
+          <animate attributeName="stroke-dashoffset" values="0;-8" dur="2.2s" repeatCount="indefinite" />
         </path>
         <path d="M100,200 C200,150 400,150 500,200" stroke-dasharray="2,8">
-          <animate attributeName="stroke-dashoffset" values="0;10" dur="2.8s" repeatCount="indefinite"/>
+          <animate attributeName="stroke-dashoffset" values="0;10" dur="2.8s" repeatCount="indefinite" />
         </path>
         <path d="M90,380 C190,320 410,320 510,380" stroke-dasharray="5,5">
-          <animate attributeName="stroke-dashoffset" values="0;-10" dur="3.2s" repeatCount="indefinite"/>
+          <animate attributeName="stroke-dashoffset" values="0;-10" dur="3.2s" repeatCount="indefinite" />
         </path>
       </g>
-      
+
       <!-- Enhanced nodes with glow -->
       <g filter="url(#nodeGlow)">
         <circle cx="120" cy="420" r="6" fill="#4ce0c6" opacity="0.9">
-          <animate attributeName="r" values="6;8;6" dur="2s" repeatCount="indefinite"/>
+          <animate attributeName="r" values="6;8;6" dur="2s" repeatCount="indefinite" />
         </circle>
         <circle cx="240" cy="340" r="5" fill="#19a2ff" opacity="0.8">
-          <animate attributeName="r" values="5;7;5" dur="2.3s" repeatCount="indefinite"/>
+          <animate attributeName="r" values="5;7;5" dur="2.3s" repeatCount="indefinite" />
         </circle>
         <circle cx="360" cy="340" r="5" fill="#19a2ff" opacity="0.8">
-          <animate attributeName="r" values="5;7;5" dur="2.1s" repeatCount="indefinite"/>
+          <animate attributeName="r" values="5;7;5" dur="2.1s" repeatCount="indefinite" />
         </circle>
         <circle cx="480" cy="420" r="6" fill="#4ce0c6" opacity="0.9">
-          <animate attributeName="r" values="6;8;6" dur="2.4s" repeatCount="indefinite"/>
+          <animate attributeName="r" values="6;8;6" dur="2.4s" repeatCount="indefinite" />
         </circle>
         <circle cx="80" cy="260" r="7" fill="#93a7c3" opacity="0.9">
-          <animate attributeName="r" values="7;9;7" dur="1.8s" repeatCount="indefinite"/>
+          <animate attributeName="r" values="7;9;7" dur="1.8s" repeatCount="indefinite" />
         </circle>
         <circle cx="300" cy="260" r="8" fill="#d7e6ff" opacity="0.9">
-          <animate attributeName="r" values="8;10;8" dur="1.5s" repeatCount="indefinite"/>
+          <animate attributeName="r" values="8;10;8" dur="1.5s" repeatCount="indefinite" />
         </circle>
         <circle cx="520" cy="260" r="7" fill="#93a7c3" opacity="0.9">
-          <animate attributeName="r" values="7;9;7" dur="1.9s" repeatCount="indefinite"/>
+          <animate attributeName="r" values="7;9;7" dur="1.9s" repeatCount="indefinite" />
         </circle>
         <circle cx="460" cy="180" r="5" fill="#19a2ff" opacity="0.8">
-          <animate attributeName="r" values="5;7;5" dur="2.2s" repeatCount="indefinite"/>
+          <animate attributeName="r" values="5;7;5" dur="2.2s" repeatCount="indefinite" />
         </circle>
         <circle cx="140" cy="180" r="5" fill="#19a2ff" opacity="0.8">
-          <animate attributeName="r" values="5;7;5" dur="2.0s" repeatCount="indefinite"/>
+          <animate attributeName="r" values="5;7;5" dur="2.0s" repeatCount="indefinite" />
         </circle>
         <circle cx="300" cy="400" r="6" fill="#4ce0c6" opacity="0.9">
-          <animate attributeName="r" values="6;8;6" dur="2.5s" repeatCount="indefinite"/>
+          <animate attributeName="r" values="6;8;6" dur="2.5s" repeatCount="indefinite" />
         </circle>
         <circle cx="200" cy="200" r="4" fill="#93a7c3" opacity="0.7">
-          <animate attributeName="r" values="4;6;4" dur="2.7s" repeatCount="indefinite"/>
+          <animate attributeName="r" values="4;6;4" dur="2.7s" repeatCount="indefinite" />
         </circle>
         <circle cx="400" cy="200" r="4" fill="#93a7c3" opacity="0.7">
-          <animate attributeName="r" values="4;6;4" dur="2.6s" repeatCount="indefinite"/>
+          <animate attributeName="r" values="4;6;4" dur="2.6s" repeatCount="indefinite" />
         </circle>
       </g>
-      
+
       <!-- Central core node -->
       <circle cx="300" cy="300" r="12" fill="#4ce0c6" opacity="0.8" filter="url(#nodeGlow)">
-        <animate attributeName="r" values="12;16;12" dur="1.5s" repeatCount="indefinite"/>
-        <animate attributeName="opacity" values="0.8;1;0.8" dur="1.5s" repeatCount="indefinite"/>
+        <animate attributeName="r" values="12;16;12" dur="1.5s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0.8;1;0.8" dur="1.5s" repeatCount="indefinite" />
       </circle>
     </svg>
   </div>
@@ -151,19 +153,22 @@
 <!-- Feature Cards -->
 <section class="features">
   <div class="container cards">
-      <article class="card p-4 cursor-pointer" onclick="window.location.href='https://netspheretoken.com/extra-income.html'">
-        <div class="icon" aria-hidden="true"><i class="fa fa-dollar-sign"></i></div>
-        <h3>Extra Income</h3>
-        <p>Turn every connection into profit.</p>
-      </article>
-    
-  
-    <article class="card p-4 cursor-pointer" onclick="window.location.href='https://netspheretoken.com/quality-product.html'">
+    <article class="card p-4 cursor-pointer"
+      onclick="window.location.href='https://netspheretoken.com/extra-income.html'">
+      <div class="icon" aria-hidden="true"><i class="fa fa-dollar-sign"></i></div>
+      <h3>Extra Income</h3>
+      <p>Turn every connection into profit.</p>
+    </article>
+
+
+    <article class="card p-4 cursor-pointer"
+      onclick="window.location.href='https://netspheretoken.com/quality-product.html'">
       <div class="icon" aria-hidden="true"><i class="fa fa-box"></i></div>
       <h3>Quality Products</h3>
       <p>Trusted items with real value.</p>
     </article>
-    <article class="card p-4 cursor-pointer" onclick="window.location.href='https://netspheretoken.com/full-support.html'">
+    <article class="card p-4 cursor-pointer"
+      onclick="window.location.href='https://netspheretoken.com/full-support.html'">
       <div class="icon" aria-hidden="true"><i class="fa fa-handshake"></i></div>
       <h3>Full Support</h3>
       <p>Training, tools, and guidance every step.</p>
@@ -179,27 +184,38 @@
 
   <div class="banner" aria-label="Studio banner area">
     <div class="gx-0 w-100 d-lg-none d-block p-4 rounded-4" id="ss">
-      <!--   <div class="" style="
-                        min-height: 400px;
-                        background-repeat: no-repeat;
-                        background-position: right;
-                        background-size: cover;
-                        background-image: url('/images/15.jpg');
-                        ">
-      </div>
-      <div class="" style="
-                        min-height: 400px;
-                        background-repeat: no-repeat;
-                        background-position: right;
-                        background-size: cover;
-                        background-image: url('/images/16.jpg');
-                        ">
-      </div> -->
+
     </div>
     <div class="gx-0 w-100 d-none d-lg-block" id="ss2">
+    </div>
+</section>
+<section>
+  <div class="container">
+    <div class="row">
+      <div class="col-12">
+        <h2>Barter</h2>
+      </div>
+    </div>
   </div>
 </section>
 
+<!-- Barter Marketplace Sub-Hero -->
+<section class="barter-hero">
+  <div class="container">
+    <div class="barter-grid">
+      <div class="barter-icon">
+        <i class="fa fa-exchange-alt"></i>
+      </div>
+      <div class="barter-content">
+        <h2 class="barter-title">Barter <span class="alt">Marketplace</span></h2>
+        <p class="barter-lead">Trade, swap, and exchange — where value meets opportunity.</p>
+      </div>
+      <div class="barter-actions">
+        <a class="btn ghost sm" href="https://barter.netspheremall.com/" target="_blank">Explore Barter</a>
+      </div>
+    </div>
+  </div>
+</section>
 
 
 </div>
@@ -211,7 +227,7 @@
       <div class="d-flex flex-column align-items-center justify-content-center mt-4">
         <h2 class=""> Products</h2>
       </div>
-      <products ></products>
+      <products></products>
     </div>
 
     <div style="height: 10vh;"></div>

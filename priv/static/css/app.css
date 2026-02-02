@@ -850,3 +850,89 @@ body {
 .mtraded, .ctraded {
   display: none;
 }
+
+/* Barter Marketplace Sub-Hero */
+.barter-hero {
+  padding: 28px 0;
+  background: 
+    radial-gradient(400px 200px at 15% 50%, rgba(255, 165, 0, .12), transparent 60%),
+    radial-gradient(350px 180px at 85% 50%, rgba(76, 224, 198, .08), transparent 60%);
+  border-top: 1px solid rgba(255, 200, 100, .12);
+  border-bottom: 1px solid rgba(255, 200, 100, .12);
+}
+
+.barter-grid {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.barter-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 30% 20%, rgba(255, 180, 50, .65), rgba(255, 120, 50, .45));
+  box-shadow: 0 0 24px rgba(255, 165, 0, .4);
+  font-size: 22px;
+  color: #fff;
+}
+
+.barter-content {
+  flex: 1;
+  min-width: 200px;
+}
+
+.barter-title {
+  font-size: 26px;
+  font-weight: 800;
+  margin: 0 0 4px;
+  letter-spacing: -.3px;
+}
+
+.barter-title .alt {
+  background: linear-gradient(90deg, #ffa726, #ff7043);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.barter-lead {
+  color: var(--muted);
+  margin: 0;
+  font-size: 15px;
+}
+
+.barter-actions {
+  margin-left: auto;
+}
+
+.barter-actions .btn {
+  border-color: rgba(255, 180, 100, .3);
+}
+
+.barter-actions .btn:hover {
+  background: linear-gradient(90deg, #ffa726, #ff7043);
+  color: #04121e;
+  border-color: transparent;
+  box-shadow: 0 0 18px rgba(255, 165, 0, .5);
+}
+
+@media (max-width: 600px) {
+  .barter-grid {
+    flex-direction: column;
+    text-align: center;
+    gap: 16px;
+  }
+  
+  .barter-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+  
+  .barter-actions .btn {
+    width: 100%;
+  }
+}
