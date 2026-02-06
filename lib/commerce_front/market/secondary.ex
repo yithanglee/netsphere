@@ -501,7 +501,6 @@ defmodule CommerceFront.Market.Secondary do
     # Step 3: If still need to fill, inject from tranche
     _tranche_res =
       if Decimal.compare(remaining_after_member_trades, Decimal.new("0")) == :gt do
-
         inject_from_tranche(buy_order, post_current_tranche, remaining_after_member_trades)
         |> IO.inspect(label: "remaining_after_inject_from_tranche")
       end
@@ -805,9 +804,16 @@ defmodule CommerceFront.Market.Secondary do
     is_synthetic_seller = trade_params.seller_id == finance_user.id
 
     # Precompute wallet transaction param maps
+
+    buyer_amt =
+      trade_params.total_amount
+      |> Decimal.negate()
+      |> Decimal.round(2, :down)
+      |> Decimal.to_float()
+
     buyer_token_debit = %{
       user_id: trade_params.buyer_id,
-      amount: -Decimal.to_float(trade_params.total_amount) |> Float.round(3),
+      amount: buyer_amt,
       remarks:
         "secondary_market_buy_#{trade_params.asset_id}_#{trade_params.trade_date} | qty: #{trade_params.quantity}",
       wallet_type: "token"
