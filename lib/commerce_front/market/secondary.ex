@@ -362,6 +362,7 @@ defmodule CommerceFront.Market.Secondary do
             else
               Settings.get_user_token_balance(user_id)
             end
+            |> Decimal.round(3, :down)
             |> IO.inspect(label: "token_budget")
 
           if Decimal.compare(token_budget, Decimal.new("0")) == :gt do
@@ -807,6 +808,7 @@ defmodule CommerceFront.Market.Secondary do
 
     buyer_amt =
       trade_params.total_amount
+      #  |> Decimal.to_float() |> Float.round(3)
       |> Decimal.negate()
       |> Decimal.round(2, :down)
       |> Decimal.to_float()

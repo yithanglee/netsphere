@@ -224,13 +224,13 @@ defmodule CommerceFront.Settings do
 
     user =
       if res != nil do
-      Repo.all(
-        from(u in CommerceFront.Settings.User,
-          where: u.id == ^res.user_id,
-          preload: [:country, :merchant, :rank]
+        Repo.all(
+          from(u in CommerceFront.Settings.User,
+            where: u.id == ^res.user_id,
+            preload: [:country, :merchant, :rank]
+          )
         )
-      )
-      |> List.first()
+        |> List.first()
       else
         nil
       end
@@ -711,18 +711,15 @@ defmodule CommerceFront.Settings do
                 })
 
               :active_token ->
-
-
                 case CommerceFront.Settings.admin_token_approve_v2(%{
                        owner_user_id: withdrawal.user_id,
                        #  spender_address: withdrawal.bank_account_number,
                        token_address:
                          Application.get_env(:commerce_front, :token_contract_address),
                        amount: (withdrawal.amount * 0.9995) |> Float.round(2)
-                     }) |> IO.inspect(label: "admin_token_approve_v2") do
+                     })
+                     |> IO.inspect(label: "admin_token_approve_v2") do
                   {:ok, %{tx_hash: hash}} ->
-
-
                     CommerceFront.Settings.create_wallet_transaction(%{
                       user_id: withdrawal.user_id,
                       amount: ((withdrawal.amount * 0.9995) |> Float.round(2)) * -1,
@@ -755,7 +752,11 @@ defmodule CommerceFront.Settings do
                       wallet_type: "active_token"
                     })
 
-                    update_wallet_withdrawal(withdrawal, %{"tx_hash" => hash, "remarks" => "#{withdrawal.remarks} - #{hash}"})
+                    update_wallet_withdrawal(withdrawal, %{
+                      "tx_hash" => hash,
+                      "remarks" => "#{withdrawal.remarks} - #{hash}"
+                    })
+
                     %{status: "ok", tx_hash: hash}
 
                   {:error, reason} ->
@@ -8564,19 +8565,27 @@ defmodule CommerceFront.Settings do
   def delete_merchant_product_stock(%MerchantProductStock{} = model) do
     Repo.delete(model)
   end
+
   alias CommerceFront.Settings.MerchantProductCategory
+
   def list_merchant_product_categories() do
     Repo.all(MerchantProductCategory)
   end
+
   def get_merchant_product_category!(id) do
     Repo.get!(MerchantProductCategory, id)
   end
+
   def create_merchant_product_category(params \\ %{}) do
-    MerchantProductCategory.changeset(%MerchantProductCategory{}, params) |> Repo.insert() |> IO.inspect()
+    MerchantProductCategory.changeset(%MerchantProductCategory{}, params)
+    |> Repo.insert()
+    |> IO.inspect()
   end
+
   def update_merchant_product_category(model, params) do
     MerchantProductCategory.changeset(model, params) |> Repo.update() |> IO.inspect()
   end
+
   def delete_merchant_product_category(%MerchantProductCategory{} = model) do
     Repo.delete(model)
   end
@@ -9308,7 +9317,8 @@ defmodule CommerceFront.Settings do
     summary = %{
       stake_holding_id: stake_holding.id,
       holding_id: stake_holding.holding_id,
-      user_id: get_in(stake_holding, [Access.key(:holding), Access.key(:ewallet), Access.key(:user_id)]),
+      user_id:
+        get_in(stake_holding, [Access.key(:holding), Access.key(:ewallet), Access.key(:user_id)]),
       original_qty: original_qty,
       released_before: released,
       released_after: original_qty,
@@ -9331,7 +9341,11 @@ defmodule CommerceFront.Settings do
           wallet_result =
             if reverse_wallet do
               user_id =
-                get_in(stake_holding, [Access.key(:holding), Access.key(:ewallet), Access.key(:user_id)]) ||
+                get_in(stake_holding, [
+                  Access.key(:holding),
+                  Access.key(:ewallet),
+                  Access.key(:user_id)
+                ]) ||
                   Repo.rollback({:missing_user_id_for_wallet_reversal, stake_holding_id})
 
               create_wallet_transaction(%{
@@ -9791,15 +9805,24 @@ defmodule CommerceFront.Settings do
 
   # Get user's token wallet balance (for cash)
   def get_user_token_balance(user_id) do
+    # balance =
+    #   from(wt in WalletTransaction,
+    #     join: e in Ewallet,
+    #     on: wt.ewallet_id == e.id,
+    #     where: e.user_id == ^user_id and e.wallet_type == "token",
+    #     select: sum(wt.amount),
+    #     having: sum(wt.amount) > 0
+    #   )
+    #   |> Repo.one()
+
     balance =
-      from(wt in WalletTransaction,
-        join: e in Ewallet,
-        on: wt.ewallet_id == e.id,
-        where: e.user_id == ^user_id and e.wallet_type == "token",
-        select: sum(wt.amount),
-        having: sum(wt.amount) > 0
+      Repo.all(
+        from(e in Ewallet,
+          where: e.user_id == ^user_id and e.wallet_type == ^"token",
+          select: e.total
+        )
       )
-      |> Repo.one()
+      |> List.first()
 
     case balance do
       nil -> Decimal.new("0")
