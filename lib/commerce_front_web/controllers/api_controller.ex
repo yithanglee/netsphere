@@ -1008,7 +1008,14 @@ defmodule CommerceFrontWeb.ApiController do
               []
             end
 
-            Settings.display_refer_tree(params["username"])
+            Settings.display_refer_tree(params["username"]) || []
+          else
+            []
+          end
+
+        "referral_uplines" ->
+          if params["token"] != nil and params["username"] != nil do
+            Settings.check_uplines(params["username"], :referral)
           else
             []
           end
