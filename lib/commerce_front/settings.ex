@@ -2155,7 +2155,10 @@ defmodule CommerceFront.Settings do
           text: """
           <span class='my-2'>
             <span class='p-1 my-2 left-box'>#{username}</span>
-
+            <span class='m-0 px-1 ' style="width: 40%; position: absolute;right: 0px;">
+              <span class="badge #{bg}"> #{display_rank}</span>
+              <span class="text-sm text-secondary">(Placement Grp Sales: #{sum_left}PV | #{sum_right}PV)</span>
+            </span>
           </span>
           """,
           children: zchildren,
@@ -2432,7 +2435,12 @@ defmodule CommerceFront.Settings do
           text: """
           <span class='my-2'>
             <span class='p-1 my-2 left-box'>#{username}</span>
+            <span class='m-0 px-1 ' style="width: 40%;position: absolute;right: 0px;">
 
+            <span class="badge #{bg}"> #{display_rank}</span>
+                   <span class="text-sm text-secondary">(Placement Grp Sales: #{smap |> Map.get(:sum_left, 0)}PV | #{smap |> Map.get(:sum_right, 0)}PV)</span>
+
+            </span>
           </span>
           """,
           id: map.parent_id,
