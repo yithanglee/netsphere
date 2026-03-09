@@ -1651,25 +1651,27 @@ defmodule CommerceFront.Settings do
           stockist_users = user |> Repo.preload(:stockist_users) |> Map.get(:stockist_users)
 
           for stockist_user <- stockist_users do
-            case stockist_user.username |> String.split("-") |> IO.inspect() do
-              [username, position] ->
-                {:ok, u} =
-                  User.changeset(
-                    stockist_user,
-                    attrs
-                    |> Map.take([
-                      "fullname",
-                      "phone",
-                      "email",
-                      "country_id",
-                      "bank_account_holder",
-                      "bank_account_no",
-                      "bank_name"
-                    ])
-                    |> Map.put("username", attrs["username"] <> "-" <> position)
-                  )
-                  |> Repo.update()
-                  |> IO.inspect()
+            case stockist_user.username |> String.split("-") do
+              [_username, position] ->
+                if "username" in Map.keys(attrs) do
+                  {:ok, _u} =
+                    User.changeset(
+                      stockist_user,
+                      attrs
+                      |> Map.take([
+                        "fullname",
+                        "phone",
+                        "email",
+                        "country_id",
+                        "bank_account_holder",
+                        "bank_account_no",
+                        "bank_name"
+                      ])
+                      |> Map.put("username", attrs["username"] <> "-" <> position)
+                    )
+                    |> Repo.update()
+                    |> IO.inspect()
+                end
 
               _ ->
                 nil

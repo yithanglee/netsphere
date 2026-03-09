@@ -4,8 +4,8 @@
       <div class="d-flex flex-lg-row flex-column justify-content-between align-items-center">
         <h3>Profile page</h3>
         <div class="d-flex gap-2">
-          
-     
+
+
         </div>
       </div>
       <div class="container gx-0">
@@ -37,13 +37,13 @@
             <form class="with_mod row" module="User" id="User">
             </form>
           </div>
-         
+
         </div>
         <div class="row gx-0 border-top border-1" style="margin-top: 8vh;">
 
           <div class="offset-lg-1 col-lg-4 col-12">
             <div class="d-flex flex-column">
-              
+
               <div class="d-none">
                 <div class="fs-4 mt-4">Share Merchant Link</div>
                 <div class="text-secondary mb-4">Recruit New Members</div>
@@ -58,33 +58,33 @@
   </div>
 </section>
 <script type="text/javascript">
-$(document).ready(() => {
-  console.log("call " + phxApp.user.fullname)
+  $(document).ready(() => {
+    console.log("call " + phxApp.user.fullname)
 
 
-  var keys =
-    Object.keys(phxApp.user)
+    var keys =
+      Object.keys(phxApp.user)
 
-  keys.forEach((k, i) => {
-    $("#profile-body").append(`
+    keys.forEach((k, i) => {
+      $("#profile-body").append(`
       <div class="text-secondary ">` + k + `</div><div class="w-auto text-truncate">` + phxApp.user[k] + `</div>
     `)
-  })
+    })
 
 
-  phxApp.createForm(
-    phxApp.user,
-    null,
-    [{
+    phxApp.createForm(
+      phxApp.user,
+      null,
+      [{
         name: 'General',
         list: [
           { label: 'country_id', selection: window.countries, alt_name: "Nationality", alt_class: "col-12" },
           'fullname',
           'id',
-          'username',
+          { label: 'Username', alt_name: "Username", value: phxApp.user.username },
           'phone',
           'email', 'password', { label: 'ic_no', alt_name: "_ic_no" },
-          {label: 'is_stockist', hidden: true, data: phxApp.user.is_stockist ? "on" : "off"}
+          { label: 'is_stockist', hidden: true, data: phxApp.user.is_stockist ? "on" : "off" }
         ]
       }, {
         name: 'BankDetails',
@@ -98,20 +98,30 @@ $(document).ready(() => {
       }
 
 
-    ],
+      ],
 
-    (j) => {
+      (j) => {
 
-      phxApp.updateUser(j)
-      phxApp.navigateTo("/profile")
-    }
+        phxApp.updateUser(j)
+        phxApp.navigateTo("/profile")
+      },
+      () => {
 
-  )
+        setTimeout(() => {
+          const usernameInput = document.querySelector("input[aria-label='Username']");
+          // set value
+          usernameInput.value = phxApp.user.username;
+          // set disabled attribute
+          usernameInput.setAttribute("disabled", "");
+        }, 1000)
+      }
+
+    )
 
 
 
-  
 
 
-})
+
+  })
 </script>
