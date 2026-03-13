@@ -100,6 +100,14 @@ defmodule CommerceFrontWeb.ApiController do
             ])
           )
 
+        "swap_back_history" ->
+          %{
+            status: "ok",
+            res: %{
+              swap_backs: CommerceFront.Settings.list_swap_backs_by_user_id(id) |> BluePotion.sanitize_struct()
+            }
+          }
+
         "swap_back_config" ->
           %{
             status: "ok",

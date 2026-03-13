@@ -231,6 +231,10 @@ if (phxApp.user.ic_no != null) {
         font_class = "text-danger"
       }
 
+      function renderBankName(bank_name) {
+       return bank_name.includes("USDT") ? "NETSPH" : "USDT";
+      }
+
       var card = `
           <div class="row mt-2" >
            <div class="col-7 text-secondary  text-sm"></div>
@@ -249,7 +253,7 @@ if (phxApp.user.ic_no != null) {
           </div>
           <div class="row">
             <div class="col-6 text-start  "><div class="text-sm format_datetime">` + data.inserted_at + `</div>
-            <div class="" >`+data.bank_name +`</div>  
+            <div class="" >`+ renderBankName(data.bank_name) +`</div>  
             </div>
             <div class="col-6 text-end">
                 <div>
@@ -295,15 +299,26 @@ if (phxApp.user.ic_no != null) {
 
       { label: 'id', data: 'id' },
 
-      { label: 'Bank', data: 'bank_name', showSubtitle: true, subtitle: 'bank_account_number' },
-
-      { label: 'BankAccount', data: 'bank_account_number', className: 'd-none' },
 
       {
         label: 'Date',
         data: 'inserted_at',
         formatDateTime: true,
         offset: 0
+      },
+
+      {
+        customized: true,
+        className: "text-end ",
+        label: 'Bank',
+        data: 'id',
+        xdata: {
+          formatFn: (d, index) => {
+  
+   
+            return (d.bank_name).includes("USDT") ? "NETSPH" : "USDT"
+          }
+        }
       },
       {
         label: "Withdrawal Code",

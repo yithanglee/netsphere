@@ -9676,6 +9676,10 @@ defmodule CommerceFront.Settings do
     Repo.all(SwapBack)
   end
 
+  def list_swap_backs_by_user_id(user_id) do
+    Repo.all(from(sb in SwapBack, where: sb.user_id == ^user_id, order_by: [desc: sb.inserted_at], limit: 10))
+  end
+
   def get_swap_back!(id) do
     Repo.get!(SwapBack, id)
   end
