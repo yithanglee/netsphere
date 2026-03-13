@@ -9712,7 +9712,7 @@ defmodule CommerceFront.Settings do
             {:ok, hex} ->
               raw = String.replace_prefix(hex, "0x", "") |> String.to_integer(16)
               eth_balance = raw / :math.pow(10, 18)
-              if eth_balance > 0.5, do: {:ok, :ok}, else: {:error, "Insufficient Polygon ETH balance. Required: more than 0.5 ETH"}
+              if eth_balance > 0.05, do: {:ok, :ok}, else: {:error, "Insufficient Polygon ETH balance. Required: more than 0.5 ETH"}
 
             {:error, reason} ->
               {:error, {:balance_check_failed, reason}}
