@@ -23,6 +23,7 @@ defmodule CommerceFront.Market.Secondary do
   # TRANCHE HELPER FUNCTIONS
   # ============================================================================
 
+  @spec get_current_open_tranche(any()) :: any()
   @doc """
   Get the current open tranche for an asset.
   Returns the tranche with the lowest sequence number that still has available quantity.

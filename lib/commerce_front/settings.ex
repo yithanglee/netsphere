@@ -9658,16 +9658,22 @@ defmodule CommerceFront.Settings do
     quantity =
       Decimal.div(Decimal.from_float(amount), current_tranche.unit_price) |> Decimal.round(5)
 
-    Multi.new()
-    |> Multi.run(:create_buy_order, fn _repo, _ ->
-      CommerceFront.Market.Secondary.create_buy_order(
-        user_id,
-        1,
-        quantity,
-        current_tranche.unit_price
-      )
-    end)
-    |> Repo.transaction()
+    # check if user have enough wallet balance to buy.
+    if has_sufficient_token_balance?(user_id, Decimal.from_float(amount)) do
+      Multi.new()
+      |> Multi.run(:create_buy_order, fn _repo, _ ->
+        CommerceFront.Market.Secondary.create_buy_order(
+          user_id,
+          1,
+          quantity,
+          current_tranche.unit_price
+        )
+      end)
+      |> Repo.transaction()
+    else
+      # insufficient, but do nothing
+      {:ok, :ok}
+    end
   end
 
   alias CommerceFront.Settings.SwapBack
@@ -9677,7 +9683,13 @@ defmodule CommerceFront.Settings do
   end
 
   def list_swap_backs_by_user_id(user_id) do
-    Repo.all(from(sb in SwapBack, where: sb.user_id == ^user_id, order_by: [desc: sb.inserted_at], limit: 10))
+    Repo.all(
+      from(sb in SwapBack,
+        where: sb.user_id == ^user_id,
+        order_by: [desc: sb.inserted_at],
+        limit: 10
+      )
+    )
   end
 
   def get_swap_back!(id) do
@@ -9712,7 +9724,10 @@ defmodule CommerceFront.Settings do
             {:ok, hex} ->
               raw = String.replace_prefix(hex, "0x", "") |> String.to_integer(16)
               eth_balance = raw / :math.pow(10, 18)
-              if eth_balance > 0.05, do: {:ok, :ok}, else: {:error, "Insufficient Polygon ETH balance. Required: more than 0.5 ETH"}
+
+              if eth_balance > 0.05,
+                do: {:ok, :ok},
+                else: {:error, "Insufficient Polygon ETH balance. Required: more than 0.5 ETH"}
 
             {:error, reason} ->
               {:error, {:balance_check_failed, reason}}
