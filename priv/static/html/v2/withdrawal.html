@@ -248,18 +248,21 @@ if (phxApp.user.ic_no != null) {
            <div class="col-6 text-end text-sm">Amount</div>
           </div>
           <div class="row">
-            <div class="col-6 text-start text-sm format_datetime">` + data.inserted_at + `</div>
-           <div class="col-6 text-end">
-           <div>
+            <div class="col-6 text-start  "><div class="text-sm format_datetime">` + data.inserted_at + `</div>
+            <div class="" >`+data.bank_name +`</div>  
+            </div>
+            <div class="col-6 text-end">
+                <div>
 
-           ` + (data.withdrawal_batch?.paid_date ? `<div class="badge bg-success">PAID</div>` : `<div class="badge bg-danger">UNPAID</div>`) + `
-           </div>
-           <div>
+                ` + (data.withdrawal_batch?.paid_date ? `<div class="badge bg-success">PAID</div>` : `<div class="badge bg-danger">UNPAID</div>`) + `
+                </div>
+                <div>
 
-           ` + data.amount + `
-           </div>
-           </div>
+                ` + data.amount + `
+                </div>
+            </div>
           </div>
+
 
           `
       return card

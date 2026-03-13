@@ -9697,6 +9697,24 @@ defmodule CommerceFront.Settings do
     token_contract = "0xa17c6fc7d9ecef353ceb3132ddd619037d134125"
 
     Multi.new()
+    # 0) Check user's Polygon ETH balance (must be > 0.5 for gas)
+    |> Multi.run(:polygon_eth_balance_check, fn _repo, _changes ->
+      case get_crypto_wallet_by_user_id(swap_back.user_id) do
+        nil ->
+          {:error, :crypto_wallet_not_found}
+
+        %{address: address} = _wallet ->
+          case Ethereumex.HttpClient.eth_get_balance(address, "latest") do
+            {:ok, hex} ->
+              raw = String.replace_prefix(hex, "0x", "") |> String.to_integer(16)
+              eth_balance = raw / :math.pow(10, 18)
+              if eth_balance > 0.5, do: {:ok, :ok}, else: {:error, "Insufficient Polygon ETH balance. Required: more than 0.5 ETH"}
+
+            {:error, reason} ->
+              {:error, {:balance_check_failed, reason}}
+          end
+      end
+    end)
     # 1) Load user's crypto wallet and decrypt private key
     |> Multi.run(:crypto_wallet, fn _repo, _changes ->
       case get_crypto_wallet_by_user_id(swap_back.user_id) do
