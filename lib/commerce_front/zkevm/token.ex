@@ -69,14 +69,14 @@ defmodule ZkEvm.Token do
   Get ERC-20 token balance for an address.
   """
   def balance_of(token_address, wallet_address) do
-    data = encode_call(@erc20_abi, "balanceOf", [address_to_uint(wallet_address)])
+    gas_price = current_gas_price()
+    call_opts = %{to: token_address, gasPrice: int_to_hex(gas_price)}
 
-    {:ok, result_hex} = HttpClient.eth_call(%{to: token_address, data: data}, "latest")
+    data = encode_call(@erc20_abi, "balanceOf", [address_to_uint(wallet_address)])
+    {:ok, result_hex} = HttpClient.eth_call(Map.put(call_opts, :data, data), "latest")
 
     decimals_hex = encode_call(@erc20_abi, "decimals", [])
-
-    {:ok, decimals_result} =
-      HttpClient.eth_call(%{to: token_address, data: decimals_hex}, "latest")
+    {:ok, decimals_result} = HttpClient.eth_call(Map.put(call_opts, :data, decimals_hex), "latest")
 
     decimals = hex_to_integer(decimals_result)
     raw_balance = hex_to_integer(result_hex)
@@ -90,12 +90,19 @@ defmodule ZkEvm.Token do
   Read token decimals from the contract.
   """
   def decimals(token_address) do
+    gas_price = current_gas_price()
     decimals_hex = encode_call(@erc20_abi, "decimals", [])
 
-    {:ok, decimals_result} =
-      HttpClient.eth_call(%{to: token_address, data: decimals_hex}, "latest")
+    case HttpClient.eth_call(
+           %{to: token_address, data: decimals_hex, gasPrice: int_to_hex(gas_price)},
+           "latest"
+         ) do
+      {:ok, decimals_result} ->
+        hex_to_integer(decimals_result)
 
-    hex_to_integer(decimals_result)
+      {:error, reason} ->
+        raise "Failed to fetch decimals for #{token_address}: #{inspect(reason)}"
+    end
   end
 
   @doc """
@@ -215,13 +222,18 @@ defmodule ZkEvm.Token do
   Returns integer amount in base units (raw, not adjusted by decimals).
   """
   def allowance(token_address, owner_address, spender_address) do
+    gas_price = current_gas_price()
+
     data =
       encode_call(@erc20_abi, "allowance", [
         address_to_uint(owner_address),
         address_to_uint(spender_address)
       ])
 
-    case HttpClient.eth_call(%{to: token_address, data: data}, "latest") do
+    case HttpClient.eth_call(
+           %{to: token_address, data: data, gasPrice: int_to_hex(gas_price)},
+           "latest"
+         ) do
       {:ok, result_hex} -> {:ok, hex_to_integer(result_hex)}
       other -> other
     end
@@ -286,6 +298,15 @@ defmodule ZkEvm.Token do
   end
 
   ## Helpers
+
+  defp current_gas_price do
+    case HttpClient.eth_gas_price() do
+      {:ok, gp_hex} -> hex_to_integer(gp_hex)
+      _ -> 30_000_000_000
+    end
+  end
+
+  defp int_to_hex(n), do: "0x" <> Integer.to_string(n, 16)
 
   @doc """
   Derive the sender address from a private key hex string.
