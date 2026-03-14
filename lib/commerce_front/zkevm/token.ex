@@ -288,43 +288,9 @@ defmodule ZkEvm.Token do
   ## Helpers
 
   defp safe_eth_call(to, data) do
-    gas_price =
-      case HttpClient.eth_gas_price() do
-        {:ok, gp_hex} -> gp_hex
-        _ -> "0x6FC23AC00"
-      end
-
-    payload =
-      Jason.encode!(%{
-        "jsonrpc" => "2.0",
-        "id" => 1,
-        "method" => "eth_call",
-        "params" => [
-          %{
-            "to" => to,
-            "data" => data,
-            "maxFeePerGas" => gas_price,
-            "maxPriorityFeePerGas" => gas_price
-          },
-          "latest"
-        ]
-      })
-
-    url = Application.get_env(:ethereumex, :url)
-
-    case :hackney.request(:post, url, [{"content-type", "application/json"}], payload, []) do
-      {:ok, 200, _headers, ref} ->
-        {:ok, body} = :hackney.body(ref)
-
-        case Jason.decode!(body) do
-          %{"result" => result} -> {:ok, result}
-          %{"error" => error} -> {:error, error}
-        end
-
-      {:error, reason} ->
-        {:error, reason}
-    end
+    HttpClient.eth_call(%{to: to, data: data}, "latest")
   end
+
 
   @doc """
   Derive the sender address from a private key hex string.
