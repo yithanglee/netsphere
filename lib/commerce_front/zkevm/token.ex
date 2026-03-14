@@ -303,7 +303,6 @@ defmodule ZkEvm.Token do
           %{
             "to" => to,
             "data" => data,
-            "gasPrice" => gas_price,
             "maxFeePerGas" => gas_price,
             "maxPriorityFeePerGas" => gas_price
           },
