@@ -69,14 +69,13 @@ defmodule ZkEvm.Token do
   Get ERC-20 token balance for an address.
   """
   def balance_of(token_address, wallet_address) do
-    gas_price = current_gas_price()
-    call_opts = %{to: token_address, gasPrice: int_to_hex(gas_price)}
+    call_opts = eth_call_opts(token_address)
 
     data = encode_call(@erc20_abi, "balanceOf", [address_to_uint(wallet_address)])
-    {:ok, result_hex} = HttpClient.eth_call(Map.put(call_opts, :data, data), "latest")
+    {:ok, result_hex} = HttpClient.eth_call(Map.put(call_opts, "data", data), "latest")
 
     decimals_hex = encode_call(@erc20_abi, "decimals", [])
-    {:ok, decimals_result} = HttpClient.eth_call(Map.put(call_opts, :data, decimals_hex), "latest")
+    {:ok, decimals_result} = HttpClient.eth_call(Map.put(call_opts, "data", decimals_hex), "latest")
 
     decimals = hex_to_integer(decimals_result)
     raw_balance = hex_to_integer(result_hex)
@@ -90,13 +89,10 @@ defmodule ZkEvm.Token do
   Read token decimals from the contract.
   """
   def decimals(token_address) do
-    gas_price = current_gas_price()
+    call_opts = eth_call_opts(token_address)
     decimals_hex = encode_call(@erc20_abi, "decimals", [])
 
-    case HttpClient.eth_call(
-           %{to: token_address, data: decimals_hex, gasPrice: int_to_hex(gas_price)},
-           "latest"
-         ) do
+    case HttpClient.eth_call(Map.put(call_opts, "data", decimals_hex), "latest") do
       {:ok, decimals_result} ->
         hex_to_integer(decimals_result)
 
@@ -222,7 +218,7 @@ defmodule ZkEvm.Token do
   Returns integer amount in base units (raw, not adjusted by decimals).
   """
   def allowance(token_address, owner_address, spender_address) do
-    gas_price = current_gas_price()
+    call_opts = eth_call_opts(token_address)
 
     data =
       encode_call(@erc20_abi, "allowance", [
@@ -230,10 +226,7 @@ defmodule ZkEvm.Token do
         address_to_uint(spender_address)
       ])
 
-    case HttpClient.eth_call(
-           %{to: token_address, data: data, gasPrice: int_to_hex(gas_price)},
-           "latest"
-         ) do
+    case HttpClient.eth_call(Map.put(call_opts, "data", data), "latest") do
       {:ok, result_hex} -> {:ok, hex_to_integer(result_hex)}
       other -> other
     end
@@ -298,6 +291,17 @@ defmodule ZkEvm.Token do
   end
 
   ## Helpers
+
+  defp eth_call_opts(token_address) do
+    gas_price = current_gas_price()
+    fee_hex = int_to_hex(gas_price)
+
+    %{
+      "to" => token_address,
+      "maxFeePerGas" => fee_hex,
+      "maxPriorityFeePerGas" => fee_hex
+    }
+  end
 
   defp current_gas_price do
     case HttpClient.eth_gas_price() do
