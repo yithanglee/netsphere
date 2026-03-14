@@ -69,13 +69,11 @@ defmodule ZkEvm.Token do
   Get ERC-20 token balance for an address.
   """
   def balance_of(token_address, wallet_address) do
-    call_opts = eth_call_opts(token_address)
-
     data = encode_call(@erc20_abi, "balanceOf", [address_to_uint(wallet_address)])
-    {:ok, result_hex} = HttpClient.eth_call(Map.put(call_opts, "data", data), "latest")
+    {:ok, result_hex} = safe_eth_call(token_address, data)
 
     decimals_hex = encode_call(@erc20_abi, "decimals", [])
-    {:ok, decimals_result} = HttpClient.eth_call(Map.put(call_opts, "data", decimals_hex), "latest")
+    {:ok, decimals_result} = safe_eth_call(token_address, decimals_hex)
 
     decimals = hex_to_integer(decimals_result)
     raw_balance = hex_to_integer(result_hex)
@@ -89,10 +87,9 @@ defmodule ZkEvm.Token do
   Read token decimals from the contract.
   """
   def decimals(token_address) do
-    call_opts = eth_call_opts(token_address)
     decimals_hex = encode_call(@erc20_abi, "decimals", [])
 
-    case HttpClient.eth_call(Map.put(call_opts, "data", decimals_hex), "latest") do
+    case safe_eth_call(token_address, decimals_hex) do
       {:ok, decimals_result} ->
         hex_to_integer(decimals_result)
 
@@ -218,15 +215,13 @@ defmodule ZkEvm.Token do
   Returns integer amount in base units (raw, not adjusted by decimals).
   """
   def allowance(token_address, owner_address, spender_address) do
-    call_opts = eth_call_opts(token_address)
-
     data =
       encode_call(@erc20_abi, "allowance", [
         address_to_uint(owner_address),
         address_to_uint(spender_address)
       ])
 
-    case HttpClient.eth_call(Map.put(call_opts, "data", data), "latest") do
+    case safe_eth_call(token_address, data) do
       {:ok, result_hex} -> {:ok, hex_to_integer(result_hex)}
       other -> other
     end
@@ -292,25 +287,45 @@ defmodule ZkEvm.Token do
 
   ## Helpers
 
-  defp eth_call_opts(token_address) do
-    gas_price = current_gas_price()
-    fee_hex = int_to_hex(gas_price)
+  defp safe_eth_call(to, data) do
+    gas_price =
+      case HttpClient.eth_gas_price() do
+        {:ok, gp_hex} -> gp_hex
+        _ -> "0x6FC23AC00"
+      end
 
-    %{
-      "to" => token_address,
-      "maxFeePerGas" => fee_hex,
-      "maxPriorityFeePerGas" => fee_hex
-    }
-  end
+    payload =
+      Jason.encode!(%{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "method" => "eth_call",
+        "params" => [
+          %{
+            "to" => to,
+            "data" => data,
+            "gasPrice" => gas_price,
+            "maxFeePerGas" => gas_price,
+            "maxPriorityFeePerGas" => gas_price
+          },
+          "latest"
+        ]
+      })
 
-  defp current_gas_price do
-    case HttpClient.eth_gas_price() do
-      {:ok, gp_hex} -> hex_to_integer(gp_hex)
-      _ -> 30_000_000_000
+    url = Application.get_env(:ethereumex, :url)
+
+    case :hackney.request(:post, url, [{"content-type", "application/json"}], payload, []) do
+      {:ok, 200, _headers, ref} ->
+        {:ok, body} = :hackney.body(ref)
+
+        case Jason.decode!(body) do
+          %{"result" => result} -> {:ok, result}
+          %{"error" => error} -> {:error, error}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
-
-  defp int_to_hex(n), do: "0x" <> Integer.to_string(n, 16)
 
   @doc """
   Derive the sender address from a private key hex string.
