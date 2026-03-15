@@ -5,25 +5,21 @@ import Ecto.Query
 
 # Configuration
 asset_id = 1
-
-IO.puts("Starting buy-off process...")
-
-# 1. Get users by ID (verified via SQL)
-prathum_id = 73
+# Target users to buy off
+# Chalida (61), Prathum (73) is already filled
+target_user_ids = [61]
 finance_id = 38
 
-prathum = Repo.get(CommerceFront.Settings.User, prathum_id)
-finance = Repo.get(CommerceFront.Settings.User, finance_id)
+IO.puts("Starting multi-user buy-off process...")
 
-if is_nil(prathum) or is_nil(finance) do
-  IO.puts("Error: Could not find one of the users by ID (#{prathum_id}, #{finance_id}).")
+finance = Repo.get(Settings.User, finance_id)
+
+if is_nil(finance) do
+  IO.puts("Error: Could not find finance user ID #{finance_id}.")
   System.halt(1)
 end
 
-IO.puts("Prathum Username: #{prathum.username}")
-IO.puts("Finance Username: #{finance.username}")
-
-# 2. Merge duplicate token wallets for finance user if they exist
+# 1. Merge duplicate token wallets for finance user if they exist
 token_wallets =
   Repo.all(
     from(e in Ewallet,
@@ -38,19 +34,16 @@ if length(token_wallets) > 1 do
   total_to_transfer = Enum.reduce(others, 0, fn w, acc -> acc + w.total end)
 
   if total_to_transfer > 0 do
-    # Simple update for this script context
     Repo.update_all(from(e in Ewallet, where: e.id == ^main_wallet.id),
       inc: [total: total_to_transfer]
     )
   end
 
   for other <- others do
-    # Move all transactions to the main wallet first to satisfy foreign key constraints
     Repo.update_all(from(wt in WalletTransaction, where: wt.ewallet_id == ^other.id),
       set: [ewallet_id: main_wallet.id]
     )
 
-    # Now we can delete it
     Repo.delete!(other)
   end
 
@@ -59,60 +52,62 @@ if length(token_wallets) > 1 do
   )
 end
 
-# 3. Find Prathum's pending sell order for the asset
-sell_order =
-  Repo.one(
-    from(o in SecondaryMarketOrder,
-      where:
-        o.user_id == ^prathum.id and o.order_type == "sell" and o.status == "pending" and
-          o.asset_id == ^asset_id,
-      order_by: [asc: o.inserted_at],
-      limit: 1
-    )
-  )
+# 2. Process each target user
+for user_id <- target_user_ids do
+  user = Repo.get(Settings.User, user_id)
 
-if is_nil(sell_order) do
-  IO.puts("Error: No pending sell order found for Prathum.")
-  System.halt(1)
+  if is_nil(user) do
+    IO.puts("\n--- User ID #{user_id} not found, skipping ---")
+  else
+    IO.puts("\n--- Processing User: #{user.username} (ID: #{user_id}) ---")
+
+    sell_orders =
+      Repo.all(
+        from(o in SecondaryMarketOrder,
+          where:
+            o.user_id == ^user.id and o.order_type == "sell" and o.status == "pending" and
+              o.asset_id == ^asset_id,
+          order_by: [asc: o.inserted_at]
+        )
+      )
+
+    if Enum.empty?(sell_orders) do
+      IO.puts("No pending sell orders found for #{user.username}.")
+    else
+      for sell_order <- sell_orders do
+        remaining_qty = sell_order.remaining_quantity
+        price = sell_order.price_per_unit
+
+        IO.puts("Found Sell Order #{sell_order.id}, Qty: #{remaining_qty}, Price: #{price}")
+
+        # Execute buy order from finance
+        exact_cost = Decimal.mult(remaining_qty, price) |> Decimal.round(3, :up)
+        IO.puts("Executing buy order from finance (Cost: #{exact_cost})...")
+
+        case Secondary.create_buy_order(finance.id, asset_id, remaining_qty, price, exact_cost) do
+          {:ok, order} ->
+            IO.puts("Success! Created buy order: #{order.id}")
+
+            # Cancel leftover if pending
+            o = Repo.get(SecondaryMarketOrder, order.id)
+
+            if o.status == "pending" do
+              IO.puts("Cancelling leftover portion of buy order #{o.id}...")
+              Secondary.cancel_order(o.id, finance.id)
+            end
+
+            updated_sell = Repo.get(SecondaryMarketOrder, sell_order.id)
+
+            IO.puts(
+              "Updated Sell Order #{sell_order.id} Status: #{updated_sell.status}, Left: #{updated_sell.remaining_quantity}"
+            )
+
+          {:error, reason} ->
+            IO.puts("Error executing buy order for #{user.username}: #{inspect(reason)}")
+        end
+      end
+    end
+  end
 end
 
-remaining_qty = sell_order.remaining_quantity
-price = sell_order.price_per_unit
-
-IO.puts("Found Sell Order #{sell_order.id}")
-IO.puts("Remaining Qty: #{remaining_qty}")
-IO.puts("Price: #{price}")
-
-# 3. Double check tranche price
-current_tranche = Secondary.get_current_open_tranche(asset_id)
-
-if is_nil(current_tranche) do
-  IO.puts("Error: No open tranche found.")
-  System.halt(1)
-end
-
-if Decimal.compare(price, current_tranche.unit_price) != :eq do
-  IO.puts(
-    "Warning: Order price (#{price}) does not match current tranche price (#{current_tranche.unit_price})."
-  )
-
-  # Procedding anyway if create_buy_order enforces it, it might fail, but let's see.
-end
-
-# 4. Execute buy order from finance
-# Calculating exact cost and rounding UP to 3 decimal places
-# to ensure we cover the amount after create_buy_order's internal round(3, :down)
-exact_cost = Decimal.mult(remaining_qty, price) |> Decimal.round(3, :up)
-IO.puts("Executing buy order for #{remaining_qty} from finance (Cost: #{exact_cost})...")
-
-case Secondary.create_buy_order(finance.id, asset_id, remaining_qty, price, exact_cost) do
-  {:ok, order} ->
-    IO.puts("Success! Buy order created: #{order.id}")
-    # Verification
-    updated_sell_order = Repo.get(SecondaryMarketOrder, sell_order.id)
-    IO.puts("Updated Sell Order Status: #{updated_sell_order.status}")
-    IO.puts("Updated Sell Order Remaining Qty: #{updated_sell_order.remaining_quantity}")
-
-  {:error, reason} ->
-    IO.puts("Error executing buy order: #{inspect(reason)}")
-end
+IO.puts("\nAll specified users processed.")
