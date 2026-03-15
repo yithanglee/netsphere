@@ -9652,7 +9652,8 @@ defmodule CommerceFront.Settings do
 
   # CommerceFront.Settings.manual_create_buy_order(51, 20.16)
   # CommerceFront.Settings.manual_create_buy_order(149, 20.16)
-  def manual_create_buy_order(user_id, amount) do
+  # opts: [only_netsphere_finance: true] - only fill from tranche (netsphere_finance), skip member sell orders
+  def manual_create_buy_order(user_id, amount, opts \\ []) do
     current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
 
     quantity =
@@ -9666,7 +9667,9 @@ defmodule CommerceFront.Settings do
           user_id,
           1,
           quantity,
-          current_tranche.unit_price
+          current_tranche.unit_price,
+          nil,
+          opts
         )
       end)
       |> Repo.transaction()
