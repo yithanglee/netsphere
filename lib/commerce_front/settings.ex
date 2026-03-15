@@ -5963,7 +5963,7 @@ defmodule CommerceFront.Settings do
       Decimal.from_float(wt.amount / (current_tranche.unit_price |> Decimal.to_float()))
       |> Decimal.round(2),
       current_tranche.unit_price,
-      wt.amount
+      wt.amount, [only_netsphere_finance: true]
     )
   end
 
@@ -9650,8 +9650,6 @@ defmodule CommerceFront.Settings do
     result
   end
 
-  # CommerceFront.Settings.manual_create_buy_order(51, 20.16)
-  # CommerceFront.Settings.manual_create_buy_order(149, 20.16)
   # opts: [only_netsphere_finance: true] - only fill from tranche (netsphere_finance), skip member sell orders
   def manual_create_buy_order(user_id, amount, opts \\ []) do
     current_tranche = CommerceFront.Market.Secondary.get_current_open_tranche(1)
