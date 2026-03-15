@@ -967,7 +967,7 @@ defmodule CommerceFront.Market.Secondary do
           case Map.get(results, :seller_token_credit) do
             %{wallet_transaction: wt} ->
               if wt.user_id != CommerceFront.Settings.finance_user().id do
-                CommerceFront.Settings.manual_create_buy_order(wt.user_id, wt.amount)
+                CommerceFront.Settings.manual_create_buy_order(wt.user_id, wt.amount, only_netsphere_finance: true)
               end
 
               Map.put(refs, :seller_token_tx_id, wt.id)
