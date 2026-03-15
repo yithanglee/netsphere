@@ -9677,6 +9677,7 @@ defmodule CommerceFront.Settings do
   end
 
   alias CommerceFront.Settings.SwapBack
+  alias CommerceFront.Settings.SwapBackTxCheck
 
   def list_swap_backs() do
     Repo.all(SwapBack)
@@ -9708,6 +9709,43 @@ defmodule CommerceFront.Settings do
     Repo.delete(model)
   end
 
+  alias CommerceFront.Settings.SwapBackTxCheck
+  # --- SwapBackTxCheck (pending chain tx verification) ---
+
+  def get_swap_back_tx_check!(id), do: Repo.get!(SwapBackTxCheck, id)
+
+  def get_swap_back_tx_check_by_swap_back_id(swap_back_id) do
+    Repo.get_by(SwapBackTxCheck, swap_back_id: swap_back_id)
+  end
+
+  def list_pending_swap_back_tx_checks do
+    Repo.all(
+      from(c in SwapBackTxCheck,
+        where: c.status == "pending",
+        order_by: [asc: c.inserted_at],
+        preload: :swap_back
+      )
+    )
+  end
+
+  def list_swap_back_tx_checks() do
+    Repo.all(SwapBackTxCheck)
+  end
+
+  def create_swap_back_tx_check(params \\ %{}) do
+    SwapBackTxCheck.changeset(%SwapBackTxCheck{}, params) |> Repo.insert() |> IO.inspect()
+  end
+
+  def update_swap_back_tx_check(model, params) do
+    SwapBackTxCheck.changeset(model, params) |> Repo.update() |> IO.inspect()
+  end
+
+  def delete_swap_back_tx_check(%SwapBackTxCheck{} = model) do
+    Repo.delete(model)
+  end
+
+  # Part 1: Submit on-chain transfer and mark swap_back as pending_trx_check.
+  # Part 2 is check_and_confirm_swap_back_tx/1 (call when polling for tx confirmation).
   def approve_swap_back(id) do
     swap_back = get_swap_back!(id)
     token_contract = "0xa17c6fc7d9ecef353ceb3132ddd619037d134125"
@@ -9772,42 +9810,139 @@ defmodule CommerceFront.Settings do
         other -> {:error, other}
       end
     end)
-    # 3) Update swap_back status and persist tx_hash
-    |> Multi.run(:approve_swap_back, fn _repo, %{onchain_transfer: tx_hash} ->
-      update_swap_back(swap_back, %{status: "approved", tx_hash: tx_hash})
-    end)
-    # 4) Credit user's token ewallet
-    |> Multi.run(:buyer_asset_credit, fn _repo, _ ->
-      CommerceFront.Settings.create_wallet_transaction(%{
-        user_id: swap_back.user_id,
-        amount: Decimal.to_float(swap_back.amount),
-        remarks: "swap_back_approved_#{swap_back.id}",
-        wallet_type: "asset"
-      })
-    end)
-    |> Multi.run(:create_stake_holding, fn repo, %{buyer_asset_credit: buyer_asset_tx} ->
-      # Create stake holding linked to the wallet transaction that credited assets
-      # Mirroring primary flow: stake at 1% per day based on credited quantity
-      qty =
-        (buyer_asset_tx.wallet_transaction && buyer_asset_tx.wallet_transaction.amount) ||
-          Decimal.to_float(swap_back.amount)
+    # 3) Update swap_back to pending_trx_check and create tx_check row for Part 2
+    |> Multi.run(:pending_swap_back, fn _repo, %{onchain_transfer: tx_hash} ->
+      case update_swap_back(swap_back, %{status: "pending_trx_check", tx_hash: tx_hash}) do
+        {:ok, updated} ->
+          case create_swap_back_tx_check(%{
+                 swap_back_id: updated.id,
+                 tx_hash: tx_hash,
+                 status: "pending",
+                 check_count: 0,
+                 last_checked_at: NaiveDateTime.utc_now()
+               }) do
+            {:ok, _check} -> {:ok, updated}
+            {:error, cs} -> {:error, cs}
+          end
 
-      params = %{
-        holding_id: buyer_asset_tx.wallet_transaction.id,
-        original_qty: Decimal.new("#{qty}"),
-        initial_bought: Date.utc_today(),
-        released: Decimal.new("0")
-      }
-
-      case CommerceFront.Settings.create_stake_holding(params) do
-        {:ok, stake} -> {:ok, stake}
-        {:error, cs} -> {:error, cs}
+        err ->
+          err
       end
     end)
     |> Repo.transaction()
     |> case do
-      {:ok, multi_res} -> {:ok, multi_res |> Map.get(:approve_swap_back)}
-      _ -> {:error, []}
+      {:ok, %{pending_swap_back: updated}} ->
+        Elixir.Task.start_link(__MODULE__, :cron_check_outstanding_swap_back_tx_checks, [])
+        {:ok, updated}
+      other -> other
+    end
+  end
+
+  @doc """
+  CommerceFront.Settings.cron_check_outstanding_swap_back_tx_checks()
+  """
+
+  def cron_check_outstanding_swap_back_tx_checks() do
+    list_pending_swap_back_tx_checks()
+    |> Enum.each(&check_and_confirm_swap_back_tx(&1.id))
+  end
+
+  # Part 2: Check Polygon for tx confirmation; on success credit wallet and create stake holding.
+  # Call this from a worker/cron for records returned by list_pending_swap_back_tx_checks/0.
+  def check_and_confirm_swap_back_tx(swap_back_tx_check_id) do
+    check = get_swap_back_tx_check!(swap_back_tx_check_id)
+
+    if check.status != "pending" do
+      {:ok, {:already_finalized, check.status}}
+    else
+      swap_back = get_swap_back!(check.swap_back_id)
+      do_check_and_confirm_swap_back_tx(check, swap_back)
+    end
+  end
+
+  defp do_check_and_confirm_swap_back_tx(check, swap_back) do
+    case ZkEvm.Token.transaction_receipt_status(check.tx_hash) do
+      {:ok, :confirmed} ->
+        now = NaiveDateTime.utc_now()
+
+        Multi.new()
+        |> Multi.run(:update_check, fn _repo, _ ->
+          update_swap_back_tx_check(check, %{
+            status: "confirmed",
+            confirmed_at: now,
+            last_checked_at: now,
+            check_count: check.check_count + 1
+          })
+        end)
+        |> Multi.run(:update_swap_back, fn _repo, _ ->
+          update_swap_back(swap_back, %{status: "approved", approved_at: now})
+        end)
+        |> Multi.run(:buyer_asset_credit, fn _repo, _ ->
+          CommerceFront.Settings.create_wallet_transaction(%{
+            user_id: swap_back.user_id,
+            amount: Decimal.to_float(swap_back.amount),
+            remarks: "swap_back_approved_#{swap_back.id}",
+            wallet_type: "asset"
+          })
+        end)
+        |> Multi.run(:create_stake_holding, fn _repo, %{buyer_asset_credit: buyer_asset_tx} ->
+          qty =
+            (buyer_asset_tx.wallet_transaction && buyer_asset_tx.wallet_transaction.amount) ||
+              Decimal.to_float(swap_back.amount)
+
+          params = %{
+            holding_id: buyer_asset_tx.wallet_transaction.id,
+            original_qty: Decimal.new("#{qty}"),
+            initial_bought: Date.utc_today(),
+            released: Decimal.new("0")
+          }
+
+          case CommerceFront.Settings.create_stake_holding(params) do
+            {:ok, _stake} -> {:ok, :ok}
+            {:error, cs} -> {:error, cs}
+          end
+        end)
+        |> Repo.transaction()
+        |> case do
+          {:ok, _} -> {:ok, :confirmed}
+          err -> err
+        end
+
+      {:ok, :failed} ->
+        now = NaiveDateTime.utc_now()
+
+        {:ok, _} =
+          update_swap_back_tx_check(check, %{
+            status: "failed",
+            last_checked_at: now,
+            check_count: check.check_count + 1,
+            last_error: "tx_receipt_status_failed"
+          })
+
+        {:ok, :failed}
+
+      {:ok, :pending} ->
+        now = NaiveDateTime.utc_now()
+
+        {:ok, _} =
+          update_swap_back_tx_check(check, %{
+            last_checked_at: now,
+            check_count: check.check_count + 1
+          })
+
+        {:ok, :pending}
+
+      {:error, reason} ->
+        now = NaiveDateTime.utc_now()
+
+        {:ok, _} =
+          update_swap_back_tx_check(check, %{
+            last_checked_at: now,
+            check_count: check.check_count + 1,
+            last_error: inspect(reason)
+          })
+
+        {:error, reason}
     end
   end
 

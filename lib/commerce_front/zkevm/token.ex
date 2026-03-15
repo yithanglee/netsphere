@@ -291,6 +291,36 @@ defmodule ZkEvm.Token do
     HttpClient.eth_call(%{to: to, data: data}, "latest")
   end
 
+  @doc """
+  Check whether a transaction has been mined and its status on the chain.
+
+  Uses the same RPC as other ZkEvm operations (Polygon zkEVM). Returns:
+
+  - `{:ok, :confirmed}` – receipt exists and status is success (0x1)
+  - `{:ok, :failed}` – receipt exists and status is failure (0x0)
+  - `{:ok, :pending}` – no receipt yet (tx not mined or unknown)
+  - `{:error, reason}` – RPC or decode error
+
+  `tx_hash` can be with or without the "0x" prefix.
+  """
+  def transaction_receipt_status(tx_hash) do
+    hash = if String.starts_with?(tx_hash, "0x"), do: tx_hash, else: "0x" <> tx_hash
+
+    case HttpClient.eth_get_transaction_receipt(hash) do
+      {:ok, nil} ->
+        {:ok, :pending}
+
+      {:ok, receipt} when is_map(receipt) ->
+        case Map.get(receipt, "status") do
+          "0x1" -> {:ok, :confirmed}
+          "0x0" -> {:ok, :failed}
+          _ -> {:ok, :pending}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
 
   @doc """
   Derive the sender address from a private key hex string.

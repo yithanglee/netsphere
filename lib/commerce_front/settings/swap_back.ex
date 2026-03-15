@@ -16,6 +16,7 @@ defmodule CommerceFront.Settings.SwapBack do
     field(:tx_hash, :string)
     # field :user_id, :integer
     belongs_to(:user, CommerceFront.Settings.User)
+    has_one(:swap_back_tx_check, CommerceFront.Settings.SwapBackTxCheck)
     field(:user_wallet_address, :string)
 
     timestamps()
