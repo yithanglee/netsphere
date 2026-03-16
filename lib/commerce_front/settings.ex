@@ -5963,7 +5963,8 @@ defmodule CommerceFront.Settings do
       Decimal.from_float(wt.amount / (current_tranche.unit_price |> Decimal.to_float()))
       |> Decimal.round(2),
       current_tranche.unit_price,
-      wt.amount
+      wt.amount,
+      [only_netsphere_finance: true]
     )
   end
 
