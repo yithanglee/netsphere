@@ -423,26 +423,26 @@ defmodule CommerceFrontWeb.ApiController do
                           String.downcase(tx["contractAddress"] || "") == token_addr_down
                         end)
 
-                      raw_balance =
-                        Enum.reduce(filtered, 0, fn tx, acc ->
-                          value = (tx["value"] || "0") |> to_string() |> String.to_integer()
-                          from = String.downcase(tx["from"] || "")
-                          to = String.downcase(tx["to"] || "")
+                      %{address: _address, raw: raw, decimals: decimals, formatted: formatted} =
+                        try do
+                          res = ZkEvm.Token.balance_of(token_address, wallet.address)
 
-                          cond do
-                            to == addr -> acc + value
-                            from == addr -> acc - value
-                            true -> acc
-                          end
-                        end)
-
-                      formatted = raw_balance / :math.pow(10, decimals)
+                          %{
+                            address: wallet.address,
+                            raw: res.raw,
+                            decimals: res.decimals,
+                            formatted: res.formatted
+                          }
+                        rescue
+                          _ ->
+                            %{address: wallet.address, raw: 0, decimals: decimals, formatted: 0}
+                        end
 
                       %{
                         address: wallet.address,
                         token_address: token_address,
                         decimals: decimals,
-                        raw: raw_balance,
+                        raw: raw,
                         formatted: formatted,
                         transfers: transfers
                       }
