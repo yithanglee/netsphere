@@ -5964,7 +5964,6 @@ defmodule CommerceFront.Settings do
       |> Decimal.round(2),
       current_tranche.unit_price,
       wt.amount,
-      only_netsphere_finance: true,
       trigger_source: "reward"
     )
   end

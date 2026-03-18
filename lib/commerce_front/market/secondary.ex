@@ -504,9 +504,9 @@ defmodule CommerceFront.Market.Secondary do
     only_netsphere_finance =
       opts[:only_netsphere_finance] == true || buy_order.trigger_source == "income"
 
-    # Step 1: Find member sell orders at exactly the tranche price (skip when only_netsphere_finance or trigger_source in ["reward", "income"])
+    # Step 1: Find member sell orders at exactly the tranche price (skip when only_netsphere_finance or trigger_source == "income")
     member_sell_orders =
-      if only_netsphere_finance || buy_order.trigger_source in ["reward", "income"] do
+      if only_netsphere_finance || buy_order.trigger_source == "income" do
         []
       else
         from(o in SecondaryMarketOrder,
