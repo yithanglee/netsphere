@@ -10,6 +10,7 @@ defmodule CommerceFront.Settings.SecondaryMarketOrder do
     field(:status, :string)
     field(:filled_quantity, :decimal)
     field(:remaining_quantity, :decimal)
+    field(:trigger_source, :string)
 
     belongs_to(:user, CommerceFront.Settings.User)
     belongs_to(:asset, CommerceFront.Settings.Asset)
@@ -35,7 +36,8 @@ defmodule CommerceFront.Settings.SecondaryMarketOrder do
       :total_amount,
       :status,
       :filled_quantity,
-      :remaining_quantity
+      :remaining_quantity,
+      :trigger_source
     ])
     |> validate_required([
       :user_id,

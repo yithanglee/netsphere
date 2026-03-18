@@ -343,7 +343,14 @@ defmodule CommerceFront.Market.Secondary do
   Options:
     - :only_netsphere_finance - when true, only fill from tranche (synthetic sell / netsphere_finance), skip matching with member sell orders
   """
-  def create_buy_order(user_id, asset_id, quantity, price_per_unit, member_token_amount \\ nil, opts \\ []) do
+  def create_buy_order(
+        user_id,
+        asset_id,
+        quantity,
+        price_per_unit,
+        member_token_amount \\ nil,
+        opts \\ []
+      ) do
     # First, get the current open tranche to enforce pricing
     IO.inspect([user_id, price_per_unit, member_token_amount], label: "create_buy_order")
 
@@ -408,7 +415,8 @@ defmodule CommerceFront.Market.Secondary do
                       total_amount: total_amount,
                       status: "pending",
                       filled_quantity: Decimal.new("0"),
-                      remaining_quantity: quantity
+                      remaining_quantity: quantity,
+                      trigger_source: opts[:trigger_source]
                     }
 
                     with {:ok, order} <-
@@ -460,7 +468,12 @@ defmodule CommerceFront.Market.Secondary do
   For buy orders: first try to match with member sells at tranche price, then inject if needed.
   opts: [only_netsphere_finance: true] - skip member sells, only inject from tranche (netsphere_finance).
   """
-  def match_and_execute_tranche_based_trades(buy_order, current_tranche, remainder_breakdowns, opts \\ []) do
+  def match_and_execute_tranche_based_trades(
+        buy_order,
+        current_tranche,
+        remainder_breakdowns,
+        opts \\ []
+      ) do
     # Only handle buy orders with this new logic
     case buy_order.order_type do
       "buy" ->
@@ -478,15 +491,22 @@ defmodule CommerceFront.Market.Secondary do
   # 3. Update tranche sold quantity
   # 4. Move to next tranche if current is exhausted
 
-  defp match_buy_order_with_tranche_rules(buy_order, current_tranche, remainder_breakdowns, opts \\ []) do
+  defp match_buy_order_with_tranche_rules(
+         buy_order,
+         current_tranche,
+         remainder_breakdowns,
+         opts \\ []
+       ) do
     IO.inspect(buy_order, label: "buy_order")
     tranche_price = current_tranche.unit_price
     remaining_to_fill = buy_order.remaining_quantity
-    only_netsphere_finance = opts[:only_netsphere_finance] == true
 
-    # Step 1: Find member sell orders at exactly the tranche price (skip when only_netsphere_finance)
+    only_netsphere_finance =
+      opts[:only_netsphere_finance] == true || buy_order.trigger_source == "income"
+
+    # Step 1: Find member sell orders at exactly the tranche price (skip when only_netsphere_finance or trigger_source in ["reward", "income"])
     member_sell_orders =
-      if only_netsphere_finance do
+      if only_netsphere_finance || buy_order.trigger_source in ["reward", "income"] do
         []
       else
         from(o in SecondaryMarketOrder,
@@ -967,7 +987,10 @@ defmodule CommerceFront.Market.Secondary do
           case Map.get(results, :seller_token_credit) do
             %{wallet_transaction: wt} ->
               if wt.user_id != CommerceFront.Settings.finance_user().id do
-                CommerceFront.Settings.manual_create_buy_order(wt.user_id, wt.amount, only_netsphere_finance: true)
+                CommerceFront.Settings.manual_create_buy_order(wt.user_id, wt.amount,
+                  only_netsphere_finance: true,
+                  trigger_source: "income"
+                )
               end
 
               Map.put(refs, :seller_token_tx_id, wt.id)

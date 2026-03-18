@@ -104,7 +104,9 @@ defmodule CommerceFrontWeb.ApiController do
           %{
             status: "ok",
             res: %{
-              swap_backs: CommerceFront.Settings.list_swap_backs_by_user_id(id) |> BluePotion.sanitize_struct()
+              swap_backs:
+                CommerceFront.Settings.list_swap_backs_by_user_id(id)
+                |> BluePotion.sanitize_struct()
             }
           }
 
@@ -187,7 +189,8 @@ defmodule CommerceFrontWeb.ApiController do
                 Decimal.new(params["quantity"]) |> Decimal.round(2),
                 Decimal.new(params["price_per_unit"])
               )
-              |> Decimal.round(2)
+              |> Decimal.round(2),
+              trigger_source: "manual"
             )
 
           %{status: "ok", res: BluePotion.sanitize_struct(res)}
@@ -393,9 +396,11 @@ defmodule CommerceFrontWeb.ApiController do
                     contractaddress: token_address,
                     startblock: 0,
                     endblock: 99_999_999,
-                    sort: "asc",
-                    offset: 1000
+                    sort: "desc",
+                    offset: 20
                   ]
+
+                  IO.inspect([wallet.address, api_key, opts], label: "api_key")
 
                   case ZkEvm.Wallet.token_transfers(wallet.address, api_key, opts) do
                     {:ok, transfers} ->

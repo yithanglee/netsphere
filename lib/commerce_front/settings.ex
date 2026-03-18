@@ -5964,7 +5964,8 @@ defmodule CommerceFront.Settings do
       |> Decimal.round(2),
       current_tranche.unit_price,
       wt.amount,
-      [only_netsphere_finance: true]
+      only_netsphere_finance: true,
+      trigger_source: "reward"
     )
   end
 
@@ -9836,7 +9837,9 @@ defmodule CommerceFront.Settings do
       {:ok, %{pending_swap_back: updated}} ->
         Elixir.Task.start_link(__MODULE__, :cron_check_outstanding_swap_back_tx_checks, [])
         {:ok, updated}
-      other -> other
+
+      other ->
+        other
     end
   end
 
@@ -9844,9 +9847,22 @@ defmodule CommerceFront.Settings do
   CommerceFront.Settings.cron_check_outstanding_swap_back_tx_checks()
   """
 
-  def cron_check_outstanding_swap_back_tx_checks() do
-    list_pending_swap_back_tx_checks()
-    |> Enum.each(&check_and_confirm_swap_back_tx(&1.id))
+  def cron_check_outstanding_swap_back_tx_checks(retries \\ 0) do
+    if retries < 20 do
+      list_pending_swap_back_tx_checks()
+      |> case do
+        [] ->
+          :ok
+
+        list ->
+          list |> Enum.each(&check_and_confirm_swap_back_tx(&1.id))
+          # 2 minutes
+          Process.sleep(120_000)
+          cron_check_outstanding_swap_back_tx_checks(retries + 1)
+      end
+    else
+      :ok
+    end
   end
 
   # Part 2: Check Polygon for tx confirmation; on success credit wallet and create stake holding.
